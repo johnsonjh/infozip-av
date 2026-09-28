@@ -1643,6 +1643,37 @@ OPTIONS
               files  being  included in the archive as zip recurses the direc-
               tory trees and accesses files directly and by links.
 
+       --pkav-name name
+       --pkav-s1 serial
+       --pkav-s2 serial
+              Create PKWARE 2.x Authenticity Verification (PKAV) information.
+              All three options must be specified together.  Name must contain
+              from 1 through 51 bytes, and each serial must contain exactly
+              seven base-36 characters.  Serial letters are case-insensitive.
+              Zip validates both serials against name before writing the
+              archive.
+
+              PKAV authenticates every regular file in the output archive.
+              PKAV archives use the 'FAT/DOS' creator type because PKAV stores
+              the per-file verification values using the upper bytes of the
+              external file attributes.  Symbolic links stored as links (-y)
+              and other Unix special files cannot be represented by PKAV and
+              are rejected.
+
+              When adding PKAV to an existing ordinary archive, any unchanged
+              regular entries must already contain PKAV verification data.
+              Zip refuses to add new non-PKAV members rather than create a
+              partially authenticated archive.  If a PKAV archive is modified
+              without these options then the PKAV information will be removed.
+
+       --pkav-avextra file
+              Include optional PKWARE AVEXTRA text in the authenticity record.
+              This option requires --pkav-name, --pkav-s1, and --pkav-s2.
+              The file is read byte-for-byte and may contain TAB, CR, LF, and
+              printable ASCII characters; other bytes are rejected.  PKAV-aware
+              extraction programs display this text only after a successful
+              PKAV authenticity verification.
+
        -z
        --archive-comment
               Prompt for a multi-line comment for the entire zip archive.  The

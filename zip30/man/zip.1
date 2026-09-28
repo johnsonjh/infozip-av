@@ -2324,6 +2324,46 @@ the archive as \fIzip\fP recurses the directory trees and accesses
 files directly and by links.
 .TP
 .PD 0
+.B \-\-pkav\-name\ \fRname
+.TP
+.PD 0
+.B \-\-pkav\-s1\ \fRserial
+.TP
+.PD
+.B \-\-pkav\-s2\ \fRserial
+Create PKWARE 2.x Authenticity Verification (PKAV) information.
+All three options must be specified together.  Name must contain
+from 1 through 51 bytes, and each serial must contain exactly
+seven base-36 characters.  Serial letters are case-insensitive.
+.I zip
+validates both serials against the name before writing the archive.
+.IP
+PKAV authenticates every regular file in the output archive.
+PKAV archives use the 'FAT/DOS' creator type because PKAV stores
+the per-file verification values using the upper bytes of the
+external file attributes.  Symbolic links stored as links (\fB-y\fP)
+and other Unix special files cannot be represented by PKAV and
+are rejected.
+.IP
+When adding PKAV to an existing ordinary archive, any unchanged
+regular entries must already contain PKAV verification data.
+.I zip
+refuses to add new non-PKAV members rather than create a
+partially authenticated archive.  If a PKAV archive is modified
+without these options then the PKAV information will be removed.
+.TP
+.PD
+.B \-\-pkav\-avextra\ \fRfile
+Include optional PKWARE AVEXTRA text in the authenticity record.
+This option requires \fB\-\-pkav\-name\fP, \fB\-\-pkav\-s1\fP, and
+\fB\-\-pkav\-s2\fP.  Unlike \fB\-z\fP/\fB\-\-archive\-comment\fP, it
+always requires a file name and never reads the AVEXTRA text implicitly from
+standard input.  The file is read byte-for-byte and may contain TAB, CR, LF,
+and printable ASCII characters; other bytes are rejected.  PKAV-aware
+extraction programs display this text after successful authenticity
+verification.
+.TP
+.PD 0
 .B \-z
 .TP
 .PD

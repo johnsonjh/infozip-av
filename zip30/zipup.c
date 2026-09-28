@@ -173,6 +173,8 @@ local zoff_t bzfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 
 
 /* Local data */
+local ush pkav_sum16 = 0;       /* PKAV sum of uncompressed stored bytes */
+local uch pkav_xor8 = 0;        /* PKAV xor of uncompressed stored bytes */
 local ulg crc;                  /* crc on uncompressed file data */
 local ftype ifile;              /* file to compress */
 #if defined(MMAP) || defined(BIG_MEM)
@@ -573,6 +575,14 @@ struct zlist far *z;    /* zip entry to compress */
     }
 #endif /* !(VMS && VMS_PK_EXTRA) */
     l = issymlnk(a);
+    if (pkav_enabled && l) {
+      sprintf(errbuf, "PKAV cannot store symbolic link '%s'", z->oname);
+      ZIPERR(ZE_PARMS, errbuf);
+    }
+    if (pkav_enabled && !isdir && q < 0 && strcmp(z->name, "-") != 0) {
+      sprintf(errbuf, "PKAV cannot store special file '%s'", z->oname);
+      ZIPERR(ZE_PARMS, errbuf);
+    }
     if (l) {
       ifile = fbad;
       m = STORE;
@@ -745,6 +755,13 @@ struct zlist far *z;    /* zip entry to compress */
   z->vem = (ush)(dosify ? 20 : OS_CODE + Z_MAJORVER * 10 + Z_MINORVER);
 #endif /* ?(OS2 || WIN32) */
 
+  if (pkav_enabled) {
+    /* PKWARE AV archives ALWAYS use 'FAT/DOS' creator ID. */
+    z->vem &= 0x00ff;
+    if ((z->vem & 0xff) == 0)
+      z->vem = (ush)(Z_MAJORVER * 10 + Z_MINORVER);
+    z->dosflag = 1;
+  }
   z->ver = (ush)(m == STORE ? 10 : 20); /* Need PKUNZIP 2.0 except for store */
 #ifdef BZIP2_SUPPORT
   if (method == BZIP2)
@@ -781,6 +798,8 @@ struct zlist far *z;    /* zip entry to compress */
 #else
   z->atx = dosify ? a & 0xff : a | (z->atx & 0x0000ff00);
 #endif /* DOS || OS2 || WIN32 */
+  if (pkav_enabled)
+    z->atx &= 0xffUL;
 
   if ((r = putlocal(z, PUTLOCAL_WRITE)) != ZE_OK) {
     if (ifile != fbad)
@@ -824,6 +843,8 @@ struct zlist far *z;    /* zip entry to compress */
   /* Write stored or deflated file to zip file */
   isize = 0L;
   crc = CRCVAL_INITIAL;
+  pkav_sum16 = 0;
+  pkav_xor8 = 0;
 
   if (isdir) {
     /* nothing to write */
@@ -972,6 +993,16 @@ struct zlist far *z;    /* zip entry to compress */
       z->siz += RAND_HEAD_LEN;
 #endif /* CRYPT */
     z->len = isize;
+    if (pkav_enabled) {
+      z->att |= 0x0004;
+      z->atx = (((ulg)pkav_xor8 << 24) |
+                ((ulg)pkav_sum16 << 8) |
+                (z->atx & 0xffUL)) & 0xffffffffUL;
+      z->vem &= 0x00ff;
+      if ((z->vem & 0xff) == 0)
+        z->vem = (ush)(Z_MAJORVER * 10 + Z_MINORVER);
+      z->dosflag = 1;
+    }
     /* if can seek back to local header */
 #ifdef BROKEN_FSEEK
     if (use_descriptors || !fseekable(y) || zfseeko(y, z->off, SEEK_SET))
@@ -1271,6 +1302,14 @@ local unsigned file_read(buf, size)
          buf -= len;
          if (buf[len-1] == CTRLZ) len--; /* suppress final ^Z */
       }
+    }
+  }
+  if (pkav_enabled) {
+    unsigned pi;
+    for (pi = 0; pi < len; pi++) {
+      uch pc = (uch)buf[pi];
+      pkav_sum16 = (ush)(pkav_sum16 + pc);
+      pkav_xor8 ^= pc;
     }
   }
   crc = crc32(crc, (uch *) buf, len);

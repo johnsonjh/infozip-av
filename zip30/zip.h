@@ -220,6 +220,7 @@ struct plist {
 #define EF_IZUNIX    0x5855   /* UNIX Extra Field ID ("UX") */
 #define EF_IZUNIX2   0x7855   /* Info-ZIP's new Unix ("Ux") */
 #define EF_TIME      0x5455   /* universal timestamp ("UT") */
+#define EF_AV        0x0007   /* PKWARE Authenticity Verification */
 #define EF_OS2EA     0x0009   /* OS/2 Extra Field ID (extended attributes) */
 #define EF_ACL       0x4C41   /* ACL Extra Field ID (access control list, "AL") */
 #define EF_NTSD      0x4453   /* NT Security Descriptor Extra Field ID, ("SD") */
@@ -453,6 +454,7 @@ extern int output_seekable;     /* 1 = output seekable 3/13/05 EG */
 #endif
 extern int allow_fifo;          /* Allow reading Unix FIFOs, waiting if pipe open */
 extern int show_files;          /* show files to operate on and exit (=2 log only) */
+extern int pkav_enabled;        /* create PKWARE Authenticity Verification data */
 
 extern char *tempzip;           /* temp file name */
 extern FILE *y;                 /* output file now global for splits */
