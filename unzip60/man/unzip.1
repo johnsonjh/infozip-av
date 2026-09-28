@@ -98,6 +98,19 @@ suppressed.  In particular, ``\fC\-d\ ~\fR'' (tilde) is expanded by Unix
 C shells into the name of the user's home directory, but ``\fC\-d~\fR''
 is treated as a literal subdirectory ``\fB~\fP'' of the current directory.
 .\" =========================================================================
+.PP
+When an archive contains PKWARE Authenticity Verification (PKAV) data,
+\fIunzip\fP automatically verifies the authenticated members when testing or
+extracting.  Successful verification reports the registered company
+name and displays trailing PKAV AVEXTRA text by default.  Invalid or
+malformed PKAV data produces a warning.  If recoverable AVEXTRA data
+is present but PKAV verification failed, \fIunzip\fP will suggest using the
+\fB--show-avextra-on-fail\fP option, which displays the text with an explicit
+unverified warning.  When only part of the authenticated member set is
+processed, PKAV is reported as present but not fully verified.
+NOTE: Listing operations does not decompress all the archive members
+to perform PKAV verification; use \fB-t\fP if PKAV verification is required.
+.\" =========================================================================
 .SH OPTIONS
 Note that, in order to support obsolescent hardware, \fIunzip\fP's usage
 screen is limited to 22 or 23 lines and should therefore be considered
@@ -198,6 +211,13 @@ display only the archive comment.
 .PD
 .\" =========================================================================
 .SH MODIFIERS
+.TP
+.B --show-avextra-on-fail
+When PKAV verification fails but structurally recoverable AVEXTRA data is
+present, display that data after an explicit warning that it is unverified.
+Without this option the AVEXTRA bytes remain hidden and only a suggestion is
+printed.  This option has no additional effect after successful verification,
+where AVEXTRA is displayed by default.
 .TP
 .B \-a
 convert text files.  Ordinarily all files are extracted exactly as they
@@ -824,7 +844,9 @@ normal; no errors or warnings detected.
 one or more warning errors were encountered, but processing completed
 successfully anyway.  This includes zipfiles where one or more files
 was skipped due to unsupported compression method or encryption with an
-unknown password.
+unknown password, and archives whose PKWARE Authenticity Verification
+information is invalid, malformed, or could not be fully checked because
+only part of the authenticated member set was processed.
 .IP 2
 a generic error in the zipfile format was detected.  Processing may have
 completed successfully anyway; some broken zipfiles created by other

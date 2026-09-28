@@ -96,6 +96,9 @@ int list_files(__G)    /* return PK-type error code */
     __GDEF
 {
     int do_this_file=FALSE, cfactor, error, error_in_archive=PK_COOL;
+#ifdef PKAV_SUPPORT
+    int pkav_present=FALSE;
+#endif
 #ifndef WINDLL
     char sgn, cfactorstr[1+10+1+1];	/* <sgn><int>%NUL */
     int longhdr=(uO.vflag>1);
@@ -218,6 +221,25 @@ int list_files(__G)    /* return PK-type error code */
             if (error > PK_WARN)      /* fatal */
                 return error;
         }
+#ifdef PKAV_SUPPORT
+        if (G.crec.internal_file_attributes & 0x0004)
+            pkav_present = TRUE;
+        if (!pkav_present && G.extra_field != (uch *)NULL) {
+            uch *pkef = G.extra_field;
+            unsigned pkleft = G.crec.extra_field_length;
+            while (pkleft >= EB_HEADSIZE) {
+                unsigned pklen = (unsigned)makeword(pkef + EB_LEN);
+                if (pklen > pkleft - EB_HEADSIZE)
+                    break;
+                if (makeword(pkef + EB_ID) == EF_AV) {
+                    pkav_present = TRUE;
+                    break;
+                }
+                pkef += EB_HEADSIZE + pklen;
+                pkleft -= EB_HEADSIZE + pklen;
+            }
+        }
+#endif
         if (!G.process_all_files) {   /* check if specified on command line */
             unsigned i;
 
@@ -504,6 +526,14 @@ int list_files(__G)    /* return PK-type error code */
 #endif /* OS2_EAS */
 #endif /* ?WINDLL */
     }
+
+#ifdef PKAV_SUPPORT
+#ifndef WINDLL
+    if (pkav_present && uO.qflag < 2)
+        Info(slide, 0, ((char *)slide,
+          "PKAV Authenticity Verification information present (not verified by listing).\n"));
+#endif
+#endif
 
     /* Skip the following checks in case of a premature listing break. */
     if (error_in_archive <= PK_WARN) {

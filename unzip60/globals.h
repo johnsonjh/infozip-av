@@ -229,6 +229,24 @@ typedef struct Globals {
     ZCONST ulg Far *crc_32_tab;
 #endif
     ulg       crc32val;             /* CRC shift reg. (was static in funzip) */
+#ifdef PKAV_SUPPORT
+    struct {
+        uch *payload;                /* encoded central EF_AV data */
+        unsigned payload_len;
+        z_uint4 accumulator;         /* reconstructed from extracted data */
+        z_uint4 stored_accumulator;  /* central metadata; diagnostic only */
+        ulg members;                 /* central entries selected by & 0x0006 */
+        ulg processed;               /* selected entries completely decoded */
+        unsigned av_count;           /* central EF_AV records */
+        int marker_seen;             /* at least one internal bit 0x0004 */
+        int malformed;               /* malformed EF_AV framing */
+        int show_avextra_on_fail;    /* explicit display of unverified tail */
+        int current_member;          /* current output belongs to PKAV set */
+        int current_extcheck;        /* collect XOR/sum for current member */
+        z_uint4 current_sum;
+        uch current_xor;
+    } pkav;
+#endif
 
 #ifdef FUNZIP
     FILE      *in;                  /* file descriptor of compressed stream */

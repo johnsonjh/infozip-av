@@ -1721,6 +1721,16 @@
 /* extra-field ID values, all little-endian: */
 #define EF_PKSZ64    0x0001    /* PKWARE's 64-bit filesize extensions */
 #define EF_AV        0x0007    /* PKWARE's authenticity verification */
+
+/*---------------------------------------------------------------------------
+    PKWARE Authenticity Verification support for full UnZip builds.
+    Define NO_PKAV to leave it out.  Unzipsfx and funzip is not
+    currently supported as they would need more extensive changes.
+  ---------------------------------------------------------------------------*/
+#if !defined(NO_PKAV) && !defined(SFX) && !defined(FUNZIP)
+#  define PKAV_SUPPORT
+#endif
+
 #define EF_EFS       0x0008    /* PKWARE's extended language encoding */
 #define EF_OS2       0x0009    /* OS/2 extended attributes */
 #define EF_PKW32     0x000a    /* PKWARE's Win95/98/WinNT filetimes */
@@ -2017,6 +2027,10 @@ typedef struct min_info {
     zusz_t compr_size;       /* compressed size (needed if extended header) */
     zusz_t uncompr_size;     /* uncompressed size (needed if extended header) */
     ulg crc;                 /* crc (needed if extended header) */
+#ifdef PKAV_SUPPORT
+    ulg pkav_dos_datetime;   /* central-header DOS date/time */
+    uch pkav_dos_attr;       /* low byte of original external attributes */
+#endif
     zuvl_t diskstart;        /* no of volume where this entry starts */
     uch hostver;
     uch hostnum;
@@ -2031,6 +2045,10 @@ typedef struct min_info {
     unsigned symlink : 1;    /* file is a symbolic link */
 #endif
     unsigned HasUxAtt : 1;   /* crec ext_file_attr has Unix style mode bits */
+#ifdef PKAV_SUPPORT
+    unsigned pkav_member : 1;    /* internal attributes bits 1/2 select PKAV */
+    unsigned pkav_extcheck : 1;  /* bit 2: ext attrs contain XOR/sum checksum */
+#endif
 #ifdef UNICODE_SUPPORT
     unsigned GPFIsUTF8: 1;   /* crec gen_purpose_flag UTF-8 bit 11 is set */
 #endif
@@ -2388,6 +2406,9 @@ char    *fzofft               OF((__GPRO__ zoff_t val,
   ---------------------------------------------------------------------------*/
 
 int    extract_or_test_files     OF((__GPRO));
+#ifdef PKAV_SUPPORT
+void   pkav_update               OF((__GPRO__ ZCONST uch *buf, ulg size));
+#endif
 /* static int   store_info          OF((void)); */
 /* static int   extract_or_test_member   OF((__GPRO)); */
 /* static int   TestExtraField   OF((__GPRO__ uch *ef, unsigned ef_len)); */

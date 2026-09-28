@@ -84,6 +84,345 @@
     } \
 }
 
+#ifdef PKAV_SUPPORT
+static void pkav_reset(__G)
+    __GDEF
+{
+    int show_avextra_on_fail = G.pkav.show_avextra_on_fail;
+
+    if (G.pkav.payload != (uch *)NULL)
+        free(G.pkav.payload);
+    memset((char *)&G.pkav, 0, sizeof(G.pkav));
+    G.pkav.show_avextra_on_fail = show_avextra_on_fail;
+}
+
+static int pkav_note_cdir(__G)
+    __GDEF
+{
+    uch *ef = G.extra_field;
+    unsigned left = G.crec.extra_field_length;
+
+    if (G.crec.internal_file_attributes & 0x0006) {
+        ++G.pkav.members;
+        G.pkav.stored_accumulator += (z_uint4)G.crec.crc32;
+        if (G.crec.internal_file_attributes & 0x0004)
+            G.pkav.stored_accumulator +=
+                (z_uint4)G.crec.external_file_attributes;
+        else
+            G.pkav.stored_accumulator +=
+                (z_uint4)G.crec.last_mod_dos_datetime;
+    }
+    if (G.crec.internal_file_attributes & 0x0004)
+        G.pkav.marker_seen = TRUE;
+
+    while (ef != (uch *)NULL && left >= EB_HEADSIZE) {
+        ush id = makeword(ef + EB_ID);
+        unsigned len = (unsigned)makeword(ef + EB_LEN);
+
+        if (len > left - EB_HEADSIZE) {
+            if (id == EF_AV) {
+                ++G.pkav.av_count;
+                G.pkav.malformed = TRUE;
+            }
+            break;
+        }
+        if (id == EF_AV) {
+            ++G.pkav.av_count;
+            if (G.pkav.av_count == 1) {
+                G.pkav.payload_len = len;
+                if (len == 0) {
+                    G.pkav.malformed = TRUE;
+                } else {
+                    G.pkav.payload = (uch *)malloc(len);
+                    if (G.pkav.payload == (uch *)NULL)
+                        return PK_MEM;
+                    memcpy(G.pkav.payload, ef + EB_HEADSIZE, len);
+                }
+            }
+        }
+        ef += EB_HEADSIZE + len;
+        left -= EB_HEADSIZE + len;
+    }
+    return PK_COOL;
+}
+
+static z_uint4 pkav_crc_byte(crc, c)
+    z_uint4 crc;
+    uch c;
+{
+    int i;
+
+    crc ^= c;
+    for (i = 0; i < 8; ++i)
+        crc = (crc >> 1) ^ ((crc & 1) ? (z_uint4)0xedb88320UL : 0);
+    return crc;
+}
+
+static z_uint4 pkav_rol32(v, n)
+    z_uint4 v;
+    unsigned n;
+{
+    n &= 31;
+    return n ? (z_uint4)((v << n) | (v >> (32 - n))) : v;
+}
+
+static void pkav_key_update(k0, k1, k2, c)
+    z_uint4 *k0;
+    z_uint4 *k1;
+    z_uint4 *k2;
+    uch c;
+{
+    *k0 = pkav_crc_byte(*k0, c);
+    *k1 = (z_uint4)((*k1 + (*k0 & 0xff)) * (z_uint4)0x08088405UL + 1);
+    *k2 = pkav_crc_byte(*k2, (uch)(*k1 >> 24));
+}
+
+static void pkav_decrypt(buf, len, acc)
+    uch *buf;
+    unsigned len;
+    z_uint4 acc;
+{
+    z_uint4 k0 = (z_uint4)0x12345678UL;
+    z_uint4 k1 = (z_uint4)0x23456789UL;
+    z_uint4 k2 = (z_uint4)0x34567890UL;
+    unsigned i;
+
+    for (i = 0; i < 8; ++i) {
+        uch c = (uch)(((acc >> (4 * i)) & 0x0f) + 0x13);
+        pkav_key_update(&k0, &k1, &k2, c);
+    }
+    for (i = 0; i < len; ++i) {
+        z_uint4 t;
+        uch c;
+
+        buf[i] ^= (uch)((len - i) & 0xff);
+        t = (z_uint4)((k2 | 2) & 0xffff);
+        c = (uch)(buf[i] ^ (uch)(((t * (t ^ 1)) >> 8) & 0xff));
+        buf[i] = c;
+        pkav_key_update(&k0, &k1, &k2, c);
+    }
+}
+
+static int pkav_seed_valid(seed)
+    z_uint4 seed;
+{
+    z_uint4 x;
+    unsigned sum = 0;
+    int i;
+
+    if ((z_uint4)(seed - 26) % 157 != 0)
+        return FALSE;
+    x = seed;
+    for (i = 0; i < 10; ++i) {
+        sum += (unsigned)(x % 10);
+        x /= 10;
+    }
+    return sum == 62;
+}
+
+static z_uint4 pkav_expected_h1(seed, company, len)
+    z_uint4 seed;
+    ZCONST uch *company;
+    unsigned len;
+{
+    z_uint4 crc = seed;
+    unsigned i;
+
+    for (i = 0; i < len; ++i)
+        crc = pkav_crc_byte(crc, company[i]);
+    crc = (z_uint4)~crc;
+    return pkav_rol32(crc, (unsigned)(seed & 31));
+}
+
+static void pkav_stamp(seed, stamp)
+    z_uint4 seed;
+    char stamp[7];
+{
+    z_uint4 r = pkav_rol32(seed, 7);
+    unsigned letters = (unsigned)((r >> 18) & 0x3fff);
+    unsigned digits = (unsigned)((r & 0x3ffff) / 0x107);
+
+    stamp[0] = (char)('A' + letters / 676);
+    stamp[1] = (char)('A' + (letters / 26) % 26);
+    stamp[2] = (char)('A' + letters % 26);
+    stamp[3] = (char)('0' + digits / 100);
+    stamp[4] = (char)('0' + (digits / 10) % 10);
+    stamp[5] = (char)('0' + digits % 10);
+    stamp[6] = '\0';
+}
+
+static void pkav_begin_member(__G)
+    __GDEF
+{
+    G.pkav.current_member = G.pInfo->pkav_member;
+    G.pkav.current_extcheck = G.pInfo->pkav_extcheck;
+    G.pkav.current_sum = 0;
+    G.pkav.current_xor = 0;
+}
+
+void pkav_update(__G__ buf, size)
+    __GDEF
+    ZCONST uch *buf;
+    ulg size;
+{
+    ulg i;
+    z_uint4 sum;
+    uch x;
+
+    if (!G.pkav.current_member || !G.pkav.current_extcheck || size == 0)
+        return;
+    sum = G.pkav.current_sum;
+    x = G.pkav.current_xor;
+    for (i = 0; i < size; ++i) {
+        sum += buf[i];
+        x ^= buf[i];
+    }
+    G.pkav.current_sum = (z_uint4)(sum & 0xffff);
+    G.pkav.current_xor = x;
+}
+
+static void pkav_complete_member(__G)
+    __GDEF
+{
+    z_uint4 aux;
+
+    if (!G.pkav.current_member)
+        return;
+    G.pkav.accumulator += (z_uint4)G.crc32val;
+    if (G.pkav.current_extcheck) {
+        aux = ((z_uint4)G.pkav.current_xor << 24) |
+              ((z_uint4)(G.pkav.current_sum & 0xffff) << 8) |
+              (z_uint4)G.pInfo->pkav_dos_attr;
+    } else {
+        aux = (z_uint4)G.pInfo->pkav_dos_datetime;
+    }
+    G.pkav.accumulator += aux;
+    ++G.pkav.processed;
+    G.pkav.current_member = FALSE;
+}
+
+static int pkav_parse_plain(buf, len, p_company_len, p_avextra, p_avextra_len,
+                            p_h1, p_seed)
+    ZCONST uch *buf;
+    unsigned len;
+    unsigned *p_company_len;
+    ZCONST uch **p_avextra;
+    unsigned *p_avextra_len;
+    z_uint4 *p_h1;
+    z_uint4 *p_seed;
+{
+    unsigned i;
+
+    if (len < 14)
+        return FALSE;
+    for (i = 12; i < len && buf[i] != 0; ++i)
+        ;
+    if (i == 12 || i == len)
+        return FALSE;
+    *p_company_len = i - 12;
+    *p_avextra = buf + i + 1;
+    *p_avextra_len = len - i - 1;
+    *p_h1 = (z_uint4)makelong(buf + 4);
+    *p_seed = (z_uint4)makelong(buf + 8);
+    return TRUE;
+}
+
+static void pkav_emit_bytes(__G__ buf, len, flags)
+    __GDEF
+    ZCONST uch *buf;
+    unsigned len;
+    int flags;
+{
+    if (len != 0)
+        (*G.message)((zvoid *)&G, (uch *)buf, (ulg)len, flags);
+}
+
+static int pkav_finish_archive(__G)
+    __GDEF
+{
+    uch *plain, *diag;
+    ZCONST uch *avextra, *diag_avextra;
+    unsigned company_len, avextra_len, diag_company_len, diag_avextra_len;
+    z_uint4 h1, seed, expected, diag_h1, diag_seed, diag_expected;
+    int framed, diag_framed;
+    char stamp[7];
+
+    if (G.pkav.av_count == 0 && !G.pkav.marker_seen)
+        return PK_COOL;
+
+    if (G.pkav.malformed || G.pkav.av_count != 1 ||
+        G.pkav.payload == (uch *)NULL || G.pkav.payload_len < 14 ||
+        G.pkav.members == 0) {
+        Info(slide, 0x401, ((char *)slide,
+          "warning: malformed PKAV Authenticity Verification information\n"));
+        return PK_WARN;
+    }
+
+    if (G.pkav.processed != G.pkav.members) {
+        Info(slide, 0x401, ((char *)slide,
+          "warning: PKAV information present; authenticity was not fully verified\n"));
+        return PK_WARN;
+    }
+
+    plain = (uch *)malloc(G.pkav.payload_len);
+    if (plain == (uch *)NULL)
+        return PK_MEM;
+    memcpy(plain, G.pkav.payload, G.pkav.payload_len);
+    pkav_decrypt(plain, G.pkav.payload_len, G.pkav.accumulator);
+
+    framed = pkav_parse_plain(plain, G.pkav.payload_len, &company_len,
+                              &avextra, &avextra_len, &h1, &seed);
+    if (framed) {
+        expected = pkav_expected_h1(seed, plain + 12, company_len);
+        if (pkav_seed_valid(seed) && h1 == expected) {
+            pkav_stamp(seed, stamp);
+            if (uO.qflag < 2 && !uO.cflag) {
+                Info(slide, 0, ((char *)slide,
+                  "Authentic files Verified!   # %s\n", stamp));
+                pkav_emit_bytes(__G__ plain + 12, company_len, 0);
+                pkav_emit_bytes(__G__ (ZCONST uch *)"\n", 1, 0);
+                pkav_emit_bytes(__G__ avextra, avextra_len, 0);
+            }
+            free(plain);
+            return PK_COOL;
+        }
+    }
+
+    Info(slide, 0x401, ((char *)slide,
+      "warning: PKAV Authenticity Verification failed\n"));
+
+    diag = (uch *)malloc(G.pkav.payload_len);
+    if (diag == (uch *)NULL) {
+        free(plain);
+        return PK_MEM;
+    }
+    memcpy(diag, G.pkav.payload, G.pkav.payload_len);
+    pkav_decrypt(diag, G.pkav.payload_len, G.pkav.stored_accumulator);
+    diag_framed = pkav_parse_plain(diag, G.pkav.payload_len,
+                                   &diag_company_len, &diag_avextra,
+                                   &diag_avextra_len, &diag_h1, &diag_seed);
+    if (diag_framed && diag_avextra_len != 0 && pkav_seed_valid(diag_seed)) {
+        diag_expected = pkav_expected_h1(diag_seed, diag + 12,
+                                         diag_company_len);
+        if (G.pkav.show_avextra_on_fail) {
+            Info(slide, 0x401, ((char *)slide,
+              "warning: displaying unverified PKAV AVEXTRA data:\n"));
+            pkav_emit_bytes(__G__ diag_avextra, diag_avextra_len, 0x401);
+        } else {
+            Info(slide, 0x401, ((char *)slide,
+              "warning: unverified PKAV AVEXTRA data is present; "
+              "use --show-avextra-on-fail to display it\n"));
+        }
+        (void)diag_expected;
+        (void)diag_h1;
+    }
+
+    free(diag);
+    free(plain);
+    return PK_WARN;
+}
+#endif /* PKAV_SUPPORT */
+
 static int store_info OF((__GPRO));
 #ifdef SET_DIR_ATTRIB
 static int extract_or_test_entrylist OF((__GPRO__ unsigned numchunk,
@@ -553,6 +892,9 @@ int extract_or_test_files(__G)    /* return PK-type error code */
     since we know the offset of each from the beginning of the zipfile.
   ---------------------------------------------------------------------------*/
 
+#ifdef PKAV_SUPPORT
+    pkav_reset(__G);
+#endif
     G.pInfo = G.info;
 
 #if CRYPT
@@ -672,6 +1014,14 @@ int extract_or_test_files(__G)    /* return PK-type error code */
                     break;
                 }
             }
+#ifdef PKAV_SUPPORT
+            if ((error = pkav_note_cdir(__G)) != PK_COOL) {
+                if (error > error_in_archive)
+                    error_in_archive = error;
+                reached_end = TRUE;
+                break;
+            }
+#endif
 #ifdef AMIGA
             G.filenote_slot = j;
             if ((error = do_string(__G__ G.crec.file_comment_length,
@@ -902,8 +1252,18 @@ int extract_or_test_files(__G)    /* return PK-type error code */
     return immediately.  All completeness checks and summary messages are
     skipped in this case.
   ---------------------------------------------------------------------------*/
-    if (!reached_end)
+    if (!reached_end) {
+#ifdef PKAV_SUPPORT
+        pkav_reset(__G);
+#endif
         return error_in_archive;
+    }
+
+#ifdef PKAV_SUPPORT
+    error = pkav_finish_archive(__G);
+    if (error > error_in_archive)
+        error_in_archive = error;
+#endif
 
 /*---------------------------------------------------------------------------
     Double-check that we're back at the end-of-central-directory record, and
@@ -967,6 +1327,9 @@ int extract_or_test_files(__G)    /* return PK-type error code */
         error_in_archive = PK_WARN;
 #endif
 
+#ifdef PKAV_SUPPORT
+    pkav_reset(__G);
+#endif
     return error_in_archive;
 
 } /* end function extract_or_test_files() */
@@ -1059,6 +1422,12 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
     G.pInfo->crc = G.crec.crc32;
     G.pInfo->compr_size = G.crec.csize;
     G.pInfo->uncompr_size = G.crec.ucsize;
+#ifdef PKAV_SUPPORT
+    G.pInfo->pkav_member = (G.crec.internal_file_attributes & 0x0006) != 0;
+    G.pInfo->pkav_extcheck = (G.crec.internal_file_attributes & 0x0004) != 0;
+    G.pInfo->pkav_dos_datetime = G.crec.last_mod_dos_datetime;
+    G.pInfo->pkav_dos_attr = (uch)(G.crec.external_file_attributes & 0xff);
+#endif
 
     switch (uO.aflag) {
         case 0:
@@ -1138,8 +1507,25 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
         zfstrcpy(G.pInfo->cfilname, G.filename);
 #endif /* !SFX */
 
-    /* map whatever file attributes we have into the local format */
-    mapattr(__G);   /* GRR:  worry about return value later */
+    /* map whatever file attributes we have into the local format.  PKAV
+       uses the upper 24 external-attribute bits as XOR/sum verification data,
+       so never expose those bytes as Unix mode/type bits. */
+#ifdef PKAV_SUPPORT
+    if (G.crec.internal_file_attributes & 0x0004) {
+        ulg pkav_external_attr = G.crec.external_file_attributes;
+        uch pkav_hostnum = G.pInfo->hostnum;
+
+        /* PKAV checksums occupies the same bytes UNIX systems normally use
+           for mode/type information.  Interpret ONLY the surviving low DOS
+           attribute byte here regardless of the advertised creation OS. */
+        G.crec.external_file_attributes &= 0xff;
+        G.pInfo->hostnum = FS_FAT_;
+        mapattr(__G);
+        G.pInfo->hostnum = pkav_hostnum;
+        G.crec.external_file_attributes = pkav_external_attr;
+    } else
+#endif
+        mapattr(__G);   /* GRR:  worry about return value later */
 
     G.pInfo->diskstart = G.crec.disk_number_start;
     G.pInfo->offset = (zoff_t)G.crec.relative_offset_local_header;
@@ -1827,6 +2213,9 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
     G.zipeof = 0;
     G.newfile = TRUE;
     G.crc32val = CRCVAL_INITIAL;
+#ifdef PKAV_SUPPORT
+    pkav_begin_member(__G);
+#endif
 
 #ifdef SYMLINKS
     /* If file is a (POSIX-compatible) symbolic link and we are extracting
@@ -2153,6 +2542,9 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
         undefer_input(__G);
         return error;
     }
+#ifdef PKAV_SUPPORT
+    pkav_complete_member(__G);
+#endif
     if (G.crc32val != G.lrec.crc32) {
         /* if quiet enough, we haven't output the filename yet:  do it */
         if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))

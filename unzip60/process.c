@@ -1757,7 +1757,12 @@ int process_cdir_file_hdr(__G)    /* return PK-type error code */
     /* this flag is needed to detect archives made by "PKZIP for Unix" when
        deciding which kind of codepage conversion has to be applied to
        strings (see do_string() function in fileio.c) */
+#ifdef PKAV_SUPPORT
+    G.pInfo->HasUxAtt = !(G.crec.internal_file_attributes & 0x0004) &&
+        (G.crec.external_file_attributes & 0xffff0000L) != 0L;
+#else
     G.pInfo->HasUxAtt = (G.crec.external_file_attributes & 0xffff0000L) != 0L;
+#endif
 
 #ifdef UNICODE_SUPPORT
     /* remember the state of GPB11 (General Purpuse Bit 11) which indicates

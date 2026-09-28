@@ -81,6 +81,19 @@ ARGUMENTS
               treated as a literal subdirectory ``~'' of  the  current  direc-
               tory.
 
+PKWARE AUTHENTICITY VERIFICATION
+       When an archive contains PKWARE Authenticity Verification (PKAV) data,
+       unzip automatically verifies the authenticated members when testing or
+       extracting.  Successful verification reports the registered company
+       name and displays trailing PKAV AVEXTRA text by default.  Invalid or
+       malformed PKAV data produces a warning.  If recoverable AVEXTRA data
+       is present but PKAV verification failed, unzip will suggest using the
+       --show-avextra-on-fail option, which displays the text with an explicit
+       unverified warning.  When only part of the authenticated member set is
+       processed, PKAV is reported as present but not fully verified.
+       NOTE: Listing operations does not decompress all the archive members
+       to perform PKAV verification; use -t if PKAV verification is required.
+
 OPTIONS
        Note  that,  in  order  to  support obsolescent hardware, unzip's usage
        screen is limited to 22 or 23 lines and should therefore be  considered
@@ -764,7 +777,10 @@ DIAGNOSTICS
                      ing completed successfully anyway.   This  includes  zip-
                      files  where  one or more files was skipped due to unsup-
                      ported compression method or encryption with  an  unknown
-                     password.
+                     password, and archives whose PKWARE Authenticity Verifica-
+                     tion information is invalid, malformed, or could not be
+                     fully checked because only part of the authenticated
+                     member set was processed.
 
               2      a generic error in the zipfile format was detected.  Pro-
                      cessing may have completed successfully anyway; some bro-

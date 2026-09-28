@@ -833,6 +833,9 @@ static int partflush(__G__ rawbuf, size, unshrink)
   ---------------------------------------------------------------------------*/
 
     G.crc32val = crc32(G.crc32val, rawbuf, (extent)size);
+#ifdef PKAV_SUPPORT
+    pkav_update(__G__ rawbuf, size);
+#endif
 
 #ifdef DLL
     if ((G.statreportcb != NULL) &&

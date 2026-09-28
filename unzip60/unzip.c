@@ -1366,6 +1366,12 @@ int uz_opts(__G__ pargc, pargv)
 #endif
     
     while (++argv, (--argc > 0 && *argv != NULL && **argv == '-')) {
+#ifdef PKAV_SUPPORT
+        if (strcmp(*argv, "--show-avextra-on-fail") == 0) {
+            G.pkav.show_avextra_on_fail = TRUE;
+            continue;
+        }
+#endif
         s = *argv + 1;
         while ((c = *s++) != 0) {    /* "!= 0":  prevent Turbo C warning */
 #ifdef CMS_MVS
@@ -2248,6 +2254,9 @@ static void help_extended(__G)
   "         information.  Also can be added to other list commands for more",
   "         verbose output.",
   "  -z   Display only archive comment.",
+#ifdef PKAV_SUPPORT
+  "  --show-avextra-on-fail  Show unverified PKAV AVEXTRA after failure.",
+#endif
   "",
   "unzip modifiers:",
   "  -a   Convert text files to local OS format.  Convert line ends, EOF",
