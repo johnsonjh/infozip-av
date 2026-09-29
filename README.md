@@ -20,6 +20,168 @@ or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav),
 or clone the repo and compile it using "`./build.sh`" (on most Unix systems
 with GCC).
 
+## Usage
+
+### PKAV archive creation
+
+> [!NOTICE]
+> Generation of PKAV registration information is outside of the scope of this
+> project, but is [covered elsewhere](https://github.com/johnsonjh/pkstuff#makeav).
+
+```sh
+$ printf '%s\n' '' 'This is the AVEXTRA comment!' '' > avextra.txt
+
+$ zip --pkav-name 'This was made with InfoZip!' \
+  --pkav-s1 x --pkav-s2 y --pkav-avextra avextra.txt test.zip ./*.c
+  adding: makeav.c (deflated 82%)
+  adding: pkl2fix.c (deflated 73%)
+  adding: pklaxfix.c (deflated 82%)
+  adding: pkpspfix.c (deflated 76%)
+  adding: putav.c (deflated 77%)
+```
+
+### PKAV archive testing
+
+```sh
+$ unzip -t test.zip
+Archive:  test.zip
+    testing: makeav.c                 OK
+    testing: pkl2fix.c                OK
+    testing: pklaxfix.c               OK
+    testing: pkpspfix.c               OK
+    testing: putav.c                  OK
+Authentic files Verified!   # TDU015
+This was made with InfoZip!
+
+This is the AVEXTRA comment!
+
+No errors detected in compressed data of test.zip.
+```
+
+### PKAV archive extraction
+
+```sh
+$ unzip -xa test.zip
+Archive:  test.zip
+  inflating: makeav.c                [text]
+  inflating: pkl2fix.c               [text]
+  inflating: pklaxfix.c              [text]
+  inflating: pkpspfix.c              [text]
+  inflating: putav.c                 [text]
+Authentic files Verified!   # TDU015
+This was made with InfoZip!
+
+This is the AVEXTRA comment!
+```
+
+### PKAV self-extractor
+
+When creating a self‑extracting archive, ensure that you correct the entry
+offsets using the `zip ‑A` command.  If you don't run `zip ‑A` the archive
+is not a fully conforming ZIP file and other software (especially PKWARE
+software) may reject it as invalid or corrupt.
+
+```sh
+$ cat $(command -v unzipsfx) test.zip > test.sfx
+
+$ chmod a+x test.sfx
+
+$ zip -A test.sfx
+Zip entry offsets appear off by 126800 bytes - correcting...
+
+$ ./test.sfx -t
+UnZipSFX 6.00 of 20 April 2009, by Info-ZIP (http://www.info-zip.org).
+    testing: makeav.c                 OK
+    testing: pkl2fix.c                OK
+    testing: pklaxfix.c               OK
+    testing: pkpspfix.c               OK
+    testing: putav.c                  OK
+Authentic files Verified!   # TDU015
+This was made with InfoZip!
+
+This is the AVEXTRA comment!
+
+No errors detected in compressed data of ./test.sfx.
+```
+
+#### PKWARE compatibility
+
+Archives that have been correctly created with this PKAV implementation,
+including self‑extracting executables, are fully compatible with the
+official PKWARE PKUNZIP verification routines.
+
+```sh
+$ emu2 pkunzip.exe -t test.sfx
+
+PKUNZIP (R)    FAST!    Extract Utility    Version 2.50    03-01-1999
+Copr. 1989-1999 PKWARE Inc.  All Rights Reserved.  Registered version
+PKUNZIP Reg. U.S. Pat. and Tm. Off.
+
+
+Searching ZIP: TEST.SFX
+Testing: makeav.c      OK -AV
+Testing: pkl2fix.c     OK -AV
+Testing: pklaxfix.c    OK -AV
+Testing: pkpspfix.c    OK -AV
+Testing: putav.c       OK -AV
+
+Authentic files Verified!   # TDU015
+This was made with InfoZip!
+
+This is the AVEXTRA comment!
+```
+
+### Historical example
+
+The [*very*](http://justsolve.archiveteam.org/wiki/FWKCS)
+[*famous*](https://dn790003.ca.archive.org/0/items/emcfarber_jsstestimony/Sadofsky%2C%20Jason%20Scott.pdf)
+[`FWKCS122.ZIP`](https://ftp.sunet.se/mirror/archive/ftp.sunet.se/pub/simtelnet/msdos/bbs/fwkcs122.zip)
+archive is a great example of an important historical file that uses PKAV and
+includes encrypted AVEXTRA data that requires PKAV support to decode and
+display.  In fact, this specific PKAV AVEXTRA text was used (amongst other data
+points) by the USPTO to [invalidate a software patent](https://dn721608.ca.archive.org/0/items/539FinalDecision73/539%20-%20final%20decision-73.pdf)
+(PDF page 11) in 2014.  In that case, [Jason Scott](https://en.wikipedia.org/wiki/Jason_Scott)
+used the historical PKWARE PKUNZIP in a DOS emulator to extract this data.
+
+```sh
+$ unzip -ta fwkcs122.zip
+Archive:  fwkcs122.zip
+    testing: FILE_ID.DIZ              OK
+    testing: README.TXT               OK
+    testing: WHATSNEW.TXT             OK
+    testing: REGISTER.DOC             OK
+    testing: REGISTER.FRM             OK
+    testing: INSTALL.BAT              OK
+    testing: REPLACE.BAT              OK
+    testing: QIKSTART.BAT             OK
+    testing: GETLOOK.BAT              OK
+    testing: FWKCS.122                OK
+    testing: FWKCS_TM.122             OK
+Authentic files Verified!   # OFT466
+Frederick W. Kantor (founder/information mechanics)
+
+FWKCS(TM) Contents_Signature System, Ver. 1.22, 1993 Aug 10.
+(C)Copyright Frederick W. Kantor 1989-1993. All rights reserved.
+Your use of any file or program herein is at solely your own risk:
+>--> please have proper backups:
+........................ C A V E A T   O P E R A T O R ........................
+This zipfile (C)Copyright Frederick W. Kantor 1988-1993. All rights reserved.
+No one has any permission from the author_and_copyright_owner to add to,
+   subtract from, or otherwise modify, the contents of this copyrighted
+   Authenticity Verification Zipfile.
+If you distribute this zipfile, use the filename FWKCS122.ZIP.
+
+To use, first do  PKUNZIP FWKCS122.ZIP <enter>
+Then, in the same directory with FWKCS122.ZIP,
+  to install, do  INSTALL <enter>
+  to replace an existing FWKCS system, Ver. 1.12 or later, do  REPLACE <enter>
+  to set up the system, without searching files, do  QIKSTART <enter>
+  to extract the Lookup programs and selected literature, do  GETLOOK <enter>
+and then follow the instructions on the screen...
+(For beginning instructions, see README.TXT.)
+No errors detected in compressed data of fwkcs122.zip.
+```
+
 ## Availability
 
 * [GitHub](https://github.com/johnsonjh/infozip-av)
@@ -37,4 +199,4 @@ with GCC).
 
 ## External links
 
-* [`johnsonjh/pkstuff`](https://github.com/johnsonjh/pkstuff) - PKZIP/PKUNZIP/PKSFX/PKLITE utilities
+* [`johnsonjh/pkstuff`](https://github.com/johnsonjh/pkstuff) ‑ PKZIP/PKUNZIP/PKSFX/PKLITE utilities
