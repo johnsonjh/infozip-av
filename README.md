@@ -29,7 +29,7 @@
 This project adds full
 [PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification) and
 [FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
-([MD5](https://en.wikipedia.org/wiki/MD5) support to)
+([MD5](https://en.wikipedia.org/wiki/MD5)) support to
 [Info‑ZIP](https://infozip.sourceforge.net/).
 
 This support is built on Fedora's current
