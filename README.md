@@ -14,9 +14,16 @@ historical preservation and authenticity, and it unlocks the embedded AVEXTRA
 comments carried by many original PKZIP archives that would otherwise *only*
 be accessible using official but ancient PKWARE software.
 
-If you want, you can [compare the changes](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
-against the Fedora upstream version, or clone the repo and compile it using
-"`./build.sh`" (on most Unix systems with GCC).
+If you want, you can compare the changes against the Fedora upstream version
+using [GitHub](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
+or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav),
+or clone the repo and compile it using "`./build.sh`" (on most Unix systems
+with GCC).
+
+## Availability
+
+* [GitHub](https://github.com/johnsonjh/infozip-av)
+* [GitLab](https://gitlab.com/johnsonjh/infozip-av)
 
 ## License
 
