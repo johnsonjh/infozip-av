@@ -154,18 +154,15 @@ This is the AVEXTRA comment!
 
 The [very](http://justsolve.archiveteam.org/wiki/FWKCS)
 [famous](https://dn790003.ca.archive.org/0/items/emcfarber_jsstestimony/Sadofsky%2C%20Jason%20Scott.pdf)
-"[`FWKCS122.ZIP`](https://ftp.sunet.se/mirror/archive/ftp.sunet.se/pub/simtelnet/msdos/bbs/fwkcs122.zip)"
+[`FWKCS122.ZIP`](https://ftp.sunet.se/mirror/archive/ftp.sunet.se/pub/simtelnet/msdos/bbs/fwkcs122.zip)
 archive is a great example of an important historical file that uses PKAV and
 includes encrypted AVEXTRA text which needs a complete PKAV implementation to
 correctly decode and display.
 
-This specific decoded PKAV AVEXTRA text was quoted verbatim and used (amongst
+The actual decoded PKAV AVEXTRA text from this archive was quoted verbatim and used (amongst
 other data points) in a USPTO final decision to
 [invalidate a software patent](https://dn721608.ca.archive.org/0/items/539FinalDecision73/539%20-%20final%20decision-73.pdf)
-(*PDF pg. 11*) in 2014.
-
-In this case,
-[Jason Scott](https://en.wikipedia.org/wiki/Jason_Scott)
+(*PDF pg. 11*) in 2014. In this case, [Jason Scott](https://en.wikipedia.org/wiki/Jason_Scott)
 used the historical PKWARE PKUNZIP software in a DOS emulator to decode and
 display the PKAV AVEXTRA text.
 
