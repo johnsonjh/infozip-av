@@ -24,7 +24,7 @@ with GCC).
 
 ### PKAV archive creation
 
-> [!NOTICE]
+> [!NOTE]
 > Generation of PKAV registration information is outside of the scope of this
 > project, but is [covered elsewhere](https://github.com/johnsonjh/pkstuff#makeav).
 
