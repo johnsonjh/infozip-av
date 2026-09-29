@@ -41,8 +41,8 @@ with GCC).
 ### PKAV archive creation (`zip`)
 
 > [!NOTE]
-> Generation of PKAV registration information is outside of the scope of this
-> project, but is [covered elsewhere](https://github.com/johnsonjh/pkstuff#makeav).
+> Generation of PKAV registration is outside the scope of this project,
+> but is [covered elsewhere](https://github.com/johnsonjh/pkstuff#makeav).
 
 ```
 $ printf '%s\n' '' 'This is the AVEXTRA comment!' '' > avextra.txt
@@ -125,9 +125,9 @@ No errors detected in compressed data of ./test.sfx.
 
 ### PKWARE compatibility
 
-Archives that have been correctly created with this PKAV implementation,
+Archives that have been created with this PKAV implementation,
 including self‑extracting executables, are fully compatible with the
-official PKWARE PKUNZIP verification routines.
+official PKWARE PKUNZIP software.
 
 ```
 $ emu2 pkunzip.exe -t test.sfx
@@ -152,9 +152,9 @@ This is the AVEXTRA comment!
 
 ## Historical example
 
-The [*very*](http://justsolve.archiveteam.org/wiki/FWKCS)
-[*famous*](https://dn790003.ca.archive.org/0/items/emcfarber_jsstestimony/Sadofsky%2C%20Jason%20Scott.pdf)
-[`FWKCS122.ZIP`](https://ftp.sunet.se/mirror/archive/ftp.sunet.se/pub/simtelnet/msdos/bbs/fwkcs122.zip)
+The [very](http://justsolve.archiveteam.org/wiki/FWKCS)
+[famous](https://dn790003.ca.archive.org/0/items/emcfarber_jsstestimony/Sadofsky%2C%20Jason%20Scott.pdf)
+"[`FWKCS122.ZIP`](https://ftp.sunet.se/mirror/archive/ftp.sunet.se/pub/simtelnet/msdos/bbs/fwkcs122.zip)"
 archive is a great example of an important historical file that uses PKAV and
 includes encrypted AVEXTRA text which needs a complete PKAV implementation to
 correctly decode and display.
@@ -162,7 +162,9 @@ correctly decode and display.
 This specific decoded PKAV AVEXTRA text was quoted verbatim and used (amongst
 other data points) in a USPTO final decision to
 [invalidate a software patent](https://dn721608.ca.archive.org/0/items/539FinalDecision73/539%20-%20final%20decision-73.pdf)
-(PDF page 11) in 2014.  In this case,
+(*PDF pg. 11*) in 2014.
+
+In this case,
 [Jason Scott](https://en.wikipedia.org/wiki/Jason_Scott)
 used the historical PKWARE PKUNZIP software in a DOS emulator to decode and
 display the PKAV AVEXTRA text.
