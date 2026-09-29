@@ -1,0 +1,10 @@
+*~
+a.out
+*.bak*
+*.core
+core
+core-*
+/.envrc
+log.pvs
+/*.patch
+pvsreport/

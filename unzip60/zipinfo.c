@@ -1459,6 +1459,8 @@ static int zi_long(__G__ pEndprev, error_in_archive)
                     break;
                 case EF_AV:
                     ef_fieldname = efAV;
+                    if (*pEndprev > 0L)
+                        *pEndprev -= EB_HEADSIZE + eb_datalen;
                     break;
                 case EF_OS2:
                     ef_fieldname = efOS2;
@@ -1542,6 +1544,8 @@ static int zi_long(__G__ pEndprev, error_in_archive)
                     break;
                 case EF_MD5:
                     ef_fieldname = efMD5;
+                    if (*pEndprev > 0L)
+                        *pEndprev -= EB_HEADSIZE + eb_datalen;
                     break;
                 case EF_ASIUNIX:
                     ef_fieldname = efASiUnix;
@@ -1856,12 +1860,13 @@ static int zi_long(__G__ pEndprev, error_in_archive)
                     }
                     break;
                 case EF_MD5:
-                    if (eb_datalen >= 19) {
+                    if (eb_datalen == 19 && ef_ptr[0] == 'M' &&
+                        ef_ptr[1] == 'D' && ef_ptr[2] == '5') {
                         char md5[33];
                         int i;
 
                         for (i = 0;  i < 16;  ++i)
-                            sprintf(&md5[i<<1], "%02x", ef_ptr[15-i]);
+                            sprintf(&md5[i<<1], "%02x", ef_ptr[3+i]);
                         md5[32] = '\0';
                         Info(slide, 0, ((char *)slide, LoadFarString(MD5data),
                           md5));
@@ -2129,7 +2134,8 @@ static int zi_short(__G)   /* return PK-type error code */
         case VM_CMS_:
         case MVS_:
         case ACORN_:
-            if (hostnum != FS_FAT_ ||
+            if ((G.crec.internal_file_attributes & 0x0004) ||
+                hostnum != FS_FAT_ ||
                 (unsigned)(xattr & 0700) !=
                  ((unsigned)0400 |
                   ((unsigned)!(G.crec.external_file_attributes & 1) << 7) |

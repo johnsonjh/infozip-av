@@ -1143,6 +1143,7 @@ local void help()
 "  -F   fix zipfile (-FF try harder) -D   do not add directory entries",
 "  -A   adjust self-extracting exe   -J   junk zipfile prefix (unzipsfx)",
 "  -T   test zipfile integrity       -X   eXclude eXtra file attributes",
+"  --fwkcs-md5 add FWKCS MD5 metadata",
 #ifdef VMS
 "  -C   preserve case of file names  -C-  down-case all file names",
 "  -C2  preserve case of ODS2 names  -C2- down-case ODS2 file names* (*=default)",
@@ -1659,6 +1660,8 @@ local void version_info()
 #ifdef UNICODE_SUPPORT
     "UNICODE_SUPPORT      (store and read UTF-8 Unicode paths)",
 #endif
+    "PKAV                 (PKWARE Authenticity Verification with AVEXTRA)",
+    "FWKCS                (Frederick W. Kantor Contents Signatures using MD5)",
 
 #ifdef UNIX
     "STORE_UNIX_UIDs_GIDs (store UID/GID sizes/values using new extra field)",
@@ -2455,6 +2458,7 @@ int set_filetype(out_path)
 #define o_sd            0x131
 #define o_sf            0x132
 #define o_so            0x133
+#define o_fwkcs_md5     0x14b
 #define o_sp            0x134
 #define o_su            0x135
 #define o_sU            0x136
@@ -2532,6 +2536,7 @@ struct option_struct far options[] = {
     {"FF", "fixfix",      o_NO_VALUE,       o_NOT_NEGATABLE, o_FF, "try harder to fix archive (not as reliable)"},
     {"FI", "fifo",        o_NO_VALUE,       o_NEGATABLE,     o_FI, "read Unix FIFO (zip will wait on open pipe)"},
     {"FS", "filesync",    o_NO_VALUE,       o_NOT_NEGATABLE, o_FS, "add/delete entries to make archive match OS"},
+    {"",   "fwkcs-md5",   o_NO_VALUE,       o_NOT_NEGATABLE, o_fwkcs_md5, "add FWKCS MD5 metadata"},
     {"f",  "freshen",     o_NO_VALUE,       o_NOT_NEGATABLE, 'f',  "freshen existing archive entries"},
     {"fd", "force-descriptors", o_NO_VALUE, o_NOT_NEGATABLE, o_des,"force data descriptors as if streaming"},
 #ifdef ZIP64_SUPPORT
@@ -2829,6 +2834,7 @@ char **argv;            /* command line tokens */
   verbose = 0;         /* 1=report oddities in zip file structure */
   fix = 0;             /* 1=fix the zip file */
   adjust = 0;          /* 1=adjust offsets for sfx'd file (keep preamble) */
+  fwkcs_md5 = 0;       /* 1=add FWKCS MD5 metadata */
   level = 6;           /* 0=fastest compression, 9=best compression */
   translate_eol = 0;   /* Translate end-of-line LF -> CR LF */
 #if defined(OS2) || defined(WIN32)
@@ -3335,6 +3341,9 @@ char **argv;            /* command line tokens */
           break;
         case 'F':   /* fix the zip file */
           fix = 1; break;
+        case o_fwkcs_md5: /* MD5 */
+          fwkcs_md5 = 1;
+          break;
         case o_FF:  /* try harder to fix file */
           fix = 2; break;
         case o_FI:

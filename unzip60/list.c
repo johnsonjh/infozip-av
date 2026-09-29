@@ -55,8 +55,25 @@
      " Length   Method    Size  Cmpr    Date    Time   CRC-32   Name";
    static ZCONST char Far HeadersL1[] =
      "--------  ------  ------- ---- ---------- ----- --------  ----";
+#ifdef OS2_EAS
+   static ZCONST char Far HeadersSMD5[] =
+     "  Length     EAs   ACLs     Date    Time    FWKCS MD5                         Name";
+   static ZCONST char Far HeadersS1MD5[] =
+     "---------    ---   ----  ---------- -----   --------------------------------  ----";
+#else
+   static ZCONST char Far HeadersSMD5[] =
+     "  Length      Date    Time    FWKCS MD5                         Name";
+   static ZCONST char Far HeadersS1MD5[] =
+     "---------  ---------- -----   --------------------------------  ----";
+#endif
+   static ZCONST char Far HeadersLMD5[] =
+     " Length   Method    Size  Cmpr    Date    Time   CRC-32   FWKCS MD5                         Name";
+   static ZCONST char Far HeadersL1MD5[] =
+     "--------  ------  ------- ---- ---------- ----- --------  --------------------------------  ----";
    static ZCONST char Far *Headers[][2] =
      { {HeadersS, HeadersS1}, {HeadersL, HeadersL1} };
+   static ZCONST char Far *HeadersMD5[][2] =
+     { {HeadersSMD5, HeadersS1MD5}, {HeadersLMD5, HeadersL1MD5} };
 
    static ZCONST char Far CaseConversion[] =
      "%s (\"^\" ==> case\n%s   conversion)\n";
@@ -100,6 +117,8 @@ int list_files(__G)    /* return PK-type error code */
     int pkav_present=FALSE;
 #endif
 #ifndef WINDLL
+    int fwkcs_present=FALSE, fwkcs_row_md5=FALSE;
+    char fwkcs_md5[33];
     char sgn, cfactorstr[1+10+1+1];	/* <sgn><int>%NUL */
     int longhdr=(uO.vflag>1);
 #endif
@@ -151,14 +170,16 @@ int list_files(__G)    /* return PK-type error code */
 
 #ifndef WINDLL
     if (uO.qflag < 2) {
+        ZCONST char Far *h0 = G.fwkcs_list_md5 ?
+            HeadersMD5[longhdr][0] : Headers[longhdr][0];
+        ZCONST char Far *h1 = G.fwkcs_list_md5 ?
+            HeadersMD5[longhdr][1] : Headers[longhdr][1];
         if (uO.L_flag)
             Info(slide, 0, ((char *)slide, LoadFarString(CaseConversion),
-              LoadFarStringSmall(Headers[longhdr][0]),
-              LoadFarStringSmall2(Headers[longhdr][1])));
+              LoadFarStringSmall(h0), LoadFarStringSmall2(h1)));
         else
             Info(slide, 0, ((char *)slide, "%s\n%s\n",
-               LoadFarString(Headers[longhdr][0]),
-               LoadFarStringSmall(Headers[longhdr][1])));
+               LoadFarString(h0), LoadFarStringSmall(h1)));
     }
 #endif /* !WINDLL */
 
@@ -238,6 +259,45 @@ int list_files(__G)    /* return PK-type error code */
                 pkef += EB_HEADSIZE + pklen;
                 pkleft -= EB_HEADSIZE + pklen;
             }
+        }
+#endif
+#ifndef WINDLL
+        fwkcs_md5[0] = '\0';
+        fwkcs_row_md5 = FALSE;
+        if (G.extra_field != (uch *)NULL) {
+            uch *fwef = G.extra_field;
+            unsigned fwleft = G.crec.extra_field_length;
+            unsigned fwcount = 0;
+            int fwvalid = FALSE;
+
+            while (fwleft >= EB_HEADSIZE) {
+                unsigned fwlen = (unsigned)makeword(fwef + EB_LEN);
+                unsigned i;
+                if (fwlen > fwleft - EB_HEADSIZE)
+                    break;
+                if (makeword(fwef + EB_ID) == EF_MD5) {
+                    ++fwcount;
+                    fwkcs_present = TRUE;
+                    if (fwcount == 1 && fwlen == 19 &&
+                        fwef[EB_HEADSIZE] == 'M' &&
+                        fwef[EB_HEADSIZE+1] == 'D' &&
+                        fwef[EB_HEADSIZE+2] == '5') {
+                        static ZCONST char hex[] = "0123456789abcdef";
+                        for (i = 0; i < 16; ++i) {
+                            uch b = fwef[EB_HEADSIZE+3+i];
+                            fwkcs_md5[i*2] = hex[b >> 4];
+                            fwkcs_md5[i*2+1] = hex[b & 15];
+                        }
+                        fwkcs_md5[32] = '\0';
+                        fwvalid = TRUE;
+                    } else {
+                        fwvalid = FALSE;
+                    }
+                }
+                fwef += EB_HEADSIZE + fwlen;
+                fwleft -= EB_HEADSIZE + fwlen;
+            }
+            fwkcs_row_md5 = (fwcount == 1 && fwvalid);
         }
 #endif
         if (!G.process_all_files) {   /* check if specified on command line */
@@ -433,7 +493,15 @@ int list_files(__G)    /* return PK-type error code */
                   mo, dt_sepchar, dy, dt_sepchar, yr, hh, mm,
                   (G.pInfo->lcflag? '^':' ')));
 #endif
-            fnprint(__G);
+            if (G.fwkcs_list_md5) {
+                static ZCONST char blanks[] =
+                  "                                ";
+                (*G.message)((zvoid *)&G,
+                  (uch *)(fwkcs_row_md5 ? fwkcs_md5 : blanks), 32L, 0);
+                (*G.message)((zvoid *)&G, (uch *)"  ", 2L, 0);
+                fnprint(__G);
+            } else
+                fnprint(__G);
 #endif /* ?WINDLL */
 
             if ((error = do_string(__G__ G.crec.file_comment_length,
@@ -533,6 +601,17 @@ int list_files(__G)    /* return PK-type error code */
         Info(slide, 0, ((char *)slide,
           "PKAV Authenticity Verification information present (not verified by listing).\n"));
 #endif
+#endif
+#ifndef WINDLL
+    if (fwkcs_present && uO.qflag < 2) {
+        if (G.fwkcs_list_md5)
+            Info(slide, 0, ((char *)slide,
+              "FWKCS MD5 metadata information present (not verified by listing).\n"));
+        else
+            Info(slide, 0, ((char *)slide,
+              "FWKCS MD5 metadata information present (not verified by listing; use %s --list-fwkcs-md5 to display).\n",
+              longhdr ? "-v" : "-l"));
+    }
 #endif
 
     /* Skip the following checks in case of a premature listing break. */

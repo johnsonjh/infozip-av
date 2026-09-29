@@ -1947,6 +1947,12 @@
 # define Z_UINT4_DEFINED
 #endif
 
+typedef struct fwkcs_md5_ctx {
+    z_uint4 state[4];
+    z_uint4 count[2];
+    uch buffer[64];
+} fwkcs_md5_ctx;
+
 /* The following three user-defined unsigned integer types are used for
    holding zipfile entities (required widths without / with Zip64 support):
    a) sizes and offset of zipfile entries
@@ -2052,6 +2058,8 @@ typedef struct min_info {
     unsigned GPFIsUTF8: 1;   /* crec gen_purpose_flag UTF-8 bit 11 is set */
 #endif
     unsigned zip64: 1;       /* true if entry has Zip64 extra block */
+    unsigned fwkcs_md5: 1;   /* central directory has FWKCS MD5 */
+    unsigned fwkcs_bad: 1;   /* malformed/duplicate FWKCS MD5 field */
 #ifndef SFX
     char Far *cfilname;      /* central header version of filename */
 #endif
@@ -2346,6 +2354,11 @@ int      seek_zipf            OF((__GPRO__ zoff_t abs_offset));
    int   flush                OF((__GPRO__ ulg size));  /* actually funzip.c */
 #else
    int   flush                OF((__GPRO__ uch *buf, ulg size, int unshrink));
+#endif
+#ifndef FUNZIP
+void     fwkcs_md5_init       OF((__GPRO));
+void     fwkcs_md5_update     OF((__GPRO__ ZCONST uch *buf, ulg len));
+void     fwkcs_md5_final      OF((__GPRO__ uch digest[16]));
 #endif
 /* static int  disk_error     OF((__GPRO)); */
 void     handler              OF((int signal));

@@ -220,6 +220,11 @@ typedef struct Globals {
     char answerbuf[10];
     min_info info[DIR_BLKSIZ];
     min_info *pInfo;
+    uch *fwkcs_expected;
+    fwkcs_md5_ctx fwkcs_ctx;
+    ulg fwkcs_verified;
+    int fwkcs_active;
+    int fwkcs_list_md5;
 #endif /* !FUNZIP */
     union work area;                /* see unzpriv.h for definition of work */
 

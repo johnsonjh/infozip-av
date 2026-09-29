@@ -453,6 +453,57 @@ static int extract_or_test_member OF((__GPRO));
    static int Cdecl dircomp OF((ZCONST zvoid *a, ZCONST zvoid *b));
 #endif
 
+static int fwkcs_note_cdir(__G)
+    __GDEF
+{
+    uch *ef = G.extra_field;
+    unsigned left = G.crec.extra_field_length;
+    unsigned idx = (unsigned)(G.pInfo - G.info);
+    int count = 0, valid = FALSE, bad = FALSE;
+
+    G.pInfo->fwkcs_md5 = FALSE;
+    G.pInfo->fwkcs_bad = FALSE;
+
+    while (ef != (uch *)NULL && left >= EB_HEADSIZE) {
+        ush id = makeword(ef + EB_ID);
+        unsigned len = (unsigned)makeword(ef + EB_LEN);
+
+        if (len > left - EB_HEADSIZE) {
+            if (id == EF_MD5) {
+                ++count;
+                bad = TRUE;
+            }
+            break;
+        }
+        if (id == EF_MD5) {
+            ++count;
+            if (len == 19 && ef[EB_HEADSIZE] == 'M' &&
+                ef[EB_HEADSIZE+1] == 'D' && ef[EB_HEADSIZE+2] == '5') {
+                if (G.fwkcs_expected == (uch *)NULL) {
+                    G.fwkcs_expected = (uch *)malloc(DIR_BLKSIZ * 16U);
+                    if (G.fwkcs_expected == (uch *)NULL)
+                        return PK_MEM;
+                }
+                memcpy(G.fwkcs_expected + idx * 16U,
+                       ef + EB_HEADSIZE + 3, 16);
+                valid = TRUE;
+            } else {
+                bad = TRUE;
+            }
+        }
+        ef += EB_HEADSIZE + len;
+        left -= EB_HEADSIZE + len;
+    }
+    if (count > 1)
+        bad = TRUE;
+    if (bad) {
+        G.pInfo->fwkcs_bad = TRUE;
+    } else if (count == 1 && valid) {
+        G.pInfo->fwkcs_md5 = TRUE;
+    }
+    return PK_COOL;
+}
+
 
 
 /*******************************/
@@ -928,6 +979,8 @@ int extract_or_test_files(__G)    /* return PK-type error code */
     no_endsig_found = FALSE;
 #endif
     reached_end = FALSE;
+    G.fwkcs_expected = (uch *)NULL;
+    G.fwkcs_verified = 0;
     while (!reached_end) {
         j = 0;
 #ifdef AMIGA
@@ -1014,6 +1067,12 @@ int extract_or_test_files(__G)    /* return PK-type error code */
                     break;
                 }
             }
+            if ((error = fwkcs_note_cdir(__G)) != PK_COOL) {
+                if (error > error_in_archive)
+                    error_in_archive = error;
+                reached_end = TRUE;
+                break;
+            }
 #ifdef PKAV_SUPPORT
             if ((error = pkav_note_cdir(__G)) != PK_COOL) {
                 if (error > error_in_archive)
@@ -1098,6 +1157,10 @@ int extract_or_test_files(__G)    /* return PK-type error code */
                         &num_dirs, &dirlist,
 #endif
                         error_in_archive);
+        if (G.fwkcs_expected != (uch *)NULL) {
+            free(G.fwkcs_expected);
+            G.fwkcs_expected = (uch *)NULL;
+        }
         if (error != PK_COOL) {
             if (error > error_in_archive)
                 error_in_archive = error;
@@ -1284,6 +1347,11 @@ int extract_or_test_files(__G)    /* return PK-type error code */
         ulg num = filnum - num_bad_pwd;
 
         if (uO.qflag < 2) {        /* GRR 930710:  was (uO.qflag == 1) */
+            if (!error_in_archive && G.fwkcs_verified != 0)
+                Info(slide, 0, ((char *)slide,
+                  "FWKCS MD5 checksums verified for %lu entr%s.\n",
+                  G.fwkcs_verified,
+                  (G.fwkcs_verified == 1L)? "y" : "ies"));
             if (error_in_archive)
                 Info(slide, 0, ((char *)slide, LoadFarString(ErrorInArchive),
                   (error_in_archive == PK_WARN)? "warning-" : "", G.zipfn));
@@ -2201,7 +2269,9 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
     char *ebc="[ebcdic]";
 #endif
     register int b;
-    int r, error=PK_COOL;
+    int r, error=PK_COOL, fwkcs_error=PK_COOL, crc_bad;
+    uch fwkcs_digest[16];
+    char fwkcs_actual_hex[33], fwkcs_expected_hex[33];
 
 
 /*---------------------------------------------------------------------------
@@ -2213,6 +2283,9 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
     G.zipeof = 0;
     G.newfile = TRUE;
     G.crc32val = CRCVAL_INITIAL;
+    G.fwkcs_active = G.pInfo->fwkcs_md5;
+    if (G.fwkcs_active)
+        fwkcs_md5_init(__G);
 #ifdef PKAV_SUPPORT
     pkav_begin_member(__G);
 #endif
@@ -2545,7 +2618,31 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 #ifdef PKAV_SUPPORT
     pkav_complete_member(__G);
 #endif
-    if (G.crc32val != G.lrec.crc32) {
+    if (G.fwkcs_active) {
+        unsigned idx = (unsigned)(G.pInfo - G.info);
+        fwkcs_md5_final(__G__ fwkcs_digest);
+        if (memcmp(fwkcs_digest, G.fwkcs_expected + idx * 16U, 16) != 0) {
+            static ZCONST char hex[] = "0123456789abcdef";
+            ZCONST uch *expected = G.fwkcs_expected + idx * 16U;
+            int i;
+
+            for (i = 0; i < 16; ++i) {
+                fwkcs_actual_hex[i << 1] = hex[fwkcs_digest[i] >> 4];
+                fwkcs_actual_hex[(i << 1) + 1] = hex[fwkcs_digest[i] & 0x0f];
+                fwkcs_expected_hex[i << 1] = hex[expected[i] >> 4];
+                fwkcs_expected_hex[(i << 1) + 1] = hex[expected[i] & 0x0f];
+            }
+            fwkcs_actual_hex[32] = '\0';
+            fwkcs_expected_hex[32] = '\0';
+            fwkcs_error = PK_ERR;
+        } else
+            ++G.fwkcs_verified;
+    } else if (G.pInfo->fwkcs_bad) {
+        fwkcs_error = PK_WARN;
+    }
+    G.fwkcs_active = FALSE;
+    crc_bad = (G.crc32val != G.lrec.crc32);
+    if (crc_bad) {
         /* if quiet enough, we haven't output the filename yet:  do it */
         if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
             Info(slide, 0x401, ((char *)slide, "%-22s ",
@@ -2557,7 +2654,35 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             Info(slide, 0x401, ((char *)slide, LoadFarString(MaybeBadPasswd)));
 #endif
         error = PK_ERR;
-    } else if (uO.tflag) {
+    }
+    if (fwkcs_error != PK_COOL) {
+        if (crc_bad) {
+            if (fwkcs_error == PK_ERR) {
+                Info(slide, 0x401, ((char *)slide,
+                  "        FWKCS MD5 mismatch: %s\n", FnFilter1(G.filename)));
+                Info(slide, 0x401, ((char *)slide,
+                  "        %s (should be %s)\n",
+                  fwkcs_actual_hex, fwkcs_expected_hex));
+            } else
+                Info(slide, 0x401, ((char *)slide,
+                  "        warning: malformed FWKCS MD5 extra field: %s\n",
+                  FnFilter1(G.filename)));
+        } else {
+            if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
+                Info(slide, 0x401, ((char *)slide, "%-22s ",
+                  FnFilter1(G.filename)));
+            if (fwkcs_error == PK_ERR) {
+                Info(slide, 0x401, ((char *)slide, "FWKCS MD5 mismatch\n"));
+                Info(slide, 0x401, ((char *)slide,
+                  "        %s (should be %s)\n",
+                  fwkcs_actual_hex, fwkcs_expected_hex));
+            } else
+                Info(slide, 0x401, ((char *)slide,
+                  "warning: malformed FWKCS MD5 extra field\n"));
+        }
+        if (fwkcs_error > error)
+            error = fwkcs_error;
+    } else if (!crc_bad && uO.tflag) {
 #ifndef SFX
         if (G.extra_field) {
             if ((r = TestExtraField(__G__ G.extra_field,
