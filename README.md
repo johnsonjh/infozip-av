@@ -5,18 +5,18 @@
 This project adds full [PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification) support to [Info‑ZIP](https://infozip.sourceforge.net/).
 
 This support is built on Fedora's current
-[`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46, 2026‑07‑17),
-[`unzip`](https://src.fedoraproject.org/rpms/unzip) (6.0‑71, 2026‑07‑27)
-packages.
+[`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
+[`unzip`](https://src.fedoraproject.org/rpms/unzip) (6.0‑71,&nbsp;2026‑07‑27)
+source packages.
 
 PKAV today is cryptographically useless, but supporting it is important for
-historical preservation and authenticity and unlocks the embedded AVEXTRA
+historical preservation and authenticity, and it unlocks the embedded AVEXTRA
 comments carried by many original PKZIP archives that would otherwise *only*
-be accessible using official PKWARE software.
+be accessible using official but ancient PKWARE software.
 
 If you want, you can [compare the changes](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
-against the Fedora upstream versions, or clone this repo and compile it using
-"`./build.sh`" on most Unix systems with GCC.
+against the Fedora upstream version, or clone the repo and compile it using
+"`./build.sh`" (on most Unix systems with GCC).
 
 ## License
 
