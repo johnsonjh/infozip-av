@@ -25,10 +25,10 @@ This support is built on Fedora's current
 [`unzip`](https://src.fedoraproject.org/rpms/unzip) (6.0‑71,&nbsp;2026‑07‑27)
 source packages.
 
-PKAV today is cryptographically useless, but supporting it is important for
-historical preservation and authenticity, and it unlocks the embedded AVEXTRA
-comments carried by many original PKZIP archives that would otherwise *only*
-be accessible using official but ancient PKWARE software.
+PKAV today is cryptographically useless, but supporting it is *important for
+historical preservation and authenticity*, and it unlocks the encrypted AVEXTRA
+data present in many original PKZIP archives that would otherwise be completely
+inaccessible (or *only* accessible using official PKWARE software).
 
 If you want, you can compare the changes against the Fedora upstream version
 using [GitHub](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
