@@ -191,6 +191,9 @@ OPTIONS
 
        -z     display only the archive comment.
 
+       --list-fwkcs-md5
+              Appends stored FWKCS MD5 checksum values to -l and -v listings.
+
 MODIFIERS
        -a     convert  text files.  Ordinarily all files are extracted exactly
               as they are stored (as ``binary'' files).  The -a option  causes

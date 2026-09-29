@@ -71,6 +71,142 @@
 #include "crc32.h"
 #include "crypt.h"
 #include "ttyio.h"
+#ifndef FUNZIP
+
+#define FWKCS_MASK ((z_uint4)0xffffffffUL)
+#define FWKCS_ROT(x,n) \
+  ((z_uint4)(((((x) & FWKCS_MASK) << (n)) | \
+               (((x) & FWKCS_MASK) >> (32-(n)))) & FWKCS_MASK))
+
+static void fwkcs_md5_transform(state, block)
+    z_uint4 *state;
+    ZCONST uch *block;
+{
+  static ZCONST z_uint4 k[64] = {
+    0xd76aa478UL,0xe8c7b756UL,0x242070dbUL,0xc1bdceeeUL,
+    0xf57c0fafUL,0x4787c62aUL,0xa8304613UL,0xfd469501UL,
+    0x698098d8UL,0x8b44f7afUL,0xffff5bb1UL,0x895cd7beUL,
+    0x6b901122UL,0xfd987193UL,0xa679438eUL,0x49b40821UL,
+    0xf61e2562UL,0xc040b340UL,0x265e5a51UL,0xe9b6c7aaUL,
+    0xd62f105dUL,0x02441453UL,0xd8a1e681UL,0xe7d3fbc8UL,
+    0x21e1cde6UL,0xc33707d6UL,0xf4d50d87UL,0x455a14edUL,
+    0xa9e3e905UL,0xfcefa3f8UL,0x676f02d9UL,0x8d2a4c8aUL,
+    0xfffa3942UL,0x8771f681UL,0x6d9d6122UL,0xfde5380cUL,
+    0xa4beea44UL,0x4bdecfa9UL,0xf6bb4b60UL,0xbebfbc70UL,
+    0x289b7ec6UL,0xeaa127faUL,0xd4ef3085UL,0x04881d05UL,
+    0xd9d4d039UL,0xe6db99e5UL,0x1fa27cf8UL,0xc4ac5665UL,
+    0xf4292244UL,0x432aff97UL,0xab9423a7UL,0xfc93a039UL,
+    0x655b59c3UL,0x8f0ccc92UL,0xffeff47dUL,0x85845dd1UL,
+    0x6fa87e4fUL,0xfe2ce6e0UL,0xa3014314UL,0x4e0811a1UL,
+    0xf7537e82UL,0xbd3af235UL,0x2ad7d2bbUL,0xeb86d391UL
+  };
+  static ZCONST uch r[64] = {
+    7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+    5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+    4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+    6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21
+  };
+  z_uint4 a=state[0], b=state[1], c=state[2], d=state[3], x[16];
+  z_uint4 f, t;
+  unsigned i, g;
+
+  for (i=0; i<16; ++i) {
+    ZCONST uch *p = block + (i << 2);
+    x[i] = (z_uint4)p[0] | ((z_uint4)p[1] << 8) |
+           ((z_uint4)p[2] << 16) | ((z_uint4)p[3] << 24);
+  }
+  for (i=0; i<64; ++i) {
+    if (i < 16) {
+      f = ((b & c) | ((~b) & d)) & FWKCS_MASK; g = i;
+    } else if (i < 32) {
+      f = ((d & b) | ((~d) & c)) & FWKCS_MASK; g = (5*i + 1) & 15;
+    } else if (i < 48) {
+      f = (b ^ c ^ d) & FWKCS_MASK; g = (3*i + 5) & 15;
+    } else {
+      f = (c ^ (b | (~d))) & FWKCS_MASK; g = (7*i) & 15;
+    }
+    t = d; d = c; c = b;
+    b = (b + FWKCS_ROT((a + f + k[i] + x[g]) & FWKCS_MASK, r[i])) & FWKCS_MASK;
+    a = t;
+  }
+  state[0] = (state[0] + a) & FWKCS_MASK;
+  state[1] = (state[1] + b) & FWKCS_MASK;
+  state[2] = (state[2] + c) & FWKCS_MASK;
+  state[3] = (state[3] + d) & FWKCS_MASK;
+}
+
+void fwkcs_md5_init(__G)
+    __GDEF
+{
+    G.fwkcs_ctx.count[0] = G.fwkcs_ctx.count[1] = 0;
+    G.fwkcs_ctx.state[0] = (z_uint4)0x67452301UL;
+    G.fwkcs_ctx.state[1] = (z_uint4)0xefcdab89UL;
+    G.fwkcs_ctx.state[2] = (z_uint4)0x98badcfeUL;
+    G.fwkcs_ctx.state[3] = (z_uint4)0x10325476UL;
+}
+
+void fwkcs_md5_update(__G__ data, len)
+    __GDEF
+    ZCONST uch *data;
+    ulg len;
+{
+    unsigned used = (unsigned)((G.fwkcs_ctx.count[0] >> 3) & 63);
+    z_uint4 bits;
+
+    while (len != 0) {
+        unsigned n = len > 0xffffUL ? 0xffffU : (unsigned)len;
+        unsigned i;
+        bits = (z_uint4)n << 3;
+        {
+            z_uint4 old = G.fwkcs_ctx.count[0];
+            G.fwkcs_ctx.count[0] = (G.fwkcs_ctx.count[0] + bits) & FWKCS_MASK;
+            if (G.fwkcs_ctx.count[0] < old)
+                G.fwkcs_ctx.count[1] = (G.fwkcs_ctx.count[1] + 1) & FWKCS_MASK;
+            G.fwkcs_ctx.count[1] = (G.fwkcs_ctx.count[1] +
+                ((z_uint4)n >> 29)) & FWKCS_MASK;
+        }
+        if (used) {
+            unsigned freeb = 64 - used;
+            if (n < freeb) {
+                memcpy(G.fwkcs_ctx.buffer + used, data, n);
+                used += n; data += n; len -= n;
+                continue;
+            }
+            memcpy(G.fwkcs_ctx.buffer + used, data, freeb);
+            fwkcs_md5_transform(G.fwkcs_ctx.state, G.fwkcs_ctx.buffer);
+            data += freeb; len -= freeb; n -= freeb; used = 0;
+        }
+        for (i = 0; i + 63 < n; i += 64)
+            fwkcs_md5_transform(G.fwkcs_ctx.state, data + i);
+        data += i; len -= i; n -= i;
+        if (n) {
+            memcpy(G.fwkcs_ctx.buffer, data, n);
+            used = n; data += n; len -= n;
+        }
+    }
+}
+
+void fwkcs_md5_final(__G__ digest)
+    __GDEF
+    uch digest[16];
+{
+    static ZCONST uch pad[64] = { 0x80 };
+    uch bits[8];
+    unsigned i, used, padlen;
+
+    for (i = 0; i < 4; ++i) {
+        bits[i] = (uch)(G.fwkcs_ctx.count[0] >> (i << 3));
+        bits[i+4] = (uch)(G.fwkcs_ctx.count[1] >> (i << 3));
+    }
+    used = (unsigned)((G.fwkcs_ctx.count[0] >> 3) & 63);
+    padlen = (used < 56) ? 56 - used : 120 - used;
+    fwkcs_md5_update(__G__ pad, padlen);
+    fwkcs_md5_update(__G__ bits, 8);
+    for (i = 0; i < 16; ++i)
+        digest[i] = (uch)(G.fwkcs_ctx.state[i >> 2] >> ((i & 3) << 3));
+}
+#endif /* !FUNZIP */
+
 
 /* setup of codepage conversion for decryption passwords */
 #if CRYPT
@@ -833,6 +969,10 @@ static int partflush(__G__ rawbuf, size, unshrink)
   ---------------------------------------------------------------------------*/
 
     G.crc32val = crc32(G.crc32val, rawbuf, (extent)size);
+#ifndef FUNZIP
+    if (G.fwkcs_active)
+        fwkcs_md5_update(__G__ rawbuf, size);
+#endif
 #ifdef PKAV_SUPPORT
     pkav_update(__G__ rawbuf, size);
 #endif

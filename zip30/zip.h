@@ -220,6 +220,7 @@ struct plist {
 #define EF_IZUNIX    0x5855   /* UNIX Extra Field ID ("UX") */
 #define EF_IZUNIX2   0x7855   /* Info-ZIP's new Unix ("Ux") */
 #define EF_TIME      0x5455   /* universal timestamp ("UT") */
+#define EF_MD5       0x4b46   /* FWKCS MD5 ("FK") */
 #define EF_AV        0x0007   /* PKWARE Authenticity Verification */
 #define EF_OS2EA     0x0009   /* OS/2 Extra Field ID (extended attributes) */
 #define EF_ACL       0x4C41   /* ACL Extra Field ID (access control list, "AL") */
@@ -349,6 +350,7 @@ extern int verbose;             /* Report oddities in zip file structure */
 extern int fix;                 /* Fix the zip file */
 extern int filesync;            /* 1=file sync, delete entries not on file system */
 extern int adjust;              /* Adjust the unzipsfx'd zip file */
+extern int fwkcs_md5;           /* Add FWKCS MD5 central extra field */
 extern int level;               /* Compression level */
 extern int translate_eol;       /* Translate end-of-line LF -> CR LF */
 #ifdef VMS
