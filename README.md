@@ -37,11 +37,6 @@ This support is built on Fedora's current
 [`unzip`](https://src.fedoraproject.org/rpms/unzip) (6.0‑71,&nbsp;2026‑07‑27)
 source packages.
 
-PKAV today is cryptographically useless, but supporting it is *important for
-historical preservation and authenticity*, and it unlocks the encrypted AVEXTRA
-data present in many original PKZIP archives that would otherwise be completely
-inaccessible (or *only* accessible using official PKWARE software).
-
 If you want, you can compare the changes against the Fedora upstream version
 using [GitHub](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
 or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav),
@@ -51,6 +46,11 @@ with GCC).
 ## Usage
 
 ### PKAV
+
+PKAV today is cryptographically useless, but supporting it is *important for
+historical preservation and authenticity*, and it unlocks the encrypted AVEXTRA
+data present in many original PKZIP archives that would otherwise be completely
+inaccessible (or *only* accessible using official PKWARE software).
 
 #### PKAV archive creation (`zip`)
 
@@ -138,6 +138,14 @@ No errors detected in compressed data of ./test.sfx.
 ```
 
 ### FWKCS
+
+The FWKCS extension was originally implemented by
+[Frederick W. Kantor](https://en.wikipedia.org/wiki/Frederick_Kantor) as a
+reliable way identify duplicate files in archives more reliably than by the
+filename, size, and CRC.  It is still useful today as a reasonably secure,
+lightweight, and historically authentic integrity extension.  It cooperates
+with PKAV, and because older ZIP software can ignore the FWKCS metadata if
+unsupported, it has excellent backwards compatibility.
 
 #### FWKCS archive creation (`unzip`)
 
