@@ -230,25 +230,8 @@ No errors detected in compressed data of ./pkstuff.sfx.
 ### PKWARE compatibility
 
 Archives that have been created with this PKAV implementation,
-including self‑extracting executables, are fully compatible with the
-official PKWARE PKUNZIP software.
-
-#### FWKCS
-
-```
-$ emu pkunzipl.exe -t pkstuff.sfx
-
-PKUNZIP (R)    FAST!    Extract Utility    Version 2.50    03-01-1999
-Copr. 1989-1999 PKWARE Inc.  All Rights Reserved.  Registered version
-PKUNZIP Reg. U.S. Pat. and Tm. Off.
-
-Searching ZIP: X.SFX
-Testing: makeav.com    OK
-Testing: pkl2fix.com   OK
-Testing: pklaxfix.com  OK
-Testing: pkpspfix.com  OK
-Testing: putav.com     OK
-```
+including self‑extracting executables with FWKCS metadata, are fully
+compatible with the official PKWARE PKUNZIP software.
 
 #### PKAV
 
@@ -271,6 +254,23 @@ Authentic files Verified!   # TDU015
 This was made with InfoZip!
 
 This is the AVEXTRA comment!
+```
+
+#### FWKCS
+
+```
+$ emu pkunzipl.exe -t pkstuff.sfx
+
+PKUNZIP (R)    FAST!    Extract Utility    Version 2.50    03-01-1999
+Copr. 1989-1999 PKWARE Inc.  All Rights Reserved.  Registered version
+PKUNZIP Reg. U.S. Pat. and Tm. Off.
+
+Searching ZIP: X.SFX
+Testing: makeav.com    OK
+Testing: pkl2fix.com   OK
+Testing: pklaxfix.com  OK
+Testing: pkpspfix.com  OK
+Testing: putav.com     OK
 ```
 
 ## Historical example
