@@ -372,7 +372,7 @@ int process_zipfiles(__G)    /* return PK-type error code */
               G.zipfn));
     }
 #ifdef CHEAP_SFX_AUTORUN
-    if (error == PK_OK && G.autorun_command[0] && !uO.qflag) {
+    if (error == PK_OK && G.autorun_command[0] && !uO.qflag) { /* NO autorun without prompt! */
         Info(slide, 0x81, ((char *)slide, LoadFarString(AutorunPrompt),
                       FnFilter1(G.autorun_command)));
         if (fgets(G.answerbuf, 9, stdin) != (char *)NULL
