@@ -141,11 +141,11 @@ No errors detected in compressed data of ./test.sfx.
 
 The FWKCS extension was originally implemented by
 [Frederick W. Kantor](https://en.wikipedia.org/wiki/Frederick_Kantor) as a
-reliable way identify duplicate files in archives more reliably than by the
-filename, size, and CRC.  It is still useful today as a reasonably secure,
-lightweight, and historically authentic integrity extension.  It cooperates
-with PKAV, and because older ZIP software can ignore the FWKCS metadata if
-unsupported, it has excellent backwards compatibility.
+way identify duplicate files in archives more reliably than by the filename,
+size, and CRC.  It is still useful today as a reasonably secure, lightweight,
+and historically authentic integrity extension.  It cooperates with PKAV, and
+because older ZIP software can ignore the FWKCS metadata when unsupported,
+it has excellent backwards compatibility.
 
 #### FWKCS archive creation (`unzip`)
 
