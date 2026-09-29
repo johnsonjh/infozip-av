@@ -15,17 +15,19 @@ comments carried by many original PKZIP archives that would otherwise *only*
 be accessible using official PKWARE software.
 
 If you want, you can [compare the changes](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
-against the Fedora upstream versions.
+against the Fedora upstream versions, or clone this repo and compile it using
+"`./build.sh`" on most Unix systems with GCC.
 
 ## License
 
 * These PKAV additions to Info‑ZIP are provided under the [MIT‑0 License](LICENSE)
-  or, at your option, the [Info‑ZIP 2007‑Mar‑4](zip30/LICENSE) or
-  [Info‑ZIP 2009‑Jan‑02](unzip60/LICENSE) licenses.
+  or, at your option, the [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
+  [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
+
 * The Info‑ZIP software components (Zip and UnZip) are distributed under their
-  respective [Info‑ZIP 2007‑Mar‑4](zip30/LICENSE) and
-  [Info‑ZIP 2009‑Jan‑02](unzip60/LICENSE) licenses.
+  respective [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) and
+  [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
 
 ## External links
 
-* [johnsonjh/pkstuff](https://github.com/johnsonjh/pkstuff) - PKZIP/PKUNZIP/PKSFX/PKLITE utilities
+* [`johnsonjh/pkstuff`](https://github.com/johnsonjh/pkstuff) - PKZIP/PKUNZIP/PKSFX/PKLITE utilities
