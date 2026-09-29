@@ -62,7 +62,8 @@ inaccessible (or *only* accessible using official PKWARE software).
 $ printf '%s\n' '' 'This is the AVEXTRA comment!' '' > avextra.txt
 
 $ zip --pkav-name 'This was made with InfoZip!' \
-  --pkav-s1 x --pkav-s2 y --pkav-avextra avextra.txt test.zip ./*.c
+      --pkav-s1 x --pkav-s2 y \
+      --pkav-avextra avextra.txt test.zip ./*.c
   adding: makeav.c (deflated 82%)
   adding: pkl2fix.c (deflated 73%)
   adding: pklaxfix.c (deflated 82%)
@@ -259,7 +260,7 @@ This is the AVEXTRA comment!
 #### FWKCS
 
 ```
-$ emu pkunzipl.exe -t pkstuff.sfx
+$ emu pkunzip.exe -t pkstuff.sfx
 
 PKUNZIP (R)    FAST!    Extract Utility    Version 2.50    03-01-1999
 Copr. 1989-1999 PKWARE Inc.  All Rights Reserved.  Registered version
