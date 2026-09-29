@@ -28,7 +28,7 @@ with GCC).
 > Generation of PKAV registration information is outside of the scope of this
 > project, but is [covered elsewhere](https://github.com/johnsonjh/pkstuff#makeav).
 
-```sh
+```
 $ printf '%s\n' '' 'This is the AVEXTRA comment!' '' > avextra.txt
 
 $ zip --pkav-name 'This was made with InfoZip!' \
@@ -42,7 +42,7 @@ $ zip --pkav-name 'This was made with InfoZip!' \
 
 ### PKAV archive testing
 
-```sh
+```
 $ unzip -t test.zip
 Archive:  test.zip
     testing: makeav.c                 OK
@@ -60,7 +60,7 @@ No errors detected in compressed data of test.zip.
 
 ### PKAV archive extraction
 
-```sh
+```
 $ unzip -xa test.zip
 Archive:  test.zip
   inflating: makeav.c                [text]
@@ -81,7 +81,7 @@ offsets using the `zip ‑A` command.  If you don't run `zip ‑A` the archive
 is not a fully conforming ZIP file and other software (especially PKWARE
 software) may reject it as invalid or corrupt.
 
-```sh
+```
 $ cat $(command -v unzipsfx) test.zip > test.sfx
 
 $ chmod a+x test.sfx
@@ -110,7 +110,7 @@ Archives that have been correctly created with this PKAV implementation,
 including self‑extracting executables, are fully compatible with the
 official PKWARE PKUNZIP verification routines.
 
-```sh
+```
 $ emu2 pkunzip.exe -t test.sfx
 
 PKUNZIP (R)    FAST!    Extract Utility    Version 2.50    03-01-1999
@@ -143,7 +143,7 @@ points) by the USPTO to [invalidate a software patent](https://dn721608.ca.archi
 (PDF page 11) in 2014.  In that case, [Jason Scott](https://en.wikipedia.org/wiki/Jason_Scott)
 used the historical PKWARE PKUNZIP in a DOS emulator to extract this data.
 
-```sh
+```
 $ unzip -ta fwkcs122.zip
 Archive:  fwkcs122.zip
     testing: FILE_ID.DIZ              OK
