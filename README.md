@@ -1,5 +1,21 @@
 # PKAV for Info‑ZIP
 
+<!-- toc -->
+
+- [Overview](#overview)
+- [Usage](#usage)
+  * [PKAV archive creation (`zip`)](#pkav-archive-creation-zip)
+  * [PKAV archive testing (`unzip`)](#pkav-archive-testing-unzip)
+  * [PKAV archive extraction (`unzip`)](#pkav-archive-extraction-unzip)
+  * [PKAV self-extractor creation (`unzipsfx`)](#pkav-self-extractor-creation-unzipsfx)
+  * [PKWARE compatibility](#pkware-compatibility)
+- [Historical example](#historical-example)
+- [Availability](#availability)
+- [License](#license)
+- [External links](#external-links)
+
+<!-- tocstop -->
+
 ## Overview
 
 This project adds full [PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification) support to [Info‑ZIP](https://infozip.sourceforge.net/).
@@ -22,7 +38,7 @@ with GCC).
 
 ## Usage
 
-### PKAV archive creation
+### PKAV archive creation (`zip`)
 
 > [!NOTE]
 > Generation of PKAV registration information is outside of the scope of this
@@ -40,7 +56,7 @@ $ zip --pkav-name 'This was made with InfoZip!' \
   adding: putav.c (deflated 77%)
 ```
 
-### PKAV archive testing
+### PKAV archive testing (`unzip`)
 
 ```
 $ unzip -t test.zip
@@ -58,7 +74,7 @@ This is the AVEXTRA comment!
 No errors detected in compressed data of test.zip.
 ```
 
-### PKAV archive extraction
+### PKAV archive extraction (`unzip`)
 
 ```
 $ unzip -xa test.zip
@@ -74,12 +90,15 @@ This was made with InfoZip!
 This is the AVEXTRA comment!
 ```
 
-### PKAV self-extractor
+### PKAV self-extractor creation (`unzipsfx`)
 
-When creating a self‑extracting archive, ensure that you correct the entry
-offsets using the `zip ‑A` command.  If you don't run `zip ‑A` the archive
-is not a fully conforming ZIP file and other software (especially PKWARE
-software) may reject it as invalid or corrupt.
+The `unzipsfx` self‑extracting stub handles PKAV automatically.
+
+> [!IMPORTANT]
+> When creating a self‑extracting archive, ensure that you correct the entry
+> offsets using the `zip ‑A` command.  If you don't run `zip ‑A` the archive
+> is not a fully conforming ZIP file and other software (especially PKWARE
+> software) may reject it as invalid or corrupt.
 
 ```
 $ cat $(command -v unzipsfx) test.zip > test.sfx
@@ -104,7 +123,7 @@ This is the AVEXTRA comment!
 No errors detected in compressed data of ./test.sfx.
 ```
 
-#### PKWARE compatibility
+### PKWARE compatibility
 
 Archives that have been correctly created with this PKAV implementation,
 including self‑extracting executables, are fully compatible with the
@@ -131,7 +150,7 @@ This was made with InfoZip!
 This is the AVEXTRA comment!
 ```
 
-### Historical example
+## Historical example
 
 The [*very*](http://justsolve.archiveteam.org/wiki/FWKCS)
 [*famous*](https://dn790003.ca.archive.org/0/items/emcfarber_jsstestimony/Sadofsky%2C%20Jason%20Scott.pdf)
