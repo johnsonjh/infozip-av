@@ -547,6 +547,12 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  ifdef WILD_STOP_AT_DIR
      static ZCONST char Far WildStopAtDir[] = "WILD_STOP_AT_DIR";
 #  endif
+#  ifdef PKAV_SUPPORT
+     static ZCONST char Far PkavSupport[] =
+       "PKAV (PKWARE Authenticity Verification, with AVEXTRA)";
+#  endif
+     static ZCONST char Far FwkcsSupport[] =
+       "FWKCS (Frederick W. Kantor Contents Signatures, using MD5)";
 #  if CRYPT
 #    ifdef PASSWD_FROM_STDIN
        static ZCONST char Far PasswdStdin[] = "PASSWD_FROM_STDIN";
@@ -1370,6 +1376,10 @@ int uz_opts(__G__ pargc, pargv)
 #endif
     
     while (++argv, (--argc > 0 && *argv != NULL && **argv == '-')) {
+        if (strcmp(*argv, "--list-fwkcs-md5") == 0) {
+            G.fwkcs_list_md5 = TRUE;
+            continue;
+        }
 #ifdef PKAV_SUPPORT
         if (strcmp(*argv, "--show-avextra-on-fail") == 0) {
             G.pkav.show_avextra_on_fail = TRUE;
@@ -1959,6 +1969,11 @@ opts_done:  /* yes, very ugly...but only used by UnZipSFX with -x xlist */
         }
     }
 
+    if (G.fwkcs_list_md5 && uO.vflag == 0) {
+        Info(slide, 0x401, ((char *)slide,
+          "error:  --list-fwkcs-md5 requires -l or -v\n"));
+        error = TRUE;
+    }
     if ((uO.cflag && (uO.tflag || uO.uflag)) ||
         (uO.tflag && uO.uflag) || (uO.fflag && uO.overwrite_none))
     {
@@ -2262,6 +2277,7 @@ static void help_extended(__G)
   "         information.  Also can be added to other list commands for more",
   "         verbose output.",
   "  -z   Display only archive comment.",
+  "  --list-fwkcs-md5  Show stored FWKCS MD5 values in -l/-v listings.",
 #ifdef PKAV_SUPPORT
   "  --show-avextra-on-fail  Show unverified PKAV AVEXTRA after failure.",
 #endif
@@ -2697,6 +2713,14 @@ static void show_version_info(__G)
           LoadFarStringSmall(WildStopAtDir)));
         ++numopts;
 #endif
+#ifdef PKAV_SUPPORT
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+          LoadFarStringSmall(PkavSupport)));
+        ++numopts;
+#endif
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+          LoadFarStringSmall(FwkcsSupport)));
+        ++numopts;
 #if CRYPT
 # ifdef PASSWD_FROM_STDIN
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),

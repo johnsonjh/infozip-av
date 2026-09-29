@@ -171,8 +171,191 @@ local zoff_t bzfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
   /* Current input function. Set to mem_read for in-memory compression */
 #endif /* !USE_ZLIB */
 
+typedef struct fwkcs_md5_ctx {
+  z_uint4 state[4];
+  z_uint4 count[2];
+  uch buffer[64];
+} fwkcs_md5_ctx;
+
+local void fwkcs_md5_transform OF((z_uint4 *, ZCONST uch *));
+local void fwkcs_md5_init OF((fwkcs_md5_ctx *));
+local void fwkcs_md5_update OF((fwkcs_md5_ctx *, ZCONST uch *, unsigned));
+local void fwkcs_md5_final OF((uch *, fwkcs_md5_ctx *));
+local void fwkcs_strip_extra OF((char *, ush *));
+local int fwkcs_add_extra OF((struct zlist far *, ZCONST uch *));
+
+
+#define FWKCS_MASK ((z_uint4)0xffffffffUL)
+#define FWKCS_ROT(x,n) \
+  ((z_uint4)(((((x) & FWKCS_MASK) << (n)) | \
+               (((x) & FWKCS_MASK) >> (32-(n)))) & FWKCS_MASK))
+
+local void fwkcs_md5_transform(state, block)
+  z_uint4 *state;
+  ZCONST uch *block;
+{
+  static ZCONST z_uint4 k[64] = {
+    0xd76aa478UL, 0xe8c7b756UL, 0x242070dbUL, 0xc1bdceeeUL,
+    0xf57c0fafUL, 0x4787c62aUL, 0xa8304613UL, 0xfd469501UL,
+    0x698098d8UL, 0x8b44f7afUL, 0xffff5bb1UL, 0x895cd7beUL,
+    0x6b901122UL, 0xfd987193UL, 0xa679438eUL, 0x49b40821UL,
+    0xf61e2562UL, 0xc040b340UL, 0x265e5a51UL, 0xe9b6c7aaUL,
+    0xd62f105dUL, 0x02441453UL, 0xd8a1e681UL, 0xe7d3fbc8UL,
+    0x21e1cde6UL, 0xc33707d6UL, 0xf4d50d87UL, 0x455a14edUL,
+    0xa9e3e905UL, 0xfcefa3f8UL, 0x676f02d9UL, 0x8d2a4c8aUL,
+    0xfffa3942UL, 0x8771f681UL, 0x6d9d6122UL, 0xfde5380cUL,
+    0xa4beea44UL, 0x4bdecfa9UL, 0xf6bb4b60UL, 0xbebfbc70UL,
+    0x289b7ec6UL, 0xeaa127faUL, 0xd4ef3085UL, 0x04881d05UL,
+    0xd9d4d039UL, 0xe6db99e5UL, 0x1fa27cf8UL, 0xc4ac5665UL,
+    0xf4292244UL, 0x432aff97UL, 0xab9423a7UL, 0xfc93a039UL,
+    0x655b59c3UL, 0x8f0ccc92UL, 0xffeff47dUL, 0x85845dd1UL,
+    0x6fa87e4fUL, 0xfe2ce6e0UL, 0xa3014314UL, 0x4e0811a1UL,
+    0xf7537e82UL, 0xbd3af235UL, 0x2ad7d2bbUL, 0xeb86d391UL
+  };
+  static ZCONST uch r[64] = {
+    7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+    5, 9,  14, 20, 5, 9,  14, 20, 5, 9,  14, 20, 5, 9,  14, 20,
+    4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+    6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+  };
+  z_uint4 a=state[0], b=state[1], c=state[2], d=state[3], x[16];
+  z_uint4 f, t;
+  unsigned i, g;
+
+  for (i=0; i<16; ++i) {
+    ZCONST uch *p = block + (i << 2);
+    x[i] = (z_uint4)p[0] | ((z_uint4)p[1] << 8) |
+           ((z_uint4)p[2] << 16) | ((z_uint4)p[3] << 24);
+  }
+  for (i=0; i<64; ++i) {
+    if (i < 16) {
+      f = ((b & c) | ((~b) & d)) & FWKCS_MASK; g = i;
+    } else if (i < 32) {
+      f = ((d & b) | ((~d) & c)) & FWKCS_MASK; g = (5*i + 1) & 15;
+    } else if (i < 48) {
+      f = (b ^ c ^ d) & FWKCS_MASK; g = (3*i + 5) & 15;
+    } else {
+      f = (c ^ (b | (~d))) & FWKCS_MASK; g = (7*i) & 15;
+    }
+    t = d; d = c; c = b;
+    b = (b + FWKCS_ROT((a + f + k[i] + x[g]) & FWKCS_MASK, r[i])) & FWKCS_MASK;
+    a = t;
+  }
+  state[0] = (state[0] + a) & FWKCS_MASK;
+  state[1] = (state[1] + b) & FWKCS_MASK;
+  state[2] = (state[2] + c) & FWKCS_MASK;
+  state[3] = (state[3] + d) & FWKCS_MASK;
+}
+
+local void fwkcs_md5_init(ctx)
+  fwkcs_md5_ctx *ctx;
+{
+  ctx->count[0] = ctx->count[1] = 0;
+  ctx->state[0] = (z_uint4)0x67452301UL;
+  ctx->state[1] = (z_uint4)0xefcdab89UL;
+  ctx->state[2] = (z_uint4)0x98badcfeUL;
+  ctx->state[3] = (z_uint4)0x10325476UL;
+}
+
+local void fwkcs_md5_update(ctx, data, len)
+  fwkcs_md5_ctx *ctx;
+  ZCONST uch *data;
+  unsigned len;
+{
+  unsigned i, used = (unsigned)((ctx->count[0] >> 3) & 63);
+  z_uint4 bits = (z_uint4)len << 3;
+
+  {
+    z_uint4 old = ctx->count[0];
+    ctx->count[0] = (ctx->count[0] + bits) & FWKCS_MASK;
+    if (ctx->count[0] < old) ctx->count[1] = (ctx->count[1] + 1) & FWKCS_MASK;
+    ctx->count[1] = (ctx->count[1] + ((z_uint4)len >> 29)) & FWKCS_MASK;
+  }
+  if (used) {
+    unsigned freeb = 64 - used;
+    if (len < freeb) {
+      memcpy(ctx->buffer + used, data, len);
+      return;
+    }
+    memcpy(ctx->buffer + used, data, freeb);
+    fwkcs_md5_transform(ctx->state, ctx->buffer);
+    data += freeb; len -= freeb;
+  }
+  for (i = 0; i + 63 < len; i += 64)
+    fwkcs_md5_transform(ctx->state, data + i);
+  if (i < len) memcpy(ctx->buffer, data + i, len - i);
+}
+
+local void fwkcs_md5_final(digest, ctx)
+  uch *digest;
+  fwkcs_md5_ctx *ctx;
+{
+  static ZCONST uch pad[64] = { 0x80 };
+  uch bits[8];
+  unsigned i, used, padlen;
+
+  for (i = 0; i < 4; ++i) {
+    bits[i] = (uch)(ctx->count[0] >> (i << 3));
+    bits[i+4] = (uch)(ctx->count[1] >> (i << 3));
+  }
+  used = (unsigned)((ctx->count[0] >> 3) & 63);
+  padlen = (used < 56) ? 56 - used : 120 - used;
+  fwkcs_md5_update(ctx, pad, padlen);
+  fwkcs_md5_update(ctx, bits, 8);
+  for (i = 0; i < 16; ++i)
+    digest[i] = (uch)(ctx->state[i >> 2] >> ((i & 3) << 3));
+}
+
+local void fwkcs_strip_extra(extra, plen)
+  char *extra;
+  ush *plen;
+{
+  unsigned in = 0, out = 0, len = *plen;
+
+  while (in + 4 <= len) {
+    unsigned size = (unsigned)((uch)extra[in+2] |
+                      ((unsigned)(uch)extra[in+3] << 8)) + 4;
+    unsigned tag = (unsigned)((uch)extra[in] |
+                     ((unsigned)(uch)extra[in+1] << 8));
+    if (size > len - in) break;
+    if (tag != EF_MD5) {
+      if (out != in) memmove(extra + out, extra + in, size);
+      out += size;
+    }
+    in += size;
+  }
+  if (in < len) {
+    if (out != in) memmove(extra + out, extra + in, len - in);
+    out += len - in;
+  }
+  *plen = (ush)out;
+}
+
+local int fwkcs_add_extra(z, digest)
+  struct zlist far *z;
+  ZCONST uch *digest;
+{
+  char *p;
+  unsigned oldlen = z->cext;
+  unsigned newlen = oldlen + 23;
+
+  if (newlen > EF_SIZE_MAX) return ZE_MEM;
+  if ((p = (char *)malloc(newlen)) == NULL) return ZE_MEM;
+  if (oldlen) memcpy(p, z->cextra, oldlen);
+  p[oldlen] = (char)(EF_MD5 & 0xff);
+  p[oldlen+1] = (char)((EF_MD5 >> 8) & 0xff);
+  p[oldlen+2] = 19; p[oldlen+3] = 0;
+  p[oldlen+4] = 'M'; p[oldlen+5] = 'D'; p[oldlen+6] = '5';
+  memcpy(p + oldlen + 7, digest, 16);
+  if (z->cextra != z->extra) free(z->cextra);
+  z->cextra = p;
+  z->cext = (ush)newlen;
+  return ZE_OK;
+}
+
 
 /* Local data */
+local fwkcs_md5_ctx fwkcs_ctx;
 local ush pkav_sum16 = 0;       /* PKAV sum of uncompressed stored bytes */
 local uch pkav_xor8 = 0;        /* PKAV xor of uncompressed stored bytes */
 local ulg crc;                  /* crc on uncompressed file data */
@@ -489,6 +672,7 @@ struct zlist far *z;    /* zip entry to compress */
       }
       memcpy(tempextra, z->extra, z->ext);
       tempext = z->ext;
+      fwkcs_strip_extra(tempextra, &tempext);
     }
     if (z->cext) {
       if ((tempcextra = malloc(z->cext)) == NULL) {
@@ -496,6 +680,7 @@ struct zlist far *z;    /* zip entry to compress */
       }
       memcpy(tempcextra, z->cextra, z->cext);
       tempcext = z->cext;
+      fwkcs_strip_extra(tempcextra, &tempcext);
     }
   }
   if (z->ext) {
@@ -846,6 +1031,7 @@ struct zlist far *z;    /* zip entry to compress */
   pkav_sum16 = 0;
   pkav_xor8 = 0;
 
+  if (fwkcs_md5) fwkcs_md5_init(&fwkcs_ctx);
   if (isdir) {
     /* nothing to write */
   }
@@ -887,6 +1073,7 @@ struct zlist far *z;    /* zip entry to compress */
  * compute crc first because zfwrite will alter the buffer b points to !!
  */
       crc = crc32(crc, (uch *) b, k);
+      if (fwkcs_md5) fwkcs_md5_update(&fwkcs_ctx, (uch *)b, k);
       if (zfwrite(b, 1, k) != k)
       {
         free((zvoid *)b);
@@ -971,6 +1158,14 @@ struct zlist far *z;    /* zip entry to compress */
 #endif /* !TANDEM */
 #endif /* !VMS && !CMS_MVS && !__mpexl */
 #endif /* (!MSDOS || OS2) */
+
+  if (fwkcs_md5) {
+    uch digest[16];
+    int fr;
+    fwkcs_md5_final(digest, &fwkcs_ctx);
+    if ((fr = fwkcs_add_extra(z, digest)) != ZE_OK)
+      return fr;
+  }
 
   if (isdir)
   {
@@ -1312,6 +1507,7 @@ local unsigned file_read(buf, size)
       pkav_xor8 ^= pc;
     }
   }
+  if (fwkcs_md5) fwkcs_md5_update(&fwkcs_ctx, (uch *)buf, len);
   crc = crc32(crc, (uch *) buf, len);
   /* 2005-05-23 SMS.
      Increment file size.  A small-file program reading a large file may

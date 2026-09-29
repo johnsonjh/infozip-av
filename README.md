@@ -1,14 +1,22 @@
-# PKAV for Info‑ZIP
+# PKAV and FWKCS for Info‑ZIP
 
 <!-- toc -->
 
 - [Overview](#overview)
 - [Usage](#usage)
-  * [PKAV archive creation (`zip`)](#pkav-archive-creation-zip)
-  * [PKAV archive testing (`unzip`)](#pkav-archive-testing-unzip)
-  * [PKAV archive extraction (`unzip`)](#pkav-archive-extraction-unzip)
-  * [PKAV self-extractor creation (`unzipsfx`)](#pkav-self-extractor-creation-unzipsfx)
+  * [PKAV](#pkav)
+    + [PKAV archive creation (`zip`)](#pkav-archive-creation-zip)
+    + [PKAV archive testing (`unzip`)](#pkav-archive-testing-unzip)
+    + [PKAV archive extraction (`unzip`)](#pkav-archive-extraction-unzip)
+    + [PKAV self-extractor creation (`unzipsfx`)](#pkav-self-extractor-creation-unzipsfx)
+  * [FWKCS](#fwkcs)
+    + [FWKCS archive creation (`unzip`)](#fwkcs-archive-creation-unzip)
+    + [FWKCS archive testing (`unzip`)](#fwkcs-archive-testing-unzip)
+    + [FWKCS archive extraction (`unzip`)](#fwkcs-archive-extraction-unzip)
+    + [FWKCS self-extractor (`unzipsfx`)](#fwkcs-self-extractor-unzipsfx)
   * [PKWARE compatibility](#pkware-compatibility)
+    + [FWKCS](#fwkcs-1)
+    + [PKAV](#pkav-1)
 - [Historical example](#historical-example)
 - [Availability](#availability)
 - [License](#license)
@@ -18,7 +26,11 @@
 
 ## Overview
 
-This project adds full [PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification) support to [Info‑ZIP](https://infozip.sourceforge.net/).
+This project adds full
+[PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification) and
+[FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
+([MD5](https://en.wikipedia.org/wiki/MD5) support to)
+[Info‑ZIP](https://infozip.sourceforge.net/).
 
 This support is built on Fedora's current
 [`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
@@ -38,7 +50,9 @@ with GCC).
 
 ## Usage
 
-### PKAV archive creation (`zip`)
+### PKAV
+
+#### PKAV archive creation (`zip`)
 
 > [!NOTE]
 > Generation of PKAV registration is outside the scope of this project,
@@ -56,7 +70,7 @@ $ zip --pkav-name 'This was made with InfoZip!' \
   adding: putav.c (deflated 77%)
 ```
 
-### PKAV archive testing (`unzip`)
+#### PKAV archive testing (`unzip`)
 
 ```
 $ unzip -t test.zip
@@ -74,7 +88,7 @@ This is the AVEXTRA comment!
 No errors detected in compressed data of test.zip.
 ```
 
-### PKAV archive extraction (`unzip`)
+#### PKAV archive extraction (`unzip`)
 
 ```
 $ unzip -xa test.zip
@@ -90,7 +104,7 @@ This was made with InfoZip!
 This is the AVEXTRA comment!
 ```
 
-### PKAV self-extractor creation (`unzipsfx`)
+#### PKAV self-extractor creation (`unzipsfx`)
 
 The `unzipsfx` self‑extracting stub handles PKAV automatically.
 
@@ -123,11 +137,112 @@ This is the AVEXTRA comment!
 No errors detected in compressed data of ./test.sfx.
 ```
 
+### FWKCS
+
+#### FWKCS archive creation (`unzip`)
+
+```
+$ zip --fwkcs-md5 ./*
+  adding: makeav.com (deflated 31%)
+  adding: pkl2fix.com (deflated 29%)
+  adding: pklaxfix.com (deflated 31%)
+  adding: pkpspfix.com (deflated 29%)
+  adding: putav.com (deflated 29%)
+```
+
+#### FWKCS archive testing (`unzip`)
+
+```
+$ unzip -v --list-fwkcs-md5 pkstuff.zip
+Archive:  pkstuff.zip
+ Length   Method    Size  Cmpr    Date    Time   CRC-32   FWKCS MD5                         Name
+--------  ------  ------- ---- ---------- ----- --------  --------------------------------  ----
+   18774  Defl:N    12902  31% 09-29-2026 04:52 3b2f14a8  63372e2f3cc2d43bb39416537e8b6a13  makeav.com
+   14938  Defl:N    10584  29% 09-29-2026 04:52 364999fb  3bfe6cb8c1932840633b96508b4da66a  pkl2fix.com
+   18850  Defl:N    13040  31% 09-29-2026 04:52 902af968  e506191a90b515742d996d4bd74d9ddd  pklaxfix.com
+   15888  Defl:N    11210  29% 09-29-2026 04:52 9afdcb69  4077e98e885eeb3860f01e5d730835ac  pkpspfix.com
+   16094  Defl:N    11449  29% 09-29-2026 04:52 b793cde2  c39f04e9140fbfa7a39ecf25414fa044  putav.com
+--------          -------  ---                            -------
+   84544            59185  30%                            5 files
+FWKCS MD5 metadata information present (not verified by listing).
+```
+
+```
+$ unzip -t pkstuff.zip
+Archive:  pkstuff.zip
+    testing: makeav.com               OK
+    testing: pkl2fix.com              OK
+    testing: pklaxfix.com             OK
+    testing: pkpspfix.com             OK
+    testing: putav.com                OK
+FWKCS MD5 checksums verified for 5 entries.
+No errors detected in compressed data of pkstuff.zip.
+```
+
+#### FWKCS archive extraction (`unzip`)
+
+```
+$ unzip -ta pkstuff.zip
+Archive:  ../pkstuff.zip
+    testing: makeav.com               OK
+    testing: pkl2fix.com              OK
+    testing: pklaxfix.com             OK
+    testing: pkpspfix.com             OK
+    testing: putav.com                OK
+FWKCS MD5 checksums verified for 5 entries.
+No errors detected in compressed data of pkstuff.zip.
+```
+#### FWKCS self-extractor (`unzipsfx`)
+
+> [!IMPORTANT]
+> When creating a self‑extracting archive, ensure that you correct the entry
+> offsets using the `zip ‑A` command.  If you don't run `zip ‑A` the archive
+> is not a fully conforming ZIP file and other software (especially PKWARE
+> software) may reject it as invalid or corrupt.
+
+```
+$ cat $(command -v unzipsfx) pkstuff.zip > pkstuff.sfx
+
+$ chmod a+x pkstuff.sfx
+
+$ zip -A pkstuff.sfx
+Zip entry offsets appear off by 126800 bytes - correcting...
+
+$ ./pkstuff.sfx -t
+UnZipSFX 6.00 of 20 April 2009, by Info-ZIP (http://www.info-zip.org).
+    testing: makeav.c                 OK
+    testing: pkl2fix.c                OK
+    testing: pklaxfix.c               OK
+    testing: pkpspfix.c               OK
+    testing: putav.c                  OK
+FWKCS MD5 checksums verified for 5 entries.
+No errors detected in compressed data of ./pkstuff.sfx.
+```
+
 ### PKWARE compatibility
 
 Archives that have been created with this PKAV implementation,
 including self‑extracting executables, are fully compatible with the
 official PKWARE PKUNZIP software.
+
+#### FWKCS
+
+```
+$ emu pkunzipl.exe -t pkstuff.sfx
+
+PKUNZIP (R)    FAST!    Extract Utility    Version 2.50    03-01-1999
+Copr. 1989-1999 PKWARE Inc.  All Rights Reserved.  Registered version
+PKUNZIP Reg. U.S. Pat. and Tm. Off.
+
+Searching ZIP: X.SFX
+Testing: makeav.com    OK
+Testing: pkl2fix.com   OK
+Testing: pklaxfix.com  OK
+Testing: pkpspfix.com  OK
+Testing: putav.com     OK
+```
+
+#### PKAV
 
 ```
 $ emu2 pkunzip.exe -t test.sfx

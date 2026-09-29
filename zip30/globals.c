@@ -37,6 +37,7 @@ int verbose = 0;        /* 1=report oddities in zip file structure */
 int fix = 0;            /* 1=fix the zip file, 2=FF, 3=ZipNote */
 int filesync = 0;       /* 1=file sync, delete entries not on file system */
 int adjust = 0;         /* 1=adjust offsets for sfx'd file (keep preamble) */
+int fwkcs_md5 = 0;      /* 1=add FWKCS MD5 metadata */
 int level = 6;          /* 0=fastest compression, 9=best compression */
 int translate_eol = 0;  /* Translate end-of-line LF -> CR LF */
 #ifdef VMS
