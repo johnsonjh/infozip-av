@@ -376,6 +376,10 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
      static ZCONST char Far UnzipSFXOpts[] =
        "Valid options are -tfupcz; modifiers are -abjnoqCL%sV%s.\n";
 #  endif
+#  ifdef PKAV_SUPPORT
+     static ZCONST char Far UnzipSFXPKAVOpt[] =
+       "  --show-avextra-on-fail  Show unverified PKAV AVEXTRA after failure.\n";
+#  endif
 #else /* !SFX */
    static ZCONST char Far CompileOptions[] =
      "UnZip special compilation options:\n";
@@ -2090,6 +2094,10 @@ int usage(__G__ error)   /* return PK-type error code */
       LoadFarStringSmall(VersionDate)));
     Info(slide, error? 1 : 0, ((char *)slide, LoadFarString(UnzipSFXOpts),
       SFXOPT1, LOCAL));
+#ifdef PKAV_SUPPORT
+    Info(slide, error? 1 : 0, ((char *)slide,
+      LoadFarString(UnzipSFXPKAVOpt)));
+#endif
 #ifdef BETA
     Info(slide, error? 1 : 0, ((char *)slide, LoadFarString(BetaVersion), "\n",
       "SFX"));

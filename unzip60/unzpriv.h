@@ -1723,11 +1723,10 @@
 #define EF_AV        0x0007    /* PKWARE's authenticity verification */
 
 /*---------------------------------------------------------------------------
-    PKWARE Authenticity Verification support for full UnZip builds.
-    Define NO_PKAV to leave it out.  Unzipsfx and funzip is not
-    currently supported as they would need more extensive changes.
+    PKWARE Authenticity Verification support.
+    Define NO_PKAV to leave it out.  Funzip is not supported.
   ---------------------------------------------------------------------------*/
-#if !defined(NO_PKAV) && !defined(SFX) && !defined(FUNZIP)
+#if !defined(NO_PKAV) && !defined(FUNZIP)
 #  define PKAV_SUPPORT
 #endif
 

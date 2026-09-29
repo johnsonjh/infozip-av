@@ -96,6 +96,7 @@ local unsigned pkav_avextra_len = 0;
 local ulg pkav_seed = 0;
 local ulg pkav_h1 = 0;
 local int pkav_source_av_present = 0;
+local int pkav_adjust_only = 0;
 #if defined(AMIGA) || defined(MACOS)
 local int filenotes = 0; /* 1=take comments from AmigaDOS/MACOS filenotes */
 #endif
@@ -612,6 +613,8 @@ local int pkav_prepare_archive()
 
   if (!pkav_enabled) {
     if (!av_present && !pkav_source_av_present)
+      return ZE_OK;
+    if (pkav_adjust_only)
       return ZE_OK;
     zipwarn("PKAV authenticity information removed from modified archive", "");
     for (z = zfiles; z != NULL; z = z->nxt) {
@@ -5057,6 +5060,8 @@ char **argv;            /* command line tokens */
 #ifdef MACOS
   PrintStatProgress("done");
 #endif
+
+  pkav_adjust_only = adjust && k == 0 && found == NULL;
 
   if (show_files) {
     uzoff_t count = 0;
