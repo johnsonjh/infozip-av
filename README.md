@@ -65,7 +65,6 @@ $ zip --pkav-name 'This was made with InfoZip!' \
       --pkav-s1 x --pkav-s2 y \
       --pkav-avextra avextra.txt test.zip ./*.c
   adding: makeav.c (deflated 82%)
-  adding: pkl2fix.c (deflated 73%)
   adding: pklaxfix.c (deflated 82%)
   adding: pkpspfix.c (deflated 76%)
   adding: putav.c (deflated 77%)
@@ -77,7 +76,6 @@ $ zip --pkav-name 'This was made with InfoZip!' \
 $ unzip -t test.zip
 Archive:  test.zip
     testing: makeav.c                 OK
-    testing: pkl2fix.c                OK
     testing: pklaxfix.c               OK
     testing: pkpspfix.c               OK
     testing: putav.c                  OK
@@ -95,7 +93,6 @@ No errors detected in compressed data of test.zip.
 $ unzip -xa test.zip
 Archive:  test.zip
   inflating: makeav.c                [text]
-  inflating: pkl2fix.c               [text]
   inflating: pklaxfix.c              [text]
   inflating: pkpspfix.c              [text]
   inflating: putav.c                 [text]
@@ -126,7 +123,6 @@ Zip entry offsets appear off by 126800 bytes - correcting...
 $ ./test.sfx -t
 UnZipSFX 6.00 of 20 April 2009, by Info-ZIP (http://www.info-zip.org).
     testing: makeav.c                 OK
-    testing: pkl2fix.c                OK
     testing: pklaxfix.c               OK
     testing: pkpspfix.c               OK
     testing: putav.c                  OK
@@ -177,9 +173,8 @@ a number of reasons:
 #### FWKCS archive creation (`unzip`)
 
 ```
-$ zip --fwkcs-md5 ./*
+$ zip --fwkcs-md5 ./*.com
   adding: makeav.com (deflated 31%)
-  adding: pkl2fix.com (deflated 29%)
   adding: pklaxfix.com (deflated 31%)
   adding: pkpspfix.com (deflated 29%)
   adding: putav.com (deflated 29%)
@@ -193,12 +188,11 @@ Archive:  pkstuff.zip
  Length   Method    Size  Cmpr    Date    Time   CRC-32   FWKCS MD5                         Name
 --------  ------  ------- ---- ---------- ----- --------  --------------------------------  ----
    18774  Defl:N    12902  31% 09-29-2026 04:52 3b2f14a8  63372e2f3cc2d43bb39416537e8b6a13  makeav.com
-   14938  Defl:N    10584  29% 09-29-2026 04:52 364999fb  3bfe6cb8c1932840633b96508b4da66a  pkl2fix.com
    18850  Defl:N    13040  31% 09-29-2026 04:52 902af968  e506191a90b515742d996d4bd74d9ddd  pklaxfix.com
    15888  Defl:N    11210  29% 09-29-2026 04:52 9afdcb69  4077e98e885eeb3860f01e5d730835ac  pkpspfix.com
    16094  Defl:N    11449  29% 09-29-2026 04:52 b793cde2  c39f04e9140fbfa7a39ecf25414fa044  putav.com
 --------          -------  ---                            -------
-   84544            59185  30%                            5 files
+   69606            48601  30%                            4 files
 FWKCS MD5 metadata information present (not verified by listing).
 ```
 
@@ -206,11 +200,10 @@ FWKCS MD5 metadata information present (not verified by listing).
 $ unzip -t pkstuff.zip
 Archive:  pkstuff.zip
     testing: makeav.com               OK
-    testing: pkl2fix.com              OK
     testing: pklaxfix.com             OK
     testing: pkpspfix.com             OK
     testing: putav.com                OK
-FWKCS MD5 checksums verified for 5 entries.
+FWKCS MD5 checksums verified for 4 entries.
 No errors detected in compressed data of pkstuff.zip.
 ```
 
@@ -220,11 +213,10 @@ No errors detected in compressed data of pkstuff.zip.
 $ unzip -ta pkstuff.zip
 Archive:  ../pkstuff.zip
     testing: makeav.com               OK
-    testing: pkl2fix.com              OK
     testing: pklaxfix.com             OK
     testing: pkpspfix.com             OK
     testing: putav.com                OK
-FWKCS MD5 checksums verified for 5 entries.
+FWKCS MD5 checksums verified for 4 entries.
 No errors detected in compressed data of pkstuff.zip.
 ```
 #### FWKCS self-extractor (`unzipsfx`)
@@ -246,11 +238,10 @@ Zip entry offsets appear off by 126800 bytes - correcting...
 $ ./pkstuff.sfx -t
 UnZipSFX 6.00 of 20 April 2009, by Info-ZIP (http://www.info-zip.org).
     testing: makeav.c                 OK
-    testing: pkl2fix.c                OK
     testing: pklaxfix.c               OK
     testing: pkpspfix.c               OK
     testing: putav.c                  OK
-FWKCS MD5 checksums verified for 5 entries.
+FWKCS MD5 checksums verified for 4 entries.
 No errors detected in compressed data of ./pkstuff.sfx.
 ```
 
@@ -272,7 +263,6 @@ PKUNZIP Reg. U.S. Pat. and Tm. Off.
 
 Searching ZIP: TEST.SFX
 Testing: makeav.c      OK -AV
-Testing: pkl2fix.c     OK -AV
 Testing: pklaxfix.c    OK -AV
 Testing: pkpspfix.c    OK -AV
 Testing: putav.c       OK -AV
@@ -294,7 +284,6 @@ PKUNZIP Reg. U.S. Pat. and Tm. Off.
 
 Searching ZIP: X.SFX
 Testing: makeav.com    OK
-Testing: pkl2fix.com   OK
 Testing: pklaxfix.com  OK
 Testing: pkpspfix.com  OK
 Testing: putav.com     OK
