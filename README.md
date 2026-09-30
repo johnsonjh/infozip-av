@@ -148,6 +148,32 @@ and historically authentic integrity extension.  It cooperates with PKAV, and
 because older ZIP software can ignore the FWKCS metadata when unsupported,
 it has excellent backwards compatibility.
 
+FWKCS support is **not** enabled by default.  To enable FWKCS when archiving,
+use the `--fwkcs-md5` option.  To enable FWKCS when listing (`-l`) or
+verbosely listing (`-v`), use the `--list-fwkcs-md5` option.
+
+It was decided **not** to enable FWKCS support by default (even though it is
+officially supported and documented in the current
+[`APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT)) for
+a number of reasons:
+
+1. Mainly to avoid *silently* including FWKCS MD5 metadata when most ZIP
+   implementations just *silently* ignore it.  This could be catastrophic for
+   privacy; a "mostly hidden" MD5 hash may betray the contents of an
+   encrypted file.
+2. It complicates adding new members to existing archives.  If FWKCS support
+   was enabled by default, updating an archive would *silently* create archives
+   where newly added or updated members would have FWKCS MD5 hashes and old
+   ones would not.
+3. Calculating the FWKCS MD5 hashes when archiving is not free in terms of
+   CPU time.
+4. While the presence of FWKCS MD5 hashes greatly improves the ability to
+   detect archive corruption, MD5 is not modern authentication.  Users could
+   easily misunderstand FWKCS to be a security feature, and it is not.
+5. Requiring opt-in when listing (`-l`) and verbosely listing (`-v`) ensures
+   that users who are further processing the output (*e.g.*, `AWK` scripts)
+   won't experience regressions.
+
 #### FWKCS archive creation (`unzip`)
 
 ```
