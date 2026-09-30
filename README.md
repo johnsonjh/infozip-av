@@ -373,3 +373,4 @@ No errors detected in compressed data of fwkcs122.zip.
 ## External links
 
 * [`johnsonjh/pkstuff`](https://github.com/johnsonjh/pkstuff) ‑ PKZIP/PKUNZIP/PKSFX/PKLITE utilities
+* PKWARE [`APPNOTE.TXT`] - (https://www.pkware.com/documents/casestudies/APPNOTE.TXT)
