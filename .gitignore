@@ -8,8 +8,10 @@ core
 core-*
 /.envrc
 log.pvs
+*.orig
 /*.patch
 pvsreport/
+*.rej
 /unzip60/conftest
 /unzip60/conftest.c
 /unzip60/flags
