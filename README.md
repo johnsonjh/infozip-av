@@ -181,7 +181,7 @@ a number of reasons:
 4. While the presence of FWKCS MD5 hashes greatly improves the ability to
    detect archive corruption, MD5 is not modern authentication.  Users could
    easily misunderstand FWKCS to be a security feature, and it is not.
-5. Requiring opt-in when listing (`-l`) and verbosely listing (`-v`) ensures
+5. Requiring opt‑in when listing (`‑l`) and verbosely listing (`‑v`) ensures
    that users who are further processing the output (*e.g.*, `AWK` scripts)
    won't experience regressions.
 
@@ -390,4 +390,4 @@ No errors detected in compressed data of fwkcs122.zip.
 ## External links
 
 * [`johnsonjh/pkstuff`](https://github.com/johnsonjh/pkstuff) ‑ PKZIP/PKUNZIP/PKSFX/PKLITE utilities
-* [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT) - Current ZIP file format specification
+* [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT) ‑ Current ZIP file format specification
