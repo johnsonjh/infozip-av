@@ -24,7 +24,7 @@ test "${UNAME_S:-}" = "Linux" && {
 
 # "-DNOMEMCPY -DIZ_HAVE_UXUIDGID -DNO_LCHMOD" are "important" RHEL flags, do not remove!
 CF_NOOPT="${LTO:-} ${MAIX:-} -I. -DUNIX ${RPM_OPT_FLAGS:--O3} -DNOMEMCPY -DIZ_HAVE_UXUIDGID -DNO_LCHMOD"
-GLDFLAGS="${LTO:-} ${WLB:-}"
+GLDFLAGS="${LTO:-} ${MAIX:-} ${WLB:-}"
 
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
