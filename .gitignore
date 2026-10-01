@@ -1,6 +1,8 @@
 *~
 a.out
+/APPNOTE*.TXT
 *.bak*
+/build/
 *.core
 core
 core-*
@@ -8,4 +10,16 @@ core-*
 log.pvs
 /*.patch
 pvsreport/
-/APPNOTE*.TXT
+/unzip60/conftest
+/unzip60/conftest.c
+/unzip60/flags
+/unzip60/funzip
+/unzip60/*.o
+/unzip60/unzip
+/unzip60/unzipsfx
+/zip30/flags
+/zip30/*.o
+/zip30/zip
+/zip30/zipcloak
+/zip30/zipnote
+/zip30/zipsplit
