@@ -23,7 +23,7 @@ mkdir -p "${PREFIX:?}/man1"
 
 (
   cd "${UNZIPDIR:?}" \
-    && "${GMAKE:-make}" -f unix/Makefile generic_gcc \
+    && "${MAKE:-make}" -f unix/Makefile generic_gcc \
       CF_NOOPT="${CF_NOOPT:?}" \
       LFLAGS2="${GLDFLAGS:?}" \
       PREFIX="${PREFIX:?}"
@@ -31,7 +31,7 @@ mkdir -p "${PREFIX:?}/man1"
 
 (
   cd "${ZIPDIR:?}" \
-    && "${GMAKE:-make}" -f unix/Makefile generic_gcc \
+    && "${MAKE:-make}" -f unix/Makefile generic_gcc \
       CFLAGS_NOOPT="${CF_NOOPT:?}" \
       LFLAGS2="${GLDFLAGS:?}" \
       PREFIX="${PREFIX:?}"
@@ -39,7 +39,7 @@ mkdir -p "${PREFIX:?}/man1"
 
 (
   cd "${UNZIPDIR:?}" \
-    && "${GMAKE:-make}" -f unix/Makefile \
+    && "${MAKE:-make}" -f unix/Makefile \
       prefix="${PREFIX:?}" \
       MANDIR="${PREFIX:?}/man1" \
       INSTALL="cp -p" \
@@ -48,7 +48,7 @@ mkdir -p "${PREFIX:?}/man1"
 
 (
   cd "${ZIPDIR:?}" \
-    && "${GMAKE:-make}" -f unix/Makefile \
+    && "${MAKE:-make}" -f unix/Makefile \
       prefix="${PREFIX:?}" \
       MANDIR="${PREFIX:?}/man1" \
       install
