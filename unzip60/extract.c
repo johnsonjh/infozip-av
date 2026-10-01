@@ -327,14 +327,73 @@ static int pkav_parse_plain(buf, len, p_company_len, p_avextra, p_avextra_len,
     return TRUE;
 }
 
-static void pkav_emit_bytes(__G__ buf, len, flags)
+static int pkav_emit_filtered(__G__ buf, len, flags, preserve_formatting)
     __GDEF
     ZCONST uch *buf;
     unsigned len;
     int flags;
+    int preserve_formatting;
 {
-    if (len != 0)
-        (*G.message)((zvoid *)&G, (uch *)buf, (ulg)len, flags);
+    uch *raw, *filtered;
+    char *shown;
+    extent filtered_size;
+    unsigned start, pos, n;
+
+    if (len == 0)
+        return PK_COOL;
+
+    if ((extent)len > (((extent)-1) - 1) / 2)
+        return PK_MEM;
+    filtered_size = (extent)len * 2 + 1;
+
+    raw = (uch *)malloc((extent)len + 1);
+    filtered = (uch *)malloc(filtered_size);
+    if (raw == (uch *)NULL || filtered == (uch *)NULL) {
+        if (raw != (uch *)NULL)
+            free(raw);
+        if (filtered != (uch *)NULL)
+            free(filtered);
+        return PK_MEM;
+    }
+
+    pos = 0;
+    while (pos < len) {
+        start = pos;
+        while (pos < len && buf[pos] != 0 &&
+               !(preserve_formatting &&
+                 (buf[pos] == '\t' || buf[pos] == '\r' ||
+                  buf[pos] == '\n')))
+            ++pos;
+
+        n = pos - start;
+        if (n != 0) {
+            memcpy(raw, buf + start, n);
+            raw[n] = 0;
+            shown = fnfilter((ZCONST char *)raw, filtered, filtered_size);
+            (*G.message)((zvoid *)&G, (uch *)shown, (ulg)strlen(shown), flags);
+        }
+
+        if (pos < len) {
+            if (buf[pos] == 0) {
+                (*G.message)((zvoid *)&G, (uch *)"^@", 2, flags);
+                ++pos;
+            } else if (buf[pos] == '\r') {
+                /* Preserve line formatting without emitting a raw CR. */
+                (*G.message)((zvoid *)&G, (uch *)"\n", 1, flags);
+                ++pos;
+                if (pos < len && buf[pos] == '\n')
+                    ++pos;
+            } else {
+                /* TAB and LF are the only formatting controls emitted raw. */
+                (*G.message)((zvoid *)&G, (uch *)(buf + pos), 1, flags);
+                ++pos;
+            }
+        }
+    }
+
+    free(filtered);
+    free(raw);
+    return PK_COOL;
 }
 
 static int pkav_finish_archive(__G)
@@ -344,7 +403,7 @@ static int pkav_finish_archive(__G)
     ZCONST uch *avextra, *diag_avextra;
     unsigned company_len, avextra_len, diag_company_len, diag_avextra_len;
     z_uint4 h1, seed, expected, diag_h1, diag_seed, diag_expected;
-    int framed, diag_framed;
+    int framed, diag_framed, emit_error;
     char stamp[7];
 
     if (G.pkav.av_count == 0 && !G.pkav.marker_seen)
@@ -379,9 +438,17 @@ static int pkav_finish_archive(__G)
             if (uO.qflag < 2 && !uO.cflag) {
                 Info(slide, 0, ((char *)slide,
                   "Authentic files Verified!   # %s\n", stamp));
-                pkav_emit_bytes(__G__ plain + 12, company_len, 0);
-                pkav_emit_bytes(__G__ (ZCONST uch *)"\n", 1, 0);
-                pkav_emit_bytes(__G__ avextra, avextra_len, 0);
+                emit_error = pkav_emit_filtered(__G__ plain + 12,
+                                                company_len, 0, FALSE);
+                if (emit_error == PK_COOL)
+                    (*G.message)((zvoid *)&G, (uch *)"\n", 1, 0);
+                if (emit_error == PK_COOL)
+                    emit_error = pkav_emit_filtered(__G__ avextra,
+                                                    avextra_len, 0, TRUE);
+                if (emit_error != PK_COOL) {
+                    free(plain);
+                    return emit_error;
+                }
             }
             free(plain);
             return PK_COOL;
@@ -407,7 +474,13 @@ static int pkav_finish_archive(__G)
         if (G.pkav.show_avextra_on_fail) {
             Info(slide, 0x401, ((char *)slide,
               "warning: displaying unverified PKAV AVEXTRA data:\n"));
-            pkav_emit_bytes(__G__ diag_avextra, diag_avextra_len, 0x401);
+            emit_error = pkav_emit_filtered(__G__ diag_avextra,
+                                             diag_avextra_len, 0x401, TRUE);
+            if (emit_error != PK_COOL) {
+                free(diag);
+                free(plain);
+                return emit_error;
+            }
         } else {
             Info(slide, 0x401, ((char *)slide,
               "warning: unverified PKAV AVEXTRA data is present; "
