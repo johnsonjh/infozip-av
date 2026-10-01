@@ -356,7 +356,7 @@ local int pkav_validate_options()
   int have_s2 = pkav_s2 != NULL;
   int nhave = have_name + have_s1 + have_s2;
   ulg s1v, s2v, fold;
-  size_t nlen;
+  size_t nlen, i;
   int r;
 
   if (nhave != 0 && nhave != 3)
@@ -371,6 +371,12 @@ local int pkav_validate_options()
   nlen = strlen(pkav_name);
   if (nlen < 1 || nlen > 51)
     ZIPERR(ZE_PARMS, "PKAV name must be 1 to 51 bytes");
+  for (i = 0; i < nlen; i++) {
+    unsigned c = (uch)pkav_name[i];
+    if (c < 0x20 || c == 0x7f)
+      ZIPERR(ZE_PARMS,
+        "PKAV name must not contain C0 control characters or DEL");
+  }
   if (!pkav_parse_serial(pkav_s1, &s1v) || !pkav_parse_serial(pkav_s2, &s2v))
     ZIPERR(ZE_PARMS, "PKAV serials must be exactly seven base36 characters");
 
