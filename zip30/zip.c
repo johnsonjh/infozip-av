@@ -438,7 +438,7 @@ int free_old;
   char *extra = *extra_p;
   unsigned len = *len_p;
   unsigned pos = 0, out = 0;
-  int found = 0;
+  int av_found = 0;
   char *n;
 
   if (extra == NULL || len == 0)
@@ -451,12 +451,12 @@ int free_old;
     if (pos + block > len)
       return ZE_FORM;
     if (tag == EF_AV)
-      found = 1;
+      av_found = 1;
     pos += block;
   }
   if (pos != len)
     return ZE_FORM;
-  if (!found)
+  if (!av_found)
     return ZE_OK;
 
   n = (char *)malloc(len);
