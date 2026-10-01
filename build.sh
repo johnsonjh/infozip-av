@@ -2,6 +2,7 @@
 
 set -e
 
+CPUS="$(nproc 2> /dev/null || printf '%s\n' '1')"
 LTO="-flto=auto"
 WLB="-Wl,-z,relro"
 
@@ -23,7 +24,7 @@ mkdir -p "${PREFIX:?}/man1"
 
 (
   cd "${UNZIPDIR:?}" \
-    && "${MAKE:-make}" -f unix/Makefile generic_gcc \
+    && "${MAKE:-make}" -j "${CPUS:?}" -f unix/Makefile generic_gcc \
       CF_NOOPT="${CF_NOOPT:?}" \
       LFLAGS2="${GLDFLAGS:?}" \
       PREFIX="${PREFIX:?}"
@@ -31,7 +32,7 @@ mkdir -p "${PREFIX:?}/man1"
 
 (
   cd "${ZIPDIR:?}" \
-    && "${MAKE:-make}" -f unix/Makefile generic_gcc \
+    && "${MAKE:-make}" -j "${CPUS:?}" -f unix/Makefile generic_gcc \
       CFLAGS_NOOPT="${CF_NOOPT:?}" \
       LFLAGS2="${GLDFLAGS:?}" \
       PREFIX="${PREFIX:?}"
