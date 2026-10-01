@@ -676,6 +676,30 @@ local void append_string_to_mem(strValue, strLength, pPtr, offset, blocksize)
 /* zip64 support 08/31/2003 R.Nausedat */
 /* moved out of zip64 support 10/22/05 */
 
+/* Validate a complete extra-field stream before copying it. */
+local int extra_fields_valid(extra, extraLen)
+  char *extra;
+  unsigned extraLen;
+{
+  unsigned offset = 0;
+  unsigned blocksize;
+
+  if (extraLen == 0)
+    return 1;
+  if (extra == NULL)
+    return 0;
+
+  while (offset < extraLen) {
+    if (extraLen - offset < ZIP_EF_HEADER_SIZE)
+      return 0;
+    blocksize = (unsigned)SH(extra + offset + 2);
+    if (blocksize > extraLen - offset - ZIP_EF_HEADER_SIZE)
+      return 0;
+    offset += blocksize + ZIP_EF_HEADER_SIZE;
+  }
+  return 1;
+}
+
 /* Searches pExtra for extra field with specified tag.
  * If it finds one it returns a pointer to it, else NULL.
  * Renamed and made generic.  10/3/03
@@ -689,20 +713,23 @@ char *get_extra_field( OFT( ush) tag,
   unsigned iExtraLen;   /* length of extra field */
 #endif /* def NO_PROTO */
 {
-  char  *pTemp;
-  ush   usBlockTag;
-  ush   usBlockSize;
+  unsigned offset = 0;
+  ush usBlockTag;
+  unsigned usBlockSize;
 
-  if( pExtra == NULL )
+  if (pExtra == NULL)
     return NULL;
 
-  for (pTemp = pExtra; pTemp < pExtra  + iExtraLen - ZIP_EF_HEADER_SIZE;)
-  {
-    usBlockTag = SH(pTemp);       /* get tag */
-    usBlockSize = SH(pTemp + 2);  /* get field data size */
+  while (offset < iExtraLen) {
+    if (iExtraLen - offset < ZIP_EF_HEADER_SIZE)
+      return NULL;
+    usBlockTag = SH(pExtra + offset);
+    usBlockSize = (unsigned)SH(pExtra + offset + 2);
+    if (usBlockSize > iExtraLen - offset - ZIP_EF_HEADER_SIZE)
+      return NULL;
     if (usBlockTag == tag)
-      return pTemp;
-    pTemp += (usBlockSize + ZIP_EF_HEADER_SIZE);
+      return pExtra + offset;
+    offset += usBlockSize + ZIP_EF_HEADER_SIZE;
   }
   return NULL;
 }
@@ -720,51 +747,76 @@ char *copy_nondup_extra_fields(oldExtra, oldExtraLen, newExtra, newExtraLen, new
   unsigned *newLen;     /* length of new extra fields after copy */
 {
   char *returnExtra = NULL;
-  ush   returnExtraLen = 0;
+  unsigned returnExtraLen = 0;
   char *tempExtra;
   char *pTemp;
-  ush   tag;
-  ush   blocksize;
+  unsigned offset;
+  ush tag;
+  unsigned blocksize;
+  unsigned fieldsize;
 
-  if( oldExtra == NULL ) {
+  if (oldExtraLen > EF_SIZE_MAX || newExtraLen > EF_SIZE_MAX)
+    ZIPERR(ZE_BIG, "extra field too large");
+  if (!extra_fields_valid(oldExtra, oldExtraLen) ||
+      !extra_fields_valid(newExtra, newExtraLen))
+    ZIPERR(ZE_FORM, "malformed extra field");
+
+  if (oldExtraLen == 0) {
     /* no old extra fields so return copy of newExtra */
-    if (newExtra == NULL || newExtraLen == 0) {
+    if (newExtraLen == 0) {
       *newLen = 0;
       return NULL;
-    } else {
-      if ((returnExtra = malloc(newExtraLen)) == NULL)
-        ZIPERR(ZE_MEM, "extra field copy");
-      memcpy(returnExtra, newExtra, newExtraLen);
-      returnExtraLen = newExtraLen;
-      *newLen = returnExtraLen;
-      return returnExtra;
     }
+    if ((returnExtra = malloc(newExtraLen)) == NULL)
+      ZIPERR(ZE_MEM, "extra field copy");
+    memcpy(returnExtra, newExtra, newExtraLen);
+    *newLen = newExtraLen;
+    return returnExtra;
   }
 
-  /* allocate block large enough for all extra fields */
-  if ((tempExtra = malloc(0xFFFF)) == NULL)
+  /* allocate block large enough for the largest legal extra field */
+  if ((tempExtra = malloc(EF_SIZE_MAX)) == NULL)
     ZIPERR(ZE_MEM, "extra field copy");
 
   /* look for each old extra field in new block */
-  for (pTemp = oldExtra; pTemp < oldExtra  + oldExtraLen;)
-  {
-    tag = SH(pTemp);            /* get tag */
-    blocksize = SH(pTemp + 2);  /* get field data size */
+  offset = 0;
+  while (offset < oldExtraLen) {
+    pTemp = oldExtra + offset;
+    tag = SH(pTemp);
+    blocksize = (unsigned)SH(pTemp + 2);
+    fieldsize = blocksize + ZIP_EF_HEADER_SIZE;
     if (get_extra_field(tag, newExtra, newExtraLen) == NULL) {
       /* tag not in new block so add it */
-      memcpy(tempExtra + returnExtraLen, pTemp, blocksize + 4);
-      returnExtraLen += blocksize + 4;
+      if (fieldsize > EF_SIZE_MAX - returnExtraLen) {
+        free(tempExtra);
+        ZIPERR(ZE_BIG, "extra field too large");
+      }
+      memcpy(tempExtra + returnExtraLen, pTemp, fieldsize);
+      returnExtraLen += fieldsize;
     }
-    pTemp += blocksize + 4;
+    offset += fieldsize;
   }
 
   /* copy all extra fields from new block */
-  memcpy(tempExtra + returnExtraLen, newExtra, newExtraLen);
+  if (newExtraLen > EF_SIZE_MAX - returnExtraLen) {
+    free(tempExtra);
+    ZIPERR(ZE_BIG, "extra field too large");
+  }
+  if (newExtraLen != 0)
+    memcpy(tempExtra + returnExtraLen, newExtra, newExtraLen);
   returnExtraLen += newExtraLen;
 
+  if (returnExtraLen == 0) {
+    free(tempExtra);
+    *newLen = 0;
+    return NULL;
+  }
+
   /* copy tempExtra to returnExtra */
-  if ((returnExtra = malloc(returnExtraLen)) == NULL)
+  if ((returnExtra = malloc(returnExtraLen)) == NULL) {
+    free(tempExtra);
     ZIPERR(ZE_MEM, "extra field copy");
+  }
   memcpy(returnExtra, tempExtra, returnExtraLen);
   free(tempExtra);
 

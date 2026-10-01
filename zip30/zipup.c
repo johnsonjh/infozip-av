@@ -312,21 +312,23 @@ local void fwkcs_strip_extra(extra, plen)
 {
   unsigned in = 0, out = 0, len = *plen;
 
-  while (in + 4 <= len) {
-    unsigned size = (unsigned)((uch)extra[in+2] |
-                      ((unsigned)(uch)extra[in+3] << 8)) + 4;
-    unsigned tag = (unsigned)((uch)extra[in] |
+  while (in < len) {
+    unsigned data_size, size, tag;
+
+    if (len - in < 4)
+      ZIPERR(ZE_FORM, "malformed extra field");
+    data_size = (unsigned)((uch)extra[in+2] |
+                           ((unsigned)(uch)extra[in+3] << 8));
+    if (data_size > len - in - 4)
+      ZIPERR(ZE_FORM, "malformed extra field");
+    size = data_size + 4;
+    tag = (unsigned)((uch)extra[in] |
                      ((unsigned)(uch)extra[in+1] << 8));
-    if (size > len - in) break;
     if (tag != EF_MD5) {
       if (out != in) memmove(extra + out, extra + in, size);
       out += size;
     }
     in += size;
-  }
-  if (in < len) {
-    if (out != in) memmove(extra + out, extra + in, len - in);
-    out += len - in;
   }
   *plen = (ush)out;
 }
@@ -339,7 +341,7 @@ local int fwkcs_add_extra(z, digest)
   unsigned oldlen = z->cext;
   unsigned newlen = oldlen + 23;
 
-  if (newlen > EF_SIZE_MAX) return ZE_MEM;
+  if (newlen > EF_SIZE_MAX) return ZE_BIG;
   if ((p = (char *)malloc(newlen)) == NULL) return ZE_MEM;
   if (oldlen) memcpy(p, z->cextra, oldlen);
   p[oldlen] = (char)(EF_MD5 & 0xff);
