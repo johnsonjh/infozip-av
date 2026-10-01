@@ -2,7 +2,7 @@
 
 set -e
 
-UNAME_S="$(uname -s 2> dev/null || :)"
+UNAME_S="$(uname -s 2> /dev/null || :)"
 
 test "${UNAME_S:-}" = "AIX" || {
   LTO="-flto=auto"
