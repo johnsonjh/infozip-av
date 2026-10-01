@@ -347,7 +347,7 @@ static int pkav_emit_filtered(__G__ buf, len, flags, preserve_formatting)
     uch *raw, *filtered;
     char *shown;
     extent filtered_size;
-    unsigned start, pos, n;
+    unsigned start, pos, n, i, raw_len;
 
     if (len == 0)
         return PK_COOL;
@@ -356,7 +356,7 @@ static int pkav_emit_filtered(__G__ buf, len, flags, preserve_formatting)
         return PK_MEM;
     filtered_size = (extent)len * 2 + 1;
 
-    raw = (uch *)malloc((extent)len + 1);
+    raw = (uch *)malloc(filtered_size);
     filtered = (uch *)malloc(filtered_size);
     if (raw == (uch *)NULL || filtered == (uch *)NULL) {
         if (raw != (uch *)NULL)
@@ -377,8 +377,25 @@ static int pkav_emit_filtered(__G__ buf, len, flags, preserve_formatting)
 
         n = pos - start;
         if (n != 0) {
-            memcpy(raw, buf + start, n);
-            raw[n] = 0;
+            /*
+             * NB: Make the input to fnfilter 'safe' before calling.
+             * Some fnfilter multibyte paths can fallback to copying
+             * input unchanged if internal allocations fail. Escape C0
+	     * controls and DEL here so that fallback is safe.
+             */
+            raw_len = 0;
+            for (i = 0; i < n; ++i) {
+                uch c = buf[start + i];
+
+                if (c < 0x20 || c == 0x7f) {
+                    raw[raw_len++] = '^';
+                    raw[raw_len++] =
+                        (uch)(c == 0x7f ? '?' : (unsigned)c + '@');
+                } else {
+                    raw[raw_len++] = c;
+                }
+            }
+            raw[raw_len] = 0;
             shown = fnfilter((ZCONST char *)raw, filtered, filtered_size);
             (*G.message)((zvoid *)&G, (uch *)shown, (ulg)strlen(shown), flags);
         }
