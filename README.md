@@ -336,17 +336,17 @@ display the PKAV AVEXTRA text.
 ```
 $ unzip -ta fwkcs122.zip
 Archive:  fwkcs122.zip
-    testing: FILE_ID.DIZ              OK
-    testing: README.TXT               OK
-    testing: WHATSNEW.TXT             OK
-    testing: REGISTER.DOC             OK
-    testing: REGISTER.FRM             OK
-    testing: INSTALL.BAT              OK
-    testing: REPLACE.BAT              OK
-    testing: QIKSTART.BAT             OK
-    testing: GETLOOK.BAT              OK
-    testing: FWKCS.122                OK
-    testing: FWKCS_TM.122             OK
+    testing: FILE_ID.DIZ              OK -AV
+    testing: README.TXT               OK -AV
+    testing: WHATSNEW.TXT             OK -AV
+    testing: REGISTER.DOC             OK -AV
+    testing: REGISTER.FRM             OK -AV
+    testing: INSTALL.BAT              OK -AV
+    testing: REPLACE.BAT              OK -AV
+    testing: QIKSTART.BAT             OK -AV
+    testing: GETLOOK.BAT              OK -AV
+    testing: FWKCS.122                OK -AV
+    testing: FWKCS_TM.122             OK -AV
 Authentic files Verified!   # OFT466
 Frederick W. Kantor (founder/information mechanics)
 
