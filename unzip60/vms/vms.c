@@ -1912,8 +1912,15 @@ int flush(__G__ rawbuf, size, unshrink)    /* return PK-type error code */
     int unshrink;
 {
     G.crc32val = crc32(G.crc32val, rawbuf, (extent)size);
+#ifndef FUNZIP
+    if (G.fwkcs_active)
+        fwkcs_md5_update(__G__ rawbuf, size);
+#endif
+#ifdef PKAV_SUPPORT
+    pkav_update(__G__ rawbuf, size);
+#endif
     if (uO.tflag)
-        return PK_COOL; /* Do not output. Update CRC only */
+        return PK_COOL; /* Do not output. Checksums already updated. */
     else
         return (*_flush_routine)(__G__ rawbuf, size, 0);
 }
