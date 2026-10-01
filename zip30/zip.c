@@ -95,7 +95,7 @@ local uch *pkav_avextra = NULL;
 local unsigned pkav_avextra_len = 0;
 local ulg pkav_seed = 0;
 local ulg pkav_h1 = 0;
-local int pkav_source_av_present = 0;
+local int pkav_source_av_metadata_seen = 0;
 local int pkav_adjust_only = 0;
 #if defined(AMIGA) || defined(MACOS)
 local int filenotes = 0; /* 1=take comments from AmigaDOS/MACOS filenotes */
@@ -166,6 +166,7 @@ local int pkav_seed_valid OF((ulg));
 local ulg pkav_expected_h1 OF((ulg, ZCONST char *));
 local int pkav_load_avextra OF((ZCONST char *));
 local int pkav_validate_options OF((void));
+local int pkav_scan_source_archive OF((void));
 local int pkav_prepare_archive OF((void));
 
 #if !defined(WINDLL)
@@ -402,6 +403,13 @@ ZCONST uch *p;
   return (unsigned)p[0] | ((unsigned)p[1] << 8);
 }
 
+local ulg pkav_get_u32(p)
+ZCONST uch *p;
+{
+  return ((ulg)p[0] | ((ulg)p[1] << 8) |
+          ((ulg)p[2] << 16) | ((ulg)p[3] << 24)) & 0xffffffffUL;
+}
+
 local int pkav_extra_has_av(extra, len)
 ZCONST char *extra;
 unsigned len;
@@ -555,6 +563,127 @@ ulg acc;
     buf[i] ^= (uch)((len - i) & 0xff);
 }
 
+local void pkav_decrypt_payload(buf, len, acc)
+uch *buf;
+unsigned len;
+ulg acc;
+{
+  uch pass[8];
+  ulg k0 = 0x12345678UL, k1 = 0x23456789UL, k2 = 0x34567890UL;
+  ulg x = acc;
+  unsigned i;
+
+  for (i = 0; i < 8; i++) {
+    pass[i] = (uch)((x & 0x0f) + 0x13);
+    x >>= 4;
+  }
+  for (i = 0; i < 8; i++)
+    pkav_update_keys(&k0, &k1, &k2, pass[i]);
+  for (i = 0; i < len; i++) {
+    uch plain;
+    buf[i] ^= (uch)((len - i) & 0xff);
+    plain = (uch)(buf[i] ^ pkav_stream_byte(k2));
+    buf[i] = plain;
+    pkav_update_keys(&k0, &k1, &k2, plain);
+  }
+}
+
+local int pkav_scan_source_archive()
+{
+  struct zlist far *z;
+  ZCONST uch *payload = NULL;
+  unsigned payload_len = 0;
+  unsigned av_count = 0;
+  unsigned members = 0;
+  ulg acc = 0;
+  int malformed = 0;
+  uch *plain;
+  unsigned i;
+  ulg h1, seed;
+
+  pkav_source_av_metadata_seen = 0;
+  for (z = zfiles; z != NULL; z = z->nxt)
+    z->pkav_source_member = 0;
+
+  for (z = zfiles; z != NULL; z = z->nxt) {
+    unsigned pos = 0;
+
+    if (z->att & 0x0004)
+      pkav_source_av_metadata_seen = 1;
+    if (z->att & 0x0006) {
+      ++members;
+      acc = (acc + z->crc) & 0xffffffffUL;
+      if (z->att & 0x0004)
+        acc = (acc + z->atx) & 0xffffffffUL;
+      else
+        acc = (acc + z->tim) & 0xffffffffUL;
+    }
+
+    if (z->cext != 0 && z->cextra == NULL) {
+      malformed = 1;
+      continue;
+    }
+    while (pos < (unsigned)z->cext) {
+      unsigned tag, sz;
+
+      if ((unsigned)z->cext - pos < 4) {
+        malformed = 1;
+        break;
+      }
+      tag = pkav_get_ush((ZCONST uch *)z->cextra + pos);
+      sz = pkav_get_ush((ZCONST uch *)z->cextra + pos + 2);
+      if (tag == EF_AV)
+        pkav_source_av_metadata_seen = 1;
+      if (sz > (unsigned)z->cext - pos - 4) {
+        if (tag == EF_AV)
+          ++av_count;
+        malformed = 1;
+        break;
+      }
+      if (tag == EF_AV) {
+        ++av_count;
+        if (av_count == 1) {
+          payload = (ZCONST uch *)z->cextra + pos + 4;
+          payload_len = sz;
+        }
+      }
+      pos += 4 + sz;
+    }
+  }
+
+  if (malformed || av_count != 1 || payload == NULL ||
+      payload_len < 14 || members == 0)
+    return ZE_OK;
+
+  plain = (uch *)malloc(payload_len);
+  if (plain == NULL)
+    return ZE_MEM;
+  memcpy(plain, payload, payload_len);
+  pkav_decrypt_payload(plain, payload_len, acc);
+
+  for (i = 12; i < payload_len && plain[i] != 0; ++i)
+    ;
+  if (i == 12 || i == payload_len) {
+    free(plain);
+    return ZE_OK;
+  }
+
+  h1 = pkav_get_u32(plain + 4);
+  seed = pkav_get_u32(plain + 8);
+  if (!pkav_seed_valid(seed) ||
+      h1 != pkav_expected_h1(seed, (ZCONST char *)plain + 12)) {
+    free(plain);
+    return ZE_OK;
+  }
+
+  for (z = zfiles; z != NULL; z = z->nxt)
+    if (z->att & 0x0006)
+      z->pkav_source_member = 1;
+
+  free(plain);
+  return ZE_OK;
+}
+
 local int pkav_add_av_record(z, acc)
 struct zlist far *z;
 ulg acc;
@@ -612,7 +741,7 @@ local int pkav_prepare_archive()
   }
 
   if (!pkav_enabled) {
-    if (!av_present && !pkav_source_av_present)
+    if (!av_present && !pkav_source_av_metadata_seen)
       return ZE_OK;
     if (pkav_adjust_only)
       return ZE_OK;
@@ -625,9 +754,14 @@ local int pkav_prepare_archive()
       r = pkav_remove_av_extra(z);
       if (r != ZE_OK)
         return r;
-      if (oldatt & 0x0004)
+      if (oldatt & 0x0004) {
+        /* Upper 24 external-attribute bits are the PKWARE verifier value. */
         z->atx &= 0xffUL;
-      z->att &= (ush)~0x0006;
+        z->att &= (ush)~0x0004;
+      }
+      /* Do not erase the standardized 0x0002 meaning without provenance. */
+      if (z->pkav_source_member)
+        z->att &= (ush)~0x0002;
     }
     return ZE_OK;
   }
@@ -658,9 +792,9 @@ local int pkav_prepare_archive()
     }
 
     if ((z->att & 0x0004) == 0 && (z->att & 0x0002) != 0 &&
-        !pkav_source_av_present) {
+        !z->pkav_source_member) {
       sprintf(errbuf,
-        "cannot treat bit-0x0002 entry '%s' as PKAV without an existing PKAV archive",
+        "cannot treat bit-0x0002 entry '%s' as PKAV without coherent source PKAV membership",
         z->oname ? z->oname : z->iname);
       return ZE_PARMS;
     }
@@ -4590,13 +4724,8 @@ char **argv;            /* command line tokens */
     ZIPERR(r, zipfile);
   }
 
-  pkav_source_av_present = 0;
-  for (z = zfiles; z != NULL; z = z->nxt) {
-    if (pkav_extra_has_av(z->cextra, z->cext) || (z->att & 0x0004)) {
-      pkav_source_av_present = 1;
-      break;
-    }
-  }
+  if ((r = pkav_scan_source_archive()) != ZE_OK)
+    ZIPERR(r, "scanning source PKAV authenticity information");
 
 #ifndef UTIL
   if (split_method == -1) {
@@ -5674,6 +5803,8 @@ char **argv;            /* command line tokens */
           sprintf(errbuf, "was zipping %s", z->name);
           ZIPERR(r, errbuf);
         }
+        if (!(filesync && z->current) && r == ZE_OK)
+          z->pkav_source_member = 0;
         if (filesync && z->current)
         {
           /* if filesync if entry matches OS just copy */
@@ -6123,6 +6254,7 @@ char **argv;            /* command line tokens */
     z->extra = z->cextra = NULL;
     z->mark = 1;
     z->dosflag = f->dosflag;
+    z->pkav_source_member = 0;
     /* zip it up */
     DisplayRunningStats();
     if (noisy)

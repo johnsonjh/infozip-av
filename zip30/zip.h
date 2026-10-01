@@ -183,6 +183,7 @@ struct zlist {
   int trash;                    /* Marker for files to delete */
   int current;                  /* Marker for files that are current to what is on OS (filesync) */
   int dosflag;                  /* Set to force MSDOS file attributes */
+  int pkav_source_member;       /* Member of coherent source PKAV set */
   struct zlist far *nxt;        /* Pointer to next header in list */
 };
 struct flist {
