@@ -935,7 +935,7 @@ AUTHORS
        group  and  provided  major  contributions  to key parts of the current
        code: Greg ``Cave Newt'' Roelofs (UnZip, unshrink decompression); Jean-
        loup  Gailly  (deflate compression); Mark Adler (inflate decompression,
-       fUnZip).
+       DCL implode decompression, fUnZip).
 
        The author of the original unzip code upon which Info-ZIP's  was  based
        is  Samuel H. Smith; Carl Mascott did the first Unix port; and David P.

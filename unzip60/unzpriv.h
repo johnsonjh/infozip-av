@@ -2452,6 +2452,7 @@ wchar_t *fnfilterw               OF((ZCONST wchar_t *src, wchar_t *dst,
 
 #if (!defined(SFX) && !defined(FUNZIP))
 int    explode                   OF((__GPRO));                  /* explode.c */
+int    dcl_explode               OF((__GPRO));                  /* explode.c */
 #endif
 int    huft_free                 OF((struct huft *t));          /* inflate.c */
 int    huft_build                OF((__GPRO__ ZCONST unsigned *b, unsigned n,

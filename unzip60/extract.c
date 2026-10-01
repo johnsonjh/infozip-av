@@ -1572,12 +1572,14 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #  ifdef USE_DEFLATE64
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
-     (G.crec.compression_method>ENHDEFLATED && UNKN_BZ2 && UNKN_LZMA \
+     (G.crec.compression_method>ENHDEFLATED && \
+      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA \
       && UNKN_WAVP && UNKN_PPMD))
 #  else
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
-     (G.crec.compression_method>DEFLATED && UNKN_BZ2 && UNKN_LZMA \
+     (G.crec.compression_method>DEFLATED && \
+      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA \
       && UNKN_WAVP && UNKN_PPMD))
 #  endif
 #endif
@@ -2602,6 +2604,32 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
                           LoadFarString(InvalidComprData),
                           LoadFarStringSmall2(Explode)));
                     error = ((r == 3) ? PK_MEM3 : PK_ERR);
+                } else {
+                    error = r;
+                }
+            }
+            break;
+        case DCLIMPLODED:
+            if (!uO.tflag && QCOND2) {
+                Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
+                  "explod", FnFilter1(G.filename), avmark, avsep,
+                  (uO.aflag != 1 /* && G.pInfo->textfile==G.pInfo->textmode */)?
+                  "" : (G.pInfo->textfile? txt : bin), uO.cflag? NEWLINE : ""));
+            }
+            if ((r = dcl_explode(__G)) != 0) {
+                if (r < PK_DISK) {
+                    if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipFile),
+                          LoadFarString(InvalidComprData),
+                          LoadFarStringSmall2(Explode),
+                          FnFilter1(G.filename)));
+                    else
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipNoFile),
+                          LoadFarString(InvalidComprData),
+                          LoadFarStringSmall2(Explode)));
+                    error = PK_ERR;
                 } else {
                     error = r;
                 }

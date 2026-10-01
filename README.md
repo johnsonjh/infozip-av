@@ -32,6 +32,9 @@ This project adds full
 ([MD5](https://en.wikipedia.org/wiki/MD5)) support to
 [Info‑ZIP](https://infozip.sourceforge.net/).
 
+It also adds the ability to decompress ZIP files using PKWARE DCL Implode
+(ZIP method 10) compression.
+
 This support is built on Fedora's current
 [`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
 [`unzip`](https://src.fedoraproject.org/rpms/unzip) (6.0‑71,&nbsp;2026‑07‑27)
@@ -386,6 +389,34 @@ No errors detected in compressed data of fwkcs122.zip.
 * The Info‑ZIP software components (Zip and UnZip) are distributed under their
   respective [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) and
   [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
+
+* The PKWARE DCL Implode (ZIP method 10) decoder was adapted for Info-ZIP
+  from Mark Adler's `blast.c`, and is distributed under the zlib-style license
+  reproduced below:
+
+  ```
+  Copyright (C) 2003, 2012, 2013 Mark Adler
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the author be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+
+  3. This notice may not be removed or altered from any source distribution.
+
+  Mark Adler    madler@alumni.caltech.edu
+  ```
 
 ## External links
 
