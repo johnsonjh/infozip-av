@@ -241,6 +241,7 @@ typedef struct Globals {
         z_uint4 accumulator;         /* reconstructed from extracted data */
         z_uint4 stored_accumulator;  /* central metadata; diagnostic only */
         ulg members;                 /* central entries selected by & 0x0006 */
+        ulg uncovered;               /* ordinary entries outside PKAV set */
         ulg processed;               /* selected entries completely decoded */
         unsigned av_count;           /* central EF_AV records */
         int marker_seen;             /* at least one internal bit 0x0004 */

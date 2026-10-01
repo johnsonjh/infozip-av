@@ -112,6 +112,16 @@ static int pkav_note_cdir(__G)
             G.pkav.stored_accumulator +=
                 (z_uint4)G.crec.last_mod_dos_datetime;
     }
+    if (!(G.crec.internal_file_attributes & 0x0006) &&
+        !G.pInfo->vollabel) {
+        unsigned fnlen = (unsigned)strlen(G.filename);
+
+        if (fnlen == 0 ||
+            (G.filename[fnlen - 1] != '/' &&
+             !(G.pInfo->hostnum == FS_FAT_ &&
+               G.filename[fnlen - 1] == '\\')))
+            ++G.pkav.uncovered;
+    }
     if (G.crec.internal_file_attributes & 0x0004)
         G.pkav.marker_seen = TRUE;
 
@@ -438,6 +448,15 @@ static int pkav_finish_archive(__G)
             if (uO.qflag < 2 && !uO.cflag) {
                 Info(slide, 0, ((char *)slide,
                   "Authentic files Verified!   # %s\n", stamp));
+                if (G.pkav.uncovered != 0)
+                    Info(slide, 0, ((char *)slide,
+                      "warning: PKAV verified %lu authenticated entr%s; "
+                      "%lu archive entr%s %s not covered by PKAV.\n",
+                      G.pkav.members,
+                      (G.pkav.members == 1L)? "y" : "ies",
+                      G.pkav.uncovered,
+                      (G.pkav.uncovered == 1L)? "y" : "ies",
+                      (G.pkav.uncovered == 1L)? "is" : "are"));
                 emit_error = pkav_emit_filtered(__G__ plain + 12,
                                                 company_len, 0, FALSE);
                 if (emit_error == PK_COOL)
@@ -638,7 +657,7 @@ static ZCONST char Far ExtFieldMsg[] =
 static ZCONST char Far OffsetMsg[] =
   "file #%lu:  bad zipfile offset (%s):  %ld\n";
 static ZCONST char Far ExtractMsg[] =
-  "%8sing: %-22s  %s%s";
+  "%8sing: %-22s  %s%s%s%s";
 #ifndef SFX
    static ZCONST char Far LengthMsg[] =
      "%s  %s:  %s bytes required to uncompress to %s bytes;\n    %s\
@@ -751,7 +770,7 @@ static ZCONST char Far Inflate[] = "inflate";
 
 static ZCONST char Far FileUnknownCompMethod[] =
   "%s:  unknown compression method\n";
-static ZCONST char Far BadCRC[] = " bad CRC %08lx  (should be %08lx)\n";
+static ZCONST char Far BadCRC[] = " bad CRC %08lx  (should be %08lx)%s\n";
 
       /* TruncEAs[] also used in OS/2 mapname(), close_outfile() */
 char ZCONST Far TruncEAs[] = " compressed EA data missing (%d bytes)%s";
@@ -2338,6 +2357,13 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
      __GDEF
 {
     char *nul="[empty] ", *txt="[text]  ", *bin="[binary]";
+#ifdef PKAV_SUPPORT
+    char *avmark = G.pInfo->pkav_member ? "-AV" : "";
+    char *avsep = (G.pInfo->pkav_member && uO.aflag == 1) ? " " : "";
+    char *test_avmark = G.pInfo->pkav_member ? " -AV" : "";
+#else
+    char *avmark = "", *avsep = "", *test_avmark = "";
+#endif
 #ifdef CMS_MVS
     char *ebc="[ebcdic]";
 #endif
@@ -2373,7 +2399,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
     if (uO.tflag) {
         if (!uO.qflag)
             Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg), "test",
-              FnFilter1(G.filename), "", ""));
+              FnFilter1(G.filename), "", "", "", ""));
     } else {
 #ifdef DLL
         if (uO.cflag && !G.redirect_data)
@@ -2433,11 +2459,11 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 #ifdef SYMLINKS
                 if (G.symlnk)   /* can also be deflated, but rarer... */
                     Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
-                      "link", FnFilter1(G.filename), "", ""));
+                      "link", FnFilter1(G.filename), avmark, "", "", ""));
                 else
 #endif /* SYMLINKS */
                 Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
-                  "extract", FnFilter1(G.filename),
+                  "extract", FnFilter1(G.filename), avmark, avsep,
                   (uO.aflag != 1 /* && G.pInfo->textfile==G.pInfo->textmode */)?
                   "" : (G.lrec.ucsize == 0L? nul : (G.pInfo->textfile? txt :
                   bin)), uO.cflag? NEWLINE : ""));
@@ -2471,7 +2497,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
         case SHRUNK:
             if (!uO.tflag && QCOND2) {
                 Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
-                  LoadFarStringSmall(Unshrink), FnFilter1(G.filename),
+                  LoadFarStringSmall(Unshrink), FnFilter1(G.filename), avmark, avsep,
                   (uO.aflag != 1 /* && G.pInfo->textfile==G.pInfo->textmode */)?
                   "" : (G.pInfo->textfile? txt : bin), uO.cflag? NEWLINE : ""));
             }
@@ -2503,7 +2529,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
         case REDUCED4:
             if (!uO.tflag && QCOND2) {
                 Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
-                  "unreduc", FnFilter1(G.filename),
+                  "unreduc", FnFilter1(G.filename), avmark, avsep,
                   (uO.aflag != 1 /* && G.pInfo->textfile==G.pInfo->textmode */)?
                   "" : (G.pInfo->textfile? txt : bin), uO.cflag? NEWLINE : ""));
             }
@@ -2517,7 +2543,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
         case IMPLODED:
             if (!uO.tflag && QCOND2) {
                 Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
-                  "explod", FnFilter1(G.filename),
+                  "explod", FnFilter1(G.filename), avmark, avsep,
                   (uO.aflag != 1 /* && G.pInfo->textfile==G.pInfo->textmode */)?
                   "" : (G.pInfo->textfile? txt : bin), uO.cflag? NEWLINE : ""));
             }
@@ -2572,7 +2598,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 #endif
             if (!uO.tflag && QCOND2) {
                 Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
-                  "inflat", FnFilter1(G.filename),
+                  "inflat", FnFilter1(G.filename), avmark, avsep,
                   (uO.aflag != 1 /* && G.pInfo->textfile==G.pInfo->textmode */)?
                   "" : (G.pInfo->textfile? txt : bin), uO.cflag? NEWLINE : ""));
             }
@@ -2607,7 +2633,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
         case BZIPPED:
             if (!uO.tflag && QCOND2) {
                 Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
-                  "bunzipp", FnFilter1(G.filename),
+                  "bunzipp", FnFilter1(G.filename), avmark, avsep,
                   (uO.aflag != 1 /* && G.pInfo->textfile==G.pInfo->textmode */)?
                   "" : (G.pInfo->textfile? txt : bin), uO.cflag? NEWLINE : ""));
             }
@@ -2721,7 +2747,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             Info(slide, 0x401, ((char *)slide, "%-22s ",
               FnFilter1(G.filename)));
         Info(slide, 0x401, ((char *)slide, LoadFarString(BadCRC), G.crc32val,
-          G.lrec.crc32));
+          G.lrec.crc32, test_avmark));
 #if CRYPT
         if (G.pInfo->encrypted)
             Info(slide, 0x401, ((char *)slide, LoadFarString(MaybeBadPasswd)));
@@ -2745,13 +2771,15 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
                 Info(slide, 0x401, ((char *)slide, "%-22s ",
                   FnFilter1(G.filename)));
             if (fwkcs_error == PK_ERR) {
-                Info(slide, 0x401, ((char *)slide, "FWKCS MD5 mismatch\n"));
+                Info(slide, 0x401, ((char *)slide,
+                  "FWKCS MD5 mismatch%s\n", test_avmark));
                 Info(slide, 0x401, ((char *)slide,
                   "        %s (should be %s)\n",
                   fwkcs_actual_hex, fwkcs_expected_hex));
             } else
                 Info(slide, 0x401, ((char *)slide,
-                  "warning: malformed FWKCS MD5 extra field\n"));
+                  "warning: malformed FWKCS MD5 extra field%s\n",
+                  test_avmark));
         }
         if (fwkcs_error > error)
             error = fwkcs_error;
@@ -2764,7 +2792,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
         } else
 #endif /* !SFX */
         if (!uO.qflag)
-            Info(slide, 0, ((char *)slide, " OK\n"));
+            Info(slide, 0, ((char *)slide, " OK%s\n", test_avmark));
     } else {
         if (QCOND2 && !error)   /* GRR:  is stdout reset to text mode yet? */
             Info(slide, 0, ((char *)slide, "\n"));
@@ -3109,7 +3137,13 @@ static int TestExtraField(__G__ ef, ef_len)
     }
 
     if (!uO.qflag)
-        Info(slide, 0, ((char *)slide, " OK\n"));
+        Info(slide, 0, ((char *)slide, " OK%s\n",
+#ifdef PKAV_SUPPORT
+          G.pInfo->pkav_member ? " -AV" : ""
+#else
+          ""
+#endif
+          ));
 
     return PK_COOL;
 
