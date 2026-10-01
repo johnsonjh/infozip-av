@@ -471,23 +471,23 @@ static int pkav_finish_archive(__G)
     if (diag_framed && diag_avextra_len != 0 && pkav_seed_valid(diag_seed)) {
         diag_expected = pkav_expected_h1(diag_seed, diag + 12,
                                          diag_company_len);
-        if (G.pkav.show_avextra_on_fail) {
-            Info(slide, 0x401, ((char *)slide,
-              "warning: displaying unverified PKAV AVEXTRA data:\n"));
-            emit_error = pkav_emit_filtered(__G__ diag_avextra,
-                                             diag_avextra_len, 0x401, TRUE);
-            if (emit_error != PK_COOL) {
-                free(diag);
-                free(plain);
-                return emit_error;
+        if (diag_h1 == diag_expected) {
+            if (G.pkav.show_avextra_on_fail) {
+                Info(slide, 0x401, ((char *)slide,
+                  "warning: displaying unverified PKAV AVEXTRA data:\n"));
+                emit_error = pkav_emit_filtered(__G__ diag_avextra,
+                                                 diag_avextra_len, 0x401, TRUE);
+                if (emit_error != PK_COOL) {
+                    free(diag);
+                    free(plain);
+                    return emit_error;
+                }
+            } else {
+                Info(slide, 0x401, ((char *)slide,
+                  "warning: unverified PKAV AVEXTRA data is present; "
+                  "use --show-avextra-on-fail to display it\n"));
             }
-        } else {
-            Info(slide, 0x401, ((char *)slide,
-              "warning: unverified PKAV AVEXTRA data is present; "
-              "use --show-avextra-on-fail to display it\n"));
         }
-        (void)diag_expected;
-        (void)diag_h1;
     }
 
     free(diag);
