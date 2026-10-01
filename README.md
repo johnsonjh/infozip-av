@@ -64,10 +64,10 @@ $ printf '%s\n' '' 'This is the AVEXTRA comment!' '' > avextra.txt
 $ zip --pkav-name 'This was made with InfoZip!' \
       --pkav-s1 x --pkav-s2 y \
       --pkav-avextra avextra.txt test.zip ./*.c
-  adding: makeav.c (deflated 82%)
+  adding: makeav.c (deflated 86%)
   adding: pklaxfix.c (deflated 82%)
   adding: pkpspfix.c (deflated 76%)
-  adding: putav.c (deflated 77%)
+  adding: putav.c (deflated 78%)
 ```
 
 #### PKAV archive testing (`unzip`)
@@ -75,10 +75,10 @@ $ zip --pkav-name 'This was made with InfoZip!' \
 ```
 $ unzip -t test.zip
 Archive:  test.zip
-    testing: makeav.c                 OK
-    testing: pklaxfix.c               OK
-    testing: pkpspfix.c               OK
-    testing: putav.c                  OK
+    testing: makeav.c                 OK -AV
+    testing: pklaxfix.c               OK -AV
+    testing: pkpspfix.c               OK -AV
+    testing: putav.c                  OK -AV
 Authentic files Verified!   # TDU015
 This was made with InfoZip!
 
@@ -92,14 +92,29 @@ No errors detected in compressed data of test.zip.
 ```
 $ unzip -xa test.zip
 Archive:  test.zip
-  inflating: makeav.c                [text]
-  inflating: pklaxfix.c              [text]
-  inflating: pkpspfix.c              [text]
-  inflating: putav.c                 [text]
+  inflating: makeav.c                -AV [text]
+  inflating: pklaxfix.c              -AV [text]
+  inflating: pkpspfix.c              -AV [text]
+  inflating: putav.c                 -AV [text]
 Authentic files Verified!   # TDU015
 This was made with InfoZip!
 
 This is the AVEXTRA comment!
+```
+
+If errors are encountered when testing or extracting an archive, a PKAV
+archive provides additional information:
+
+```
+$ unzip -t test.zip
+Archive:  test.zip
+    testing: makeav.c                 OK -AV
+    testing: pklaxfix.c               OK -AV
+    testing: pkpspfix.c               OK -AV
+    testing: putav.c                  bad CRC 437342ff  (should be 9ed0722b) -AV
+warning: PKAV Authenticity Verification failed
+warning: unverified PKAV AVEXTRA data is present; use --show-avextra-on-fail to display it
+At least one error was detected in test.zip.
 ```
 
 #### PKAV self-extractor creation (`unzipsfx`)
@@ -118,14 +133,14 @@ $ cat $(command -v unzipsfx) test.zip > test.sfx
 $ chmod a+x test.sfx
 
 $ zip -A test.sfx
-Zip entry offsets appear off by 126800 bytes - correcting...
+Zip entry offsets appear off by 115316 bytes - correcting...
 
 $ ./test.sfx -t
 UnZipSFX 6.00 of 20 April 2009, by Info-ZIP (http://www.info-zip.org).
-    testing: makeav.c                 OK
-    testing: pklaxfix.c               OK
-    testing: pkpspfix.c               OK
-    testing: putav.c                  OK
+    testing: makeav.c                 OK -AV
+    testing: pklaxfix.c               OK -AV
+    testing: pkpspfix.c               OK -AV
+    testing: putav.c                  OK -AV
 Authentic files Verified!   # TDU015
 This was made with InfoZip!
 
@@ -173,8 +188,8 @@ a number of reasons:
 #### FWKCS archive creation (`unzip`)
 
 ```
-$ zip --fwkcs-md5 ./*.com
-  adding: makeav.com (deflated 31%)
+$ zip --fwkcs-md5 pkstuff.zip ./*.com
+  adding: makeav.com (deflated 42%)
   adding: pklaxfix.com (deflated 31%)
   adding: pkpspfix.com (deflated 29%)
   adding: putav.com (deflated 29%)
@@ -187,12 +202,12 @@ $ unzip -v --list-fwkcs-md5 pkstuff.zip
 Archive:  pkstuff.zip
  Length   Method    Size  Cmpr    Date    Time   CRC-32   FWKCS MD5                         Name
 --------  ------  ------- ---- ---------- ----- --------  --------------------------------  ----
-   18774  Defl:N    12902  31% 09-29-2026 04:52 3b2f14a8  63372e2f3cc2d43bb39416537e8b6a13  makeav.com
-   18850  Defl:N    13040  31% 09-29-2026 04:52 902af968  e506191a90b515742d996d4bd74d9ddd  pklaxfix.com
-   15888  Defl:N    11210  29% 09-29-2026 04:52 9afdcb69  4077e98e885eeb3860f01e5d730835ac  pkpspfix.com
-   16094  Defl:N    11449  29% 09-29-2026 04:52 b793cde2  c39f04e9140fbfa7a39ecf25414fa044  putav.com
+   30300  Defl:N    17620  42% 10-01-2026 00:39 431fa9a2  3728359993a24bc8329250be8def15ee  makeav.com
+   18850  Defl:N    13040  31% 10-01-2026 00:39 902af968  e506191a90b515742d996d4bd74d9ddd  pklaxfix.com
+   15888  Defl:N    11210  29% 10-01-2026 00:39 9afdcb69  4077e98e885eeb3860f01e5d730835ac  pkpspfix.com
+   16590  Defl:N    11740  29% 10-01-2026 00:39 3b629188  39d3190b88293c17ac93b94818e64468  putav.com
 --------          -------  ---                            -------
-   69606            48601  30%                            4 files
+   81628            53610  34%                            4 files
 FWKCS MD5 metadata information present (not verified by listing).
 ```
 
@@ -210,15 +225,28 @@ No errors detected in compressed data of pkstuff.zip.
 #### FWKCS archive extraction (`unzip`)
 
 ```
-$ unzip -ta pkstuff.zip
-Archive:  ../pkstuff.zip
-    testing: makeav.com               OK
+$ unzip -xa pkstuff.zip
+Archive:  pkstuff.zip
+  inflating: makeav.com              [binary]
+  inflating: pklaxfix.com            [binary]
+  inflating: pkpspfix.com            [binary]
+  inflating: putav.com               [binary]
+```
+
+If errors are encountered when testing or extracting an archive, an FWKCS
+archive provides additional information:
+
+```
+Archive:  pkstuff.zip
+    testing: makeav.com               bad CRC 982e9e5e  (should be 431fa9a2)
+        FWKCS MD5 mismatch: makeav.com
+        9f3d331fc86d703edb022249017ac730 (should be 3728359993a24bc8329250be8def15ee)
     testing: pklaxfix.com             OK
     testing: pkpspfix.com             OK
     testing: putav.com                OK
-FWKCS MD5 checksums verified for 4 entries.
-No errors detected in compressed data of pkstuff.zip.
+At least one error was detected in pkstuff.zip.
 ```
+
 #### FWKCS self-extractor (`unzipsfx`)
 
 > [!IMPORTANT]
@@ -233,7 +261,7 @@ $ cat $(command -v unzipsfx) pkstuff.zip > pkstuff.sfx
 $ chmod a+x pkstuff.sfx
 
 $ zip -A pkstuff.sfx
-Zip entry offsets appear off by 126800 bytes - correcting...
+Zip entry offsets appear off by 115316 bytes - correcting...
 
 $ ./pkstuff.sfx -t
 UnZipSFX 6.00 of 20 April 2009, by Info-ZIP (http://www.info-zip.org).
@@ -282,7 +310,7 @@ PKUNZIP (R)    FAST!    Extract Utility    Version 2.50    03-01-1999
 Copr. 1989-1999 PKWARE Inc.  All Rights Reserved.  Registered version
 PKUNZIP Reg. U.S. Pat. and Tm. Off.
 
-Searching ZIP: X.SFX
+Searching ZIP: PKSTUFF.SFX
 Testing: makeav.com    OK
 Testing: pklaxfix.com  OK
 Testing: pkpspfix.com  OK
