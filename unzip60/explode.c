@@ -837,6 +837,10 @@ int dcl_explode(__G)
         0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8
     };
 
+#if (defined(DLL) && !defined(NO_SLIDE_REDIR))
+    redirSlide = slide;
+#endif
+
     litcode.count = litcnt;
     litcode.symbol = litsym;
     lencode.count = lencnt;
