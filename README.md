@@ -13,7 +13,7 @@
     + [FWKCS archive creation (`unzip`)](#fwkcs-archive-creation-unzip)
     + [FWKCS archive testing (`unzip`)](#fwkcs-archive-testing-unzip)
     + [FWKCS archive extraction (`unzip`)](#fwkcs-archive-extraction-unzip)
-    + [FWKCS self-extractor (`unzipsfx`)](#fwkcs-self-extractor-unzipsfx)
+    + [FWKCS self-extractor creation (`unzipsfx`)](#fwkcs-self-extractor-creation-unzipsfx)
   * [PKWARE compatibility](#pkware-compatibility)
     + [PKAV](#pkav-1)
     + [FWKCS](#fwkcs-1)
@@ -256,7 +256,7 @@ Archive:  pkstuff.zip
 At least one error was detected in pkstuff.zip.
 ```
 
-#### FWKCS self-extractor (`unzipsfx`)
+#### FWKCS self-extractor creation (`unzipsfx`)
 
 > [!IMPORTANT]
 > When creating a self‑extracting archive, ensure that you correct the entry
