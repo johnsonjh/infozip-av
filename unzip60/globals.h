@@ -238,16 +238,28 @@ typedef struct Globals {
     struct {
         uch *payload;                /* encoded central EF_AV data */
         unsigned payload_len;
-        z_uint4 accumulator;         /* reconstructed from extracted data */
-        z_uint4 stored_accumulator;  /* central metadata; diagnostic only */
-        ulg members;                 /* central entries selected by & 0x0006 */
-        ulg uncovered;               /* ordinary entries outside PKAV set */
-        ulg processed;               /* selected entries completely decoded */
+        uch *v1_payload;             /* PKAV 1.x EF_AV from marked entry */
+        unsigned v1_payload_len;
+        z_uint4 accumulator;         /* PKAV 2.x: reconstructed from data */
+        z_uint4 stored_accumulator;  /* PKAV 2.x: central metadata */
+        z_uint4 v1_accumulator;      /* PKAV 1.x: reconstructed from data */
+        z_uint4 v1_stored_accumulator; /* PKAV 1.x: central metadata */
+        ulg members;                 /* PKAV 2.x entries selected by & 0x0006 */
+        ulg v1_members;              /* PKAV 1.x entries selected by GPBF 13 */
+        ulg v1_only_members;         /* GPBF 13 entries outside PKAV 2.x set */
+        ulg uncovered;               /* ordinary entries outside PKAV 2.x */
+        ulg v1_uncovered;            /* ordinary entries outside PKAV 1.x */
+        ulg processed;               /* PKAV 2.x entries completely decoded */
+        ulg v1_processed;            /* PKAV 1.x entries completely decoded */
         unsigned av_count;           /* central EF_AV records */
+        unsigned v1_av_count;        /* EF_AV records on PKAV 1.x members */
         int marker_seen;             /* at least one internal bit 0x0004 */
+        int generation;              /* 0 unknown, 1 PKAV 1.x, 2 PKAV 2.x */
         int malformed;               /* malformed EF_AV framing */
+        int v1_malformed;            /* malformed PKAV 1.x EF_AV framing */
         int show_avextra_on_fail;    /* explicit display of unverified tail */
-        int current_member;          /* current output belongs to PKAV set */
+        int current_member;          /* current output belongs to PKAV 2.x */
+        int current_v1_member;       /* current output belongs to PKAV 1.x */
         int current_extcheck;        /* collect XOR/sum for current member */
         z_uint4 current_sum;
         uch current_xor;

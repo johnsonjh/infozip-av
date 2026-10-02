@@ -27,12 +27,14 @@
 ## Overview
 
 This project adds full
-[PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification) and
+[PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification)
+(create *and* verify for PKAV 2.x, verification‑only for PKAV 1.x) and
 [FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
 ([MD5](https://en.wikipedia.org/wiki/MD5)) support to
 [Info‑ZIP](https://infozip.sourceforge.net/).
 
-It also adds the ability to decompress ZIP files using PKWARE DCL Implode
+It also adds the ability to decompress files using
+[PKWARE DCL Implode](http://fileformats.archiveteam.org/wiki/PKWARE_DCL_Implode)
 (ZIP method 10) compression.
 
 This support is built on Fedora's current
@@ -54,6 +56,10 @@ PKAV today is cryptographically useless, but supporting it is *important for
 historical preservation and authenticity*, and it unlocks the encrypted AVEXTRA
 data present in many original PKZIP archives that would otherwise be completely
 inaccessible (or *only* accessible using official PKWARE software).
+
+The `unzip` and `unzipsfx` tools verify both the original PKAV 1.x format used
+by PKWARE PKZIP 1.x releases as well as the more common PKAV 2.x format.  PKAV
+archive creation with `zip` supports PKAV 2.x only.
 
 #### PKAV archive creation (`zip`)
 

@@ -85,6 +85,10 @@
 }
 
 #ifdef PKAV_SUPPORT
+#define PKAV_GENERATION_1  1
+#define PKAV_GENERATION_2  2
+#define PKAV1_GPBF         0x2000
+
 static void pkav_reset(__G)
     __GDEF
 {
@@ -92,6 +96,8 @@ static void pkav_reset(__G)
 
     if (G.pkav.payload != (uch *)NULL)
         free(G.pkav.payload);
+    if (G.pkav.v1_payload != (uch *)NULL)
+        free(G.pkav.v1_payload);
     memset((char *)&G.pkav, 0, sizeof(G.pkav));
     G.pkav.show_avextra_on_fail = show_avextra_on_fail;
 }
@@ -101,8 +107,12 @@ static int pkav_note_cdir(__G)
 {
     uch *ef = G.extra_field;
     unsigned left = G.crec.extra_field_length;
+    int v2_member = (G.crec.internal_file_attributes & 0x0006) != 0;
+    /* PKAV 1 uses DOS GPBF bit 13 instead of the PKAV 2 attribute marker */
+    int v1_member = (G.pInfo->hostnum == FS_FAT_ &&
+                     (G.crec.general_purpose_bit_flag & PKAV1_GPBF) != 0);
 
-    if (G.crec.internal_file_attributes & 0x0006) {
+    if (v2_member) {
         ++G.pkav.members;
         G.pkav.stored_accumulator += (z_uint4)G.crec.crc32;
         if (G.crec.internal_file_attributes & 0x0004)
@@ -111,16 +121,27 @@ static int pkav_note_cdir(__G)
         else
             G.pkav.stored_accumulator +=
                 (z_uint4)G.crec.last_mod_dos_datetime;
+        G.pkav.generation = PKAV_GENERATION_2;
     }
-    if (!(G.crec.internal_file_attributes & 0x0006) &&
-        !G.pInfo->vollabel) {
+    if (v1_member) {
+        ++G.pkav.v1_members;
+        if (!v2_member)
+            ++G.pkav.v1_only_members;
+        G.pkav.v1_stored_accumulator += (z_uint4)G.crec.crc32;
+        G.pkav.v1_stored_accumulator +=
+            (z_uint4)G.crec.last_mod_dos_datetime;
+    }
+    if (!G.pInfo->vollabel) {
         unsigned fnlen = (unsigned)strlen(G.filename);
 
         if (fnlen == 0 ||
             (G.filename[fnlen - 1] != '/' &&
-             !(G.pInfo->hostnum == FS_FAT_ &&
-               G.filename[fnlen - 1] == '\\')))
-            ++G.pkav.uncovered;
+             !(G.pInfo->hostnum == FS_FAT_ && G.filename[fnlen - 1] == '\\'))) {
+            if (!v2_member)
+                ++G.pkav.uncovered;
+            if (!v1_member)
+                ++G.pkav.v1_uncovered;
+        }
     }
     if (G.crec.internal_file_attributes & 0x0004)
         G.pkav.marker_seen = TRUE;
@@ -133,6 +154,10 @@ static int pkav_note_cdir(__G)
             if (id == EF_AV) {
                 ++G.pkav.av_count;
                 G.pkav.malformed = TRUE;
+                if (v1_member) {
+                    ++G.pkav.v1_av_count;
+                    G.pkav.v1_malformed = TRUE;
+                }
             }
             break;
         }
@@ -149,10 +174,27 @@ static int pkav_note_cdir(__G)
                     memcpy(G.pkav.payload, ef + EB_HEADSIZE, len);
                 }
             }
+            if (v1_member) {
+                ++G.pkav.v1_av_count;
+                if (G.pkav.v1_av_count == 1) {
+                    G.pkav.v1_payload_len = len;
+                    if (len == 0) {
+                        G.pkav.v1_malformed = TRUE;
+                    } else {
+                        G.pkav.v1_payload = (uch *)malloc(len);
+                        if (G.pkav.v1_payload == (uch *)NULL)
+                            return PK_MEM;
+                        memcpy(G.pkav.v1_payload, ef + EB_HEADSIZE, len);
+                    }
+                }
+            }
         }
         ef += EB_HEADSIZE + len;
         left -= EB_HEADSIZE + len;
     }
+    if (G.pkav.generation == 0 && G.pkav.v1_av_count != 0 &&
+        G.pkav.v1_members != 0)
+        G.pkav.generation = PKAV_GENERATION_1;
     return PK_COOL;
 }
 
@@ -187,10 +229,11 @@ static void pkav_key_update(k0, k1, k2, c)
     *k2 = pkav_crc_byte(*k2, (uch)(*k1 >> 24));
 }
 
-static void pkav_decrypt(buf, len, acc)
+static void pkav_decrypt(buf, len, acc, generation)
     uch *buf;
     unsigned len;
     z_uint4 acc;
+    int generation;
 {
     z_uint4 k0 = (z_uint4)0x12345678UL;
     z_uint4 k1 = (z_uint4)0x23456789UL;
@@ -198,7 +241,8 @@ static void pkav_decrypt(buf, len, acc)
     unsigned i;
 
     for (i = 0; i < 8; ++i) {
-        uch c = (uch)(((acc >> (4 * i)) & 0x0f) + 0x13);
+        uch c = (uch)(((acc >> (4 * i)) & 0x0f) +
+                      (generation == PKAV_GENERATION_1 ? 0x12 : 0x13));
         pkav_key_update(&k0, &k1, &k2, c);
     }
     for (i = 0; i < len; ++i) {
@@ -265,6 +309,7 @@ static void pkav_begin_member(__G)
     __GDEF
 {
     G.pkav.current_member = G.pInfo->pkav_member;
+    G.pkav.current_v1_member = G.pInfo->pkav_v1_member;
     G.pkav.current_extcheck = G.pInfo->pkav_extcheck;
     G.pkav.current_sum = 0;
     G.pkav.current_xor = 0;
@@ -296,19 +341,36 @@ static void pkav_complete_member(__G)
 {
     z_uint4 aux;
 
-    if (!G.pkav.current_member)
-        return;
-    G.pkav.accumulator += (z_uint4)G.crc32val;
-    if (G.pkav.current_extcheck) {
-        aux = ((z_uint4)G.pkav.current_xor << 24) |
-              ((z_uint4)(G.pkav.current_sum & 0xffff) << 8) |
-              (z_uint4)G.pInfo->pkav_dos_attr;
-    } else {
-        aux = (z_uint4)G.pInfo->pkav_dos_datetime;
+    if (G.pkav.current_member) {
+        G.pkav.accumulator += (z_uint4)G.crc32val;
+        if (G.pkav.current_extcheck) {
+            aux = ((z_uint4)G.pkav.current_xor << 24) |
+                  ((z_uint4)(G.pkav.current_sum & 0xffff) << 8) |
+                  (z_uint4)G.pInfo->pkav_dos_attr;
+        } else {
+            aux = (z_uint4)G.pInfo->pkav_dos_datetime;
+        }
+        G.pkav.accumulator += aux;
+        ++G.pkav.processed;
+        G.pkav.current_member = FALSE;
     }
-    G.pkav.accumulator += aux;
-    ++G.pkav.processed;
-    G.pkav.current_member = FALSE;
+    if (G.pkav.current_v1_member) {
+        G.pkav.v1_accumulator += (z_uint4)G.crc32val;
+        G.pkav.v1_accumulator += (z_uint4)G.pInfo->pkav_dos_datetime;
+        ++G.pkav.v1_processed;
+        G.pkav.current_v1_member = FALSE;
+    }
+}
+
+static int pkav_active_member(__G)
+    __GDEF
+{
+    if (G.pkav.members != 0 && G.pkav.v1_only_members != 0)
+        return FALSE;
+    if (G.pInfo->pkav_member)
+        return TRUE;
+    return G.pkav.generation == PKAV_GENERATION_1 &&
+           G.pInfo->pkav_v1_member;
 }
 
 static int pkav_parse_plain(buf, len, p_company_len, p_avextra, p_avextra_len,
@@ -431,49 +493,98 @@ static int pkav_finish_archive(__G)
     unsigned company_len, avextra_len, diag_company_len, diag_avextra_len;
     z_uint4 h1, seed, expected, diag_h1, diag_seed, diag_expected;
     int framed, diag_framed, emit_error;
+    int generation, valid, diag_valid;
+    z_uint4 accumulator, stored_accumulator;
+    ulg members, uncovered, processed;
+    uch *payload;
+    unsigned payload_len, av_count;
+    int malformed;
     char stamp[7];
+
+    if (G.pkav.members != 0 && G.pkav.v1_only_members != 0) {
+        Info(slide, 0x401, ((char *)slide,
+          "warning: mixed PKAV 1/2 Authenticity Verification; "
+          "authenticity NOT verified\n"));
+        return PK_WARN;
+    }
 
     if (G.pkav.av_count == 0 && !G.pkav.marker_seen)
         return PK_COOL;
 
-    if (G.pkav.malformed || G.pkav.av_count != 1 ||
-        G.pkav.payload == (uch *)NULL || G.pkav.payload_len < 14 ||
-        G.pkav.members == 0) {
+    if (G.pkav.members != 0)
+        generation = PKAV_GENERATION_2;
+    else if (G.pkav.v1_members != 0 && G.pkav.v1_av_count != 0)
+        generation = PKAV_GENERATION_1;
+    else
+        generation = 0;
+
+    if (generation == PKAV_GENERATION_1) {
+        accumulator = G.pkav.v1_accumulator;
+        stored_accumulator = G.pkav.v1_stored_accumulator;
+        members = G.pkav.v1_members;
+        uncovered = G.pkav.v1_uncovered;
+        processed = G.pkav.v1_processed;
+        payload = G.pkav.v1_payload;
+        payload_len = G.pkav.v1_payload_len;
+        av_count = G.pkav.v1_av_count;
+        malformed = G.pkav.v1_malformed;
+    } else {
+        accumulator = G.pkav.accumulator;
+        stored_accumulator = G.pkav.stored_accumulator;
+        members = G.pkav.members;
+        uncovered = G.pkav.uncovered;
+        processed = G.pkav.processed;
+        payload = G.pkav.payload;
+        payload_len = G.pkav.payload_len;
+        av_count = G.pkav.av_count;
+        malformed = G.pkav.malformed;
+    }
+
+    if (malformed || av_count != 1 ||
+        payload == (uch *)NULL || payload_len < 14 ||
+        members == 0) {
         Info(slide, 0x401, ((char *)slide,
           "warning: malformed PKAV Authenticity Verification information\n"));
         return PK_WARN;
     }
 
-    if (G.pkav.processed != G.pkav.members) {
+    if (processed != members) {
         Info(slide, 0x401, ((char *)slide,
           "warning: PKAV information present; authenticity was not fully verified\n"));
         return PK_WARN;
     }
 
-    plain = (uch *)malloc(G.pkav.payload_len);
+    plain = (uch *)malloc(payload_len);
     if (plain == (uch *)NULL)
         return PK_MEM;
-    memcpy(plain, G.pkav.payload, G.pkav.payload_len);
-    pkav_decrypt(plain, G.pkav.payload_len, G.pkav.accumulator);
+    memcpy(plain, payload, payload_len);
+    pkav_decrypt(plain, payload_len, accumulator, generation);
 
-    framed = pkav_parse_plain(plain, G.pkav.payload_len, &company_len,
+    framed = pkav_parse_plain(plain, payload_len, &company_len,
                               &avextra, &avextra_len, &h1, &seed);
     if (framed) {
-        expected = pkav_expected_h1(seed, plain + 12, company_len);
-        if (pkav_seed_valid(seed) && h1 == expected) {
+        if (generation == PKAV_GENERATION_1 && avextra_len != 0 &&
+            avextra[avextra_len - 1] == 0x1a)
+            --avextra_len;
+        valid = pkav_seed_valid(seed);
+        if (generation == PKAV_GENERATION_2) {
+            expected = pkav_expected_h1(seed, plain + 12, company_len);
+            valid = valid && h1 == expected;
+        }
+        if (valid) {
             pkav_stamp(seed, stamp);
             if (uO.qflag < 2 && !uO.cflag) {
                 Info(slide, 0, ((char *)slide,
                   "Authentic files Verified!   # %s\n", stamp));
-                if (G.pkav.uncovered != 0)
+                if (uncovered != 0)
                     Info(slide, 0, ((char *)slide,
                       "warning: PKAV verified %lu authenticated entr%s; "
                       "%lu archive entr%s %s not covered by PKAV.\n",
-                      G.pkav.members,
-                      (G.pkav.members == 1L)? "y" : "ies",
-                      G.pkav.uncovered,
-                      (G.pkav.uncovered == 1L)? "y" : "ies",
-                      (G.pkav.uncovered == 1L)? "is" : "are"));
+                      members,
+                      (members == 1L)? "y" : "ies",
+                      uncovered,
+                      (uncovered == 1L)? "y" : "ies",
+                      (uncovered == 1L)? "is" : "are"));
                 emit_error = pkav_emit_filtered(__G__ plain + 12,
                                                 company_len, 0, FALSE);
                 if (emit_error == PK_COOL)
@@ -494,20 +605,27 @@ static int pkav_finish_archive(__G)
     Info(slide, 0x401, ((char *)slide,
       "warning: PKAV Authenticity Verification failed\n"));
 
-    diag = (uch *)malloc(G.pkav.payload_len);
+    diag = (uch *)malloc(payload_len);
     if (diag == (uch *)NULL) {
         free(plain);
         return PK_MEM;
     }
-    memcpy(diag, G.pkav.payload, G.pkav.payload_len);
-    pkav_decrypt(diag, G.pkav.payload_len, G.pkav.stored_accumulator);
-    diag_framed = pkav_parse_plain(diag, G.pkav.payload_len,
+    memcpy(diag, payload, payload_len);
+    pkav_decrypt(diag, payload_len, stored_accumulator, generation);
+    diag_framed = pkav_parse_plain(diag, payload_len,
                                    &diag_company_len, &diag_avextra,
                                    &diag_avextra_len, &diag_h1, &diag_seed);
+    if (diag_framed && generation == PKAV_GENERATION_1 &&
+        diag_avextra_len != 0 && diag_avextra[diag_avextra_len - 1] == 0x1a)
+        --diag_avextra_len;
     if (diag_framed && diag_avextra_len != 0 && pkav_seed_valid(diag_seed)) {
-        diag_expected = pkav_expected_h1(diag_seed, diag + 12,
-                                         diag_company_len);
-        if (diag_h1 == diag_expected) {
+        diag_valid = TRUE;
+        if (generation == PKAV_GENERATION_2) {
+            diag_expected = pkav_expected_h1(diag_seed, diag + 12,
+                                             diag_company_len);
+            diag_valid = diag_h1 == diag_expected;
+        }
+        if (diag_valid) {
             if (G.pkav.show_avextra_on_fail) {
                 Info(slide, 0x401, ((char *)slide,
                   "warning: displaying unverified PKAV AVEXTRA data:\n"));
@@ -1603,6 +1721,8 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
     G.pInfo->uncompr_size = G.crec.ucsize;
 #ifdef PKAV_SUPPORT
     G.pInfo->pkav_member = (G.crec.internal_file_attributes & 0x0006) != 0;
+    G.pInfo->pkav_v1_member = (G.pInfo->hostnum == FS_FAT_ &&
+        (G.crec.general_purpose_bit_flag & PKAV1_GPBF) != 0);
     G.pInfo->pkav_extcheck = (G.crec.internal_file_attributes & 0x0004) != 0;
     G.pInfo->pkav_dos_datetime = G.crec.last_mod_dos_datetime;
     G.pInfo->pkav_dos_attr = (uch)(G.crec.external_file_attributes & 0xff);
@@ -2377,9 +2497,10 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 {
     char *nul="[empty] ", *txt="[text]  ", *bin="[binary]";
 #ifdef PKAV_SUPPORT
-    char *avmark = G.pInfo->pkav_member ? "-AV" : "";
-    char *avsep = (G.pInfo->pkav_member && uO.aflag == 1) ? " " : "";
-    char *test_avmark = G.pInfo->pkav_member ? " -AV" : "";
+    int av_member = pkav_active_member(__G);
+    char *avmark = av_member ? "-AV" : "";
+    char *avsep = (av_member && uO.aflag == 1) ? " " : "";
+    char *test_avmark = av_member ? " -AV" : "";
 #else
     char *avmark = "", *avsep = "", *test_avmark = "";
 #endif
@@ -3184,7 +3305,7 @@ static int TestExtraField(__G__ ef, ef_len)
     if (!uO.qflag)
         Info(slide, 0, ((char *)slide, " OK%s\n",
 #ifdef PKAV_SUPPORT
-          G.pInfo->pkav_member ? " -AV" : ""
+          pkav_active_member(__G) ? " -AV" : ""
 #else
           ""
 #endif

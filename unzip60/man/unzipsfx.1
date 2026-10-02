@@ -118,8 +118,9 @@ option (\fB\-t\fP) may be used as a ``poor man's'' listing.  Alternatively,
 those creating self-extracting archives may wish to include a short listing
 in the zipfile comment.
 .PP
-PKAV data is verified automatically if present.  \fB--show-avextra-on-fail\fP
-displays unverified AVEXTRA after a failed check.
+PKAV 1.x and 2.x data is verified automatically if present.  Archives mixing
+distinct PKAV 1.x and PKAV 2.x member marker sets are rejected as unsupported.
+\fB--show-avextra-on-fail\fP displays unverified AVEXTRA after a failed check.
 .PP
 See \fIunzip\fP(1L) for a more complete description of these options.
 .PD

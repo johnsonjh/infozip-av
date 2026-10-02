@@ -2051,7 +2051,8 @@ typedef struct min_info {
 #endif
     unsigned HasUxAtt : 1;   /* crec ext_file_attr has Unix style mode bits */
 #ifdef PKAV_SUPPORT
-    unsigned pkav_member : 1;    /* internal attributes bits 1/2 select PKAV */
+    unsigned pkav_member : 1;    /* PKAV 2.x: internal attr bits 1/2 */
+    unsigned pkav_v1_member : 1; /* PKAV 1.x: DOS-host GPBF bit 13 */
     unsigned pkav_extcheck : 1;  /* bit 2: ext attrs contain XOR/sum checksum */
 #endif
 #ifdef UNICODE_SUPPORT

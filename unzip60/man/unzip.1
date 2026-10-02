@@ -99,11 +99,13 @@ C shells into the name of the user's home directory, but ``\fC\-d~\fR''
 is treated as a literal subdirectory ``\fB~\fP'' of the current directory.
 .\" =========================================================================
 .PP
-When an archive contains PKWARE Authenticity Verification (PKAV) data,
+When an archive contains PKWARE Authenticity Verification (PKAV) 1.x or 2.x data,
 \fIunzip\fP automatically verifies the authenticated members when testing or
 extracting.  Successful verification reports the registered company
 name and displays trailing PKAV AVEXTRA text by default.  Invalid or
-malformed PKAV data produces a warning.  If recoverable AVEXTRA data
+malformed PKAV data produces a warning.  Archives containing both PKAV 1.x and
+PKAV 2.x member marker sets are highly suspect and are treated as unsupported
+rather than assigning either generation precedence.  If recoverable AVEXTRA data
 is present but PKAV verification failed, \fIunzip\fP will suggest using the
 \fB--show-avextra-on-fail\fP option, which displays the text with an explicit
 unverified warning.  When only part of the authenticated member set is

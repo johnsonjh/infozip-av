@@ -82,17 +82,20 @@ ARGUMENTS
               tory.
 
 PKWARE AUTHENTICITY VERIFICATION
-       When an archive contains PKWARE Authenticity Verification (PKAV) data,
-       unzip automatically verifies the authenticated members when testing or
-       extracting.  Successful verification reports the registered company
-       name and displays trailing PKAV AVEXTRA text by default.  Invalid or
-       malformed PKAV data produces a warning.  If recoverable AVEXTRA data
-       is present but PKAV verification failed, unzip will suggest using the
+       When an archive contains PKWARE Authenticity Verification (PKAV) 1.x or
+       2.x data,  unzip automatically verifies the  authenticated members when
+       testing or  extracting.  Successful verification reports the registered
+       company  name  and  displays  trailing PKAV  AVEXTRA text  by  default.
+       Invalid or malformed PKAV data produces a warning.  Archives containing
+       distinct  PKAV 1.x  and PKAV 2.x member marker sets are highly  suspect
+       and are treated as unsupported rather than assigning either  generation
+       precedence.  If  any recoverable  AVEXTRA  data  is  present  but  PKAV
+       verification     failed,    unzip     will     suggest    using     the
        --show-avextra-on-fail option, which displays the text with an explicit
-       unverified warning.  When only part of the authenticated member set is
-       processed, PKAV is reported as present but not fully verified.
-       NOTE: Listing operations does not decompress all the archive members
-       to perform PKAV verification; use -t if PKAV verification is required.
+       unverified warning.   When only part of the authenticated member set is
+       processed,  PKAV  is  reported  as  present  but  not  fully  verified.
+       NOTE:  Listing operations does  not decompress all the archive  members
+       to perform PKAV verification;  use -t if PKAV verification is required.
 
 OPTIONS
        Note  that,  in  order  to  support obsolescent hardware, unzip's usage

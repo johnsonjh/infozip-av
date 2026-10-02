@@ -96,8 +96,10 @@ OPTIONS
        Alternatively, those creating  self-extracting  archives  may  wish  to
        include a short listing in the zipfile comment.
 
-       PKAV data is verified automatically if present.  --show-avextra-on-fail
-       can be used to display unverified AVEXTRA after a failed check.
+       PKAV 1.x and  2.x data is verified automatically if present.   Archives
+       mixing distinct  PKAV 1.x  and  PKAV 2.x  member marker sets are highly
+       suspect and are rejected as unsupported.  --show-avextra-on-fail can be
+       used to display unverified AVEXTRA after a failed check.
 
        See unzip(1L) for a more complete description of these options.
 
