@@ -19,7 +19,7 @@
     + [FWKCS](#fwkcs-1)
 - [Historical example](#historical-example)
 - [Availability](#availability)
-- [License](#license)
+- [Licenses](#licenses)
 - [External links](#external-links)
 
 <!-- tocstop -->
@@ -312,6 +312,9 @@ This is the AVEXTRA comment!
 
 #### FWKCS
 
+While FWKCS metadata is not verified by most classic ZIP tools, it should not
+cause compatibility problems (even when used in combination with PKAV).
+
 ```
 $ emu2 pkunzip.exe -t pkstuff.sfx
 
@@ -338,7 +341,8 @@ correctly decode and display.
 The actual decoded PKAV AVEXTRA text from this archive was quoted verbatim and used (amongst
 other data points) in a USPTO final decision to
 [invalidate a software patent](https://dn721608.ca.archive.org/0/items/539FinalDecision73/539%20-%20final%20decision-73.pdf)
-(*PDF pg. 11*) in 2014. In this case, [Jason Scott](https://en.wikipedia.org/wiki/Jason_Scott)
+(PDF pg. 11) in 2014.
+In this case, [Jason Scott](https://en.wikipedia.org/wiki/Jason_Scott)
 used the historical PKWARE PKUNZIP software in a DOS emulator to decode and
 display the PKAV AVEXTRA text.
 
@@ -386,7 +390,7 @@ No errors detected in compressed data of fwkcs122.zip.
 * [GitHub](https://github.com/johnsonjh/infozip-av)
 * [GitLab](https://gitlab.com/johnsonjh/infozip-av)
 
-## License
+## Licenses
 
 * These PKAV additions to Info‑ZIP are provided under the [MIT‑0 License](LICENSE)
   or, at your option, the [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
