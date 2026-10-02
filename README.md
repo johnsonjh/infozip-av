@@ -313,7 +313,7 @@ This is the AVEXTRA comment!
 #### FWKCS
 
 ```
-$ emu pkunzip.exe -t pkstuff.sfx
+$ emu2 pkunzip.exe -t pkstuff.sfx
 
 PKUNZIP (R)    FAST!    Extract Utility    Version 2.50    03-01-1999
 Copr. 1989-1999 PKWARE Inc.  All Rights Reserved.  Registered version
