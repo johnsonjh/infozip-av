@@ -10,7 +10,7 @@
     + [PKAV archive extraction (`unzip`)](#pkav-archive-extraction-unzip)
     + [PKAV self-extractor creation (`unzipsfx`)](#pkav-self-extractor-creation-unzipsfx)
   * [FWKCS](#fwkcs)
-    + [FWKCS archive creation (`unzip`)](#fwkcs-archive-creation-unzip)
+    + [FWKCS archive creation (`zip`)](#fwkcs-archive-creation-zip)
     + [FWKCS archive testing (`unzip`)](#fwkcs-archive-testing-unzip)
     + [FWKCS archive extraction (`unzip`)](#fwkcs-archive-extraction-unzip)
     + [FWKCS self-extractor creation (`unzipsfx`)](#fwkcs-self-extractor-creation-unzipsfx)
@@ -198,7 +198,7 @@ a number of reasons:
    that users who are further processing the output (*e.g.*, `AWK` scripts)
    won't experience regressions.
 
-#### FWKCS archive creation (`unzip`)
+#### FWKCS archive creation (`zip`)
 
 ```
 $ zip --fwkcs-md5 pkstuff.zip ./*.com
