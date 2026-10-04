@@ -12,6 +12,7 @@ log.pvs
 /*.patch
 pvsreport/
 *.rej
+/TODO
 /unzip60/conftest
 /unzip60/conftest.c
 /unzip60/flags
