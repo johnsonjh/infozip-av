@@ -33,19 +33,13 @@ This project adds full
 ([MD5](https://en.wikipedia.org/wiki/MD5)) support to
 [Info‑ZIP](https://infozip.sourceforge.net/).
 
-It also adds the ability to compress and decompress files using
-[PKWARE DCL Implode](http://fileformats.archiveteam.org/wiki/PKWARE_DCL_Implode)
-(ZIP method 10) compression.  Zip selects this method with
-`-Z dcl-implode` or `--compression-method dcl-implode` and writes standard
-binary-literal, 4K-dictionary DCL streams.
+It also adds the ability to both *compress* and *decompress* files using
+[**DCL Implode**](http://fileformats.archiveteam.org/wiki/PKWARE_DCL_Implode)
+(method 10) compression.  Additionally, for *decompression* of historical
+archives, new implementations of **Shrink** (method 1), **Reduce** (methods 2
+through 5), and **ZIP Implode** (method 6) have been added.
 
-For historical ZIP archives, UnZip additionally supports Shrink (method 1),
-Reduce (methods 2 through 5), and ZIP Implode (method 6) using ANSI C89
-adaptations of Jason Summers' OldUnzip decoding libraries.  These decoders
-are used by the full UnZip build in place of the historical Info-ZIP/Smith
-implementations.
-
-This support is built on Fedora's current
+These changes are built over Fedora's current
 [`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
 [`unzip`](https://src.fedoraproject.org/rpms/unzip) (6.0‑71,&nbsp;2026‑07‑27)
 source packages.
@@ -172,13 +166,13 @@ The FWKCS extension was originally implemented by
 [Frederick W. Kantor](https://en.wikipedia.org/wiki/Frederick_Kantor) as a
 way identify duplicate files in archives more reliably than by the filename,
 size, and CRC.  It is still useful today as a lightweight integrity checksum,
-augmenting the standard ZIP CRC-32.  FWKCS cooperates with PKAV, and because
+augmenting the standard ZIP CRC‑32.  FWKCS cooperates with PKAV, and because
 older ZIP software can ignore the FWKCS metadata when unsupported, it has
 excellent backwards compatibility.
 
 FWKCS support is **not** enabled by default.  To enable FWKCS when archiving,
-use the `--fwkcs-md5` option.  To enable FWKCS when listing (`-l`) or
-verbosely listing (`-v`), use the `--list-fwkcs-md5` option.
+use the `--fwkcs-md5` option.  To enable FWKCS when listing (`‑l`) or
+verbosely listing (`‑v`), use the `--list-fwkcs-md5` option.
 
 It was decided **not** to enable FWKCS support by default (even though it is
 officially supported and documented in the current
@@ -400,16 +394,18 @@ No errors detected in compressed data of fwkcs122.zip.
 
 ## Licenses
 
-* These PKAV additions to Info‑ZIP are provided under the [MIT‑0 License](LICENSE)
+* The PKAV additions to Info‑ZIP are provided under the [MIT‑0 License](LICENSE)
   or, at your option, the [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
   [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
+
+* The new **Shrink**, **Reduce**, and **ZIP Implode** decompression
+  implementations are based on MIT licensed code by
+  [Jason Summers](https://github.com/jsummers/oldunzip).
+
+* The new **DCL Implode** compression and decompression implementations use the
+  MIT‑0 licensed [PKDCLX](https://github.com/johnsonjh/pkdclx) routines.
 
 * The Info‑ZIP software components (Zip and UnZip) are distributed under their
   respective [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) and
   [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
 
-* The Shrink, Reduce, and legacy Implode implementations are based on MIT
-  licensed code by [Jason Summers](https://github.com/jsummers/oldunzip).
-
-* The DCL Implode compression and decompression implementations are the MIT-0
-  licensed [PKDCLX](https://github.com/johnsonjh/pkdclx) routines.
