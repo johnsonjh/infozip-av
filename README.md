@@ -405,7 +405,6 @@ No errors detected in compressed data of fwkcs122.zip.
 * The new **DCL Implode** compression and decompression implementations use the
   MIT‑0 licensed [PKDCLX](https://github.com/johnsonjh/pkdclx) routines.
 
-* The Info‑ZIP software components (Zip and UnZip) are distributed under their
-  respective [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) and
-  [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
-
+* The Info‑ZIP software suites (Zip and UnZip, with included tools) are
+  distributed under their respective [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE)
+  and [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
