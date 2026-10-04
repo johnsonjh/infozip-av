@@ -17,7 +17,9 @@
   * [PKWARE compatibility](#pkware-compatibility)
     + [PKAV](#pkav-1)
     + [FWKCS](#fwkcs-1)
-- [Historical example](#historical-example)
+- [Historical examples](#historical-examples)
+  * [PKAV 2.x](#pkav-2x)
+  * [PKAV 1.x](#pkav-1x)
 - [Availability](#availability)
 - [Licenses](#licenses)
 - [External links](#external-links)
@@ -331,14 +333,16 @@ Testing: pkpspfix.com  OK
 Testing: putav.com     OK
 ```
 
-## Historical example
+## Historical examples
+
+### PKAV 2.x
 
 The [very](http://justsolve.archiveteam.org/wiki/FWKCS)
 [famous](https://dn790003.ca.archive.org/0/items/emcfarber_jsstestimony/Sadofsky%2C%20Jason%20Scott.pdf)
 [`FWKCS122.ZIP`](https://ftp.sunet.se/mirror/archive/ftp.sunet.se/pub/simtelnet/msdos/bbs/fwkcs122.zip)
-archive is a great example of an important historical file that uses PKAV and
-includes encrypted AVEXTRA text which needs a complete PKAV implementation to
-correctly decode and display.
+archive is a great example of an important historical file that uses PKAV 2.x
+and includes encrypted AVEXTRA text which needs a complete PKAV implementation
+to correctly decode and display.
 
 The actual decoded PKAV AVEXTRA text from this archive was quoted verbatim and used (amongst
 other data points) in a USPTO final decision to
@@ -349,7 +353,7 @@ used the historical PKWARE PKUNZIP software in a DOS emulator to decode and
 display the PKAV AVEXTRA text.
 
 ```
-$ unzip -ta fwkcs122.zip
+$ unzip -t fwkcs122.zip
 Archive:  fwkcs122.zip
     testing: FILE_ID.DIZ              OK -AV
     testing: README.TXT               OK -AV
@@ -387,6 +391,37 @@ and then follow the instructions on the screen...
 No errors detected in compressed data of fwkcs122.zip.
 ```
 
+### PKAV 1.x
+
+The self‑extracting
+[`PKZ110.EXE`](http://cd.textfiles.com/rbbsv3n1/pool/pkz110.exe) archive uses
+PKAV 1.x and includes encrypted AVEXTRA text.
+
+```
+$ unzip -t pkz110.exe
+Archive:  pkz110.exe
+    testing: WHATSNEW.110             OK -AV
+    testing: README.DOC               OK -AV
+    testing: MANUAL.DOC               OK -AV
+    testing: ADDENDUM.DOC             OK -AV
+    testing: DEDICATE.DOC             OK -AV
+    testing: LICENSE.DOC              OK -AV
+    testing: ORDER.DOC                OK -AV
+    testing: APPNOTE.TXT              OK -AV
+    testing: AUTHVERI.FRM             OK -AV
+    testing: OMBUDSMN.ASP             OK -AV
+    testing: PKZIP.EXE                OK -AV
+    testing: PKUNZIP.EXE              OK -AV
+    testing: ZIP2EXE.EXE              OK -AV
+    testing: PKZIPFIX.EXE             OK -AV
+    testing: PUTAV.EXE                OK -AV
+Authentic files Verified!   # PKW655
+PKWARE Inc.
+
+Thank you for using PKWARE!  PKWARE Support BBS (414) 352-7176
+No errors detected in compressed data of pkz110.exe.
+```
+
 ## Availability
 
 * [GitHub](https://github.com/johnsonjh/infozip-av)
@@ -408,3 +443,8 @@ No errors detected in compressed data of fwkcs122.zip.
 * The Info‑ZIP software suites (Zip and UnZip, with included tools) are
   distributed under their respective [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE)
   and [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
+
+## External links
+
+* [`johnsonjh/pkstuff`](https://github.com/johnsonjh/pkstuff) ‑ PKZIP/PKUNZIP/PKSFX/PKLITE utilities
+* [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT) ‑ Current ZIP file format specification
