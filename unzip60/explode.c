@@ -117,6 +117,11 @@
 #define UNZIP_INTERNAL
 #include "unzip.h"      /* must supply slide[] (uch) array and NEXTBYTE macro */
 
+#include "pkdcl.h"
+
+/* Keep pkdcl.c unchanged and compile it with explode.c */
+#include "pkdcl.c"
+
 #ifndef WSIZE
 #  define WSIZE 0x8000  /* window size--must be a power of two, and */
 #endif                  /* at least 8K for zip's implode method */
@@ -620,337 +625,163 @@ int explode(__G)
 /* -------------------------------------------------------------------------
  * PKWARE Data Compression Library (DCL) implode decoder, ZIP method 10.
  *
- * This code is adapted for Info-ZIP from Mark Adler's blast.c, with the
- * zlib-style license is reproduced below, and is modified for integration.
+ * The actual DCL engine is pkdcl.c, from PKDCLX.
  *
- * Copyright (C) 2003, 2012, 2013 Mark Adler
- *
- * This software is provided 'as-is', without any express or implied
- * warranty.  In no event will the author be held liable for any damages
- * arising from the use of this software.
- *
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely, subject to the following restrictions:
- *
- * 1. The origin of this software must not be misrepresented; you must not
- *    claim that you wrote the original software. If you use this software
- *    in a product, an acknowledgment in the product documentation would be
- *    appreciated but is not required.
- *
- * 2. Altered source versions must be plainly marked as such, and must not be
- *    misrepresented as being the original software.
- *
- * 3. This notice may not be removed or altered from any source distribution.
- *
- * Mark Adler    madler@alumni.caltech.edu
+ * Output is passed directly to Info-ZIP flush().  In particular, this does
+ * not use redirSlide as the DCL history buffer.  pkdcl uses the ordinary
+ * internal slide[] storage as its work area, and flush() remains responsible
+ * for normal output handling, including Windows DLL redirection.
  * ------------------------------------------------------------------------- */
 
-#define DCL_MAXBITS 13
-#define DCL_MAXWIN  4096
-#define DCL_BAD_DATA 1
-#define DCL_NO_INPUT 2
-
-struct dcl_huffman {
-    short *count;
-    short *symbol;
-};
-
-struct dcl_state {
-    ulg bitbuf;
-    unsigned bitcnt;
-    unsigned next;
-    int first;
+struct dcl_pk_state {
+#ifdef REENTRANT
+    Uz_Globs *pG;
+#endif
+    zoff_t remaining;
     zusz_t total;
+    zusz_t expected;
+    int output_error;
+    int first_read;
+    int saw_eof;
+    unsigned header_used;
+    uch header[2];
 };
 
-static int dcl_bits OF((__GPRO__ struct dcl_state *, unsigned, unsigned *));
-static int dcl_decode OF((__GPRO__ struct dcl_state *,
-                          struct dcl_huffman *, int *));
-static int dcl_construct OF((struct dcl_huffman *, ZCONST uch *, unsigned,
-                             unsigned));
-static int dcl_flush_window OF((__GPRO__ struct dcl_state *));
-
-
-static int dcl_bits(__G__ s, need, val)
-    __GDEF
-    struct dcl_state *s;
-    unsigned need;
-    unsigned *val;
+static unsigned short dcl_pk_read(unsigned char *buffer,
+                                  unsigned short *size, void *opaque)
 {
+    struct dcl_pk_state *s;
+    unsigned want;
+    unsigned got;
     int byte;
+#ifdef REENTRANT
+    Uz_Globs *pG;
+#endif
 
-    while (s->bitcnt < need) {
+    s = (struct dcl_pk_state *)opaque;
+#ifdef REENTRANT
+    pG = s->pG;
+#endif
+
+    if (s->remaining <= 0) {
+        s->saw_eof = 1;
+        return 0;
+    }
+
+    want = (unsigned)*size;
+    if (s->first_read) {
+        if (want > 5U)
+            want = 5U;
+    } else if (want > 1U) {
+        /* Avoid read-ahead past the DCL end code.  This preserves the old
+         * ZIP-member check which rejects unused whole compressed bytes. */
+        want = 1U;
+    }
+    if ((zoff_t)want > s->remaining)
+        want = (unsigned)s->remaining;
+
+    got = 0;
+    while (got < want) {
         byte = NEXTBYTE;
         if (byte == EOF)
-            return DCL_NO_INPUT;
-        s->bitbuf |= ((ulg)(uch)byte) << s->bitcnt;
-        s->bitcnt += 8;
+            break;
+        buffer[got++] = (unsigned char)byte;
+        if (s->header_used < 2U)
+            s->header[s->header_used++] = (uch)byte;
     }
-    if (need == 0)
-        *val = 0;
-    else
-        *val = (unsigned)(s->bitbuf & ((((ulg)1) << need) - 1));
-    s->bitbuf >>= need;
-    s->bitcnt -= need;
-    return 0;
+    s->remaining -= (zoff_t)got;
+    s->first_read = 0;
+    return (unsigned short)got;
 }
 
-
-static int dcl_decode(__G__ s, h, symbol)
-    __GDEF
-    struct dcl_state *s;
-    struct dcl_huffman *h;
-    int *symbol;
+static void dcl_pk_write(unsigned char *buffer, unsigned short *size,
+                         void *opaque)
 {
-    int len;
-    int code;
-    int first;
-    int count;
-    int index;
-    unsigned bit;
+    struct dcl_pk_state *s;
+    ulg count;
     int r;
+#ifdef REENTRANT
+    Uz_Globs *pG;
+#endif
 
-    code = first = index = 0;
-    for (len = 1; len <= DCL_MAXBITS; len++) {
-        if ((r = dcl_bits(__G__ s, 1, &bit)) != 0)
-            return r;
-        code |= ((int)bit ^ 1);
-        count = h->count[len];
-        if (code < first + count) {
-            *symbol = h->symbol[index + (code - first)];
-            return 0;
-        }
-        index += count;
-        first += count;
-        first <<= 1;
-        code <<= 1;
-    }
-    return DCL_BAD_DATA;
-}
+    s = (struct dcl_pk_state *)opaque;
+#ifdef REENTRANT
+    pG = s->pG;
+#endif
 
+    count = (ulg)*size;
+    if (count == 0 || s->output_error != 0)
+        return;
 
-static int dcl_construct(h, rep, n, expect)
-    struct dcl_huffman *h;
-    ZCONST uch *rep;
-    unsigned n;
-    unsigned expect;
-{
-    unsigned symbol;
-    unsigned len;
-    unsigned run;
-    int left;
-    short offs[DCL_MAXBITS + 1];
-    short length[256];
-
-    symbol = 0;
-    while (n--) {
-        len = *rep++;
-        run = (len >> 4) + 1;
-        len &= 15;
-        if (len > DCL_MAXBITS || symbol + run > expect || expect > 256)
-            return DCL_BAD_DATA;
-        while (run--)
-            length[symbol++] = (short)len;
-    }
-    if (symbol != expect)
-        return DCL_BAD_DATA;
-
-    for (len = 0; len <= DCL_MAXBITS; len++)
-        h->count[len] = 0;
-    for (symbol = 0; symbol < expect; symbol++)
-        h->count[(unsigned)length[symbol]]++;
-
-    if (h->count[0] == (short)expect)
-        return 0;
-
-    left = 1;
-    for (len = 1; len <= DCL_MAXBITS; len++) {
-        left <<= 1;
-        left -= h->count[len];
-        if (left < 0)
-            return DCL_BAD_DATA;
+    if (s->total > s->expected ||
+        (zusz_t)count > s->expected - s->total) {
+        s->output_error = PK_ERR;
+        return;
     }
 
-    offs[1] = 0;
-    for (len = 1; len < DCL_MAXBITS; len++)
-        offs[len + 1] = (short)(offs[len] + h->count[len]);
-
-    for (symbol = 0; symbol < expect; symbol++)
-        if (length[symbol] != 0)
-            h->symbol[offs[(unsigned)length[symbol]]++] = (short)symbol;
-
-    return 0;
+    r = flush(__G__ (uch *)buffer, count, 0);
+    if (r != PK_COOL) {
+        s->output_error = r;
+        return;
+    }
+    s->total += (zusz_t)count;
 }
-
-
-static int dcl_flush_window(__G__ s)
-    __GDEF
-    struct dcl_state *s;
-{
-    int r;
-
-    if (s->next == 0)
-        return 0;
-    r = flush(__G__ redirSlide, (ulg)s->next, 0);
-    if (r != PK_COOL)
-        return r;
-    s->total += (zusz_t)s->next;
-    s->next = 0;
-    s->first = 0;
-    return 0;
-}
-
 
 int dcl_explode(__G)
     __GDEF
 {
-    struct dcl_state s;
-    short litcnt[DCL_MAXBITS + 1], litsym[256];
-    short lencnt[DCL_MAXBITS + 1], lensym[16];
-    short distcnt[DCL_MAXBITS + 1], distsym[64];
-    struct dcl_huffman litcode, lencode, distcode;
-    int lit;
-    int dict;
-    int symbol;
-    unsigned val;
-    unsigned len;
-    unsigned dist;
-    unsigned distbits;
-    unsigned from;
-    int r;
+    struct dcl_pk_state s;
+    unsigned short r;
+    zoff_t compressed;
 
-    static ZCONST uch litlen[] = {
-        11, 124, 8, 7, 28, 7, 188, 13, 76, 4, 10, 8, 12, 10, 12, 10,
-        8, 23, 8, 9, 7, 6, 7, 8, 7, 6, 55, 8, 23, 24, 12, 11, 7, 9,
-        11, 12, 6, 7, 22, 5, 7, 24, 6, 11, 9, 6, 7, 22, 7, 11, 38, 7,
-        9, 8, 25, 11, 8, 11, 9, 12, 8, 12, 5, 38, 5, 38, 5, 11, 7, 5,
-        6, 21, 6, 10, 53, 8, 7, 24, 10, 27, 44, 253, 253, 253, 252,
-        252, 252, 13, 12, 45, 12, 45, 12, 61, 12, 45, 44, 173
-    };
-    static ZCONST uch lenlen[] = {2, 35, 36, 53, 38, 23};
-    static ZCONST uch distlen[] = {2, 20, 53, 230, 247, 151, 248};
-    static ZCONST ush base[16] = {
-        3, 2, 4, 5, 6, 7, 8, 9, 10, 12, 16, 24, 40, 72, 136, 264
-    };
-    static ZCONST uch xtra[16] = {
-        0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8
-    };
-
-#if (defined(DLL) && !defined(NO_SLIDE_REDIR))
-    redirSlide = slide;
+#if PKDCL_EXPLODE_WORK_SIZE > WSIZE
+# error PKDCL explode work area does not fit in Info-ZIP slide buffer
 #endif
 
-    litcode.count = litcnt;
-    litcode.symbol = litsym;
-    lencode.count = lencnt;
-    lencode.symbol = lensym;
-    distcode.count = distcnt;
-    distcode.symbol = distsym;
+    compressed = G.csize + (zoff_t)G.incnt;
+    if (compressed < 0)
+        return PK_ERR;
 
-    if (dcl_construct(&litcode, litlen, sizeof(litlen), 256) != 0 ||
-        dcl_construct(&lencode, lenlen, sizeof(lenlen), 16) != 0 ||
-        dcl_construct(&distcode, distlen, sizeof(distlen), 64) != 0)
-        return DCL_BAD_DATA;
-
-    s.bitbuf = 0;
-    s.bitcnt = 0;
-    s.next = 0;
-    s.first = 1;
+#ifdef REENTRANT
+    s.pG = pG;
+#endif
+    s.remaining = compressed;
     s.total = 0;
+    s.expected = G.lrec.ucsize;
+    s.output_error = 0;
+    s.first_read = 1;
+    s.saw_eof = 0;
+    s.header_used = 0;
+    s.header[0] = s.header[1] = 0;
 
-    if ((r = dcl_bits(__G__ &s, 8, &val)) != 0)
-        return r;
-    lit = (int)val;
-    if (lit > 1)
-        return DCL_BAD_DATA;
-
-    if ((r = dcl_bits(__G__ &s, 8, &val)) != 0)
-        return r;
-    dict = (int)val;
-    if (dict < 4 || dict > 6)
-        return DCL_BAD_DATA;
-
-    for (;;) {
-        if ((r = dcl_bits(__G__ &s, 1, &val)) != 0)
-            return r;
-        if (val != 0) {
-            if ((r = dcl_decode(__G__ &s, &lencode, &symbol)) != 0)
-                return r;
-            if (symbol < 0 || symbol >= 16)
-                return DCL_BAD_DATA;
-            if ((r = dcl_bits(__G__ &s, xtra[symbol], &val)) != 0)
-                return r;
-            len = (unsigned)base[symbol] + val;
-            if (len == 519)
-                break;
-
-            distbits = (len == 2) ? 2U : (unsigned)dict;
-            if ((r = dcl_decode(__G__ &s, &distcode, &symbol)) != 0)
-                return r;
-            if (symbol < 0 || symbol >= 64)
-                return DCL_BAD_DATA;
-            dist = ((unsigned)symbol << distbits);
-            if ((r = dcl_bits(__G__ &s, distbits, &val)) != 0)
-                return r;
-            dist += val + 1;
-            if (dist == 0 || dist > DCL_MAXWIN)
-                return DCL_BAD_DATA;
-            if (s.first && dist > s.next)
-                return DCL_BAD_DATA;
-
-            if (s.total > G.lrec.ucsize ||
-                (zusz_t)s.next > G.lrec.ucsize - s.total)
-                return DCL_BAD_DATA;
-            if ((zusz_t)len > G.lrec.ucsize -
-                              (s.total + (zusz_t)s.next))
-                return DCL_BAD_DATA;
-
-            while (len--) {
-                from = (s.next + DCL_MAXWIN - dist) & (DCL_MAXWIN - 1);
-                redirSlide[s.next++] = redirSlide[from];
-                if (s.next == DCL_MAXWIN) {
-                    if ((r = dcl_flush_window(__G__ &s)) != 0)
-                        return r;
-                }
-            }
-        } else {
-            if (lit) {
-                if ((r = dcl_decode(__G__ &s, &litcode, &symbol)) != 0)
-                    return r;
-                if (symbol < 0 || symbol > 255)
-                    return DCL_BAD_DATA;
-                val = (unsigned)symbol;
-            } else {
-                if ((r = dcl_bits(__G__ &s, 8, &val)) != 0)
-                    return r;
-            }
-
-            if (s.total > G.lrec.ucsize ||
-                (zusz_t)s.next >= G.lrec.ucsize - s.total)
-                return DCL_BAD_DATA;
-            redirSlide[s.next++] = (uch)val;
-            if (s.next == DCL_MAXWIN) {
-                if ((r = dcl_flush_window(__G__ &s)) != 0)
-                    return r;
-            }
-        }
+    /* pkdcl_explode() intentionally follows the original PKWARE streaming
+     * API, whose initial fill rejects a four-byte stream.  A valid empty DCL
+     * member is exactly four bytes, so use the extended decoder only for that
+     * one case.  Header validation below still forbids extended dictionaries. */
+    if (s.expected == 0) {
+        if (compressed != 4)
+            return PK_ERR;
+        r = pkdcl_explode_ex(dcl_pk_read, dcl_pk_write, &s);
+    } else {
+        r = pkdcl_explode(dcl_pk_read, dcl_pk_write, slide, &s);
     }
 
-    /* The DCL end code may leave unused bits in its final byte, but a ZIP
-     * member must not contain unused whole compressed bytes. */
-    if (G.csize + G.incnt != 0)
-        return DCL_BAD_DATA;
+    if (s.output_error != 0)
+        return s.output_error;
+    if (r != PKDCL_CMP_NO_ERROR)
+        return PK_ERR;
 
-    if (s.total > G.lrec.ucsize ||
-        (zusz_t)s.next != G.lrec.ucsize - s.total)
-        return DCL_BAD_DATA;
-    if ((r = dcl_flush_window(__G__ &s)) != 0)
-        return r;
-    return 0;
+    /* ZIP method 10 is standard DCL only.  Type 0/1 and dictionary bits 4..6
+     * correspond to binary/ASCII literals and 1K/2K/4K dictionaries. */
+    if (s.header_used != 2U || s.header[0] > 1U ||
+        s.header[1] < 4U || s.header[1] > 6U)
+        return PK_ERR;
+
+    if (s.remaining != 0 || !s.saw_eof ||
+        G.csize + (zoff_t)G.incnt != 0)
+        return PK_ERR;
+    if (s.total != s.expected)
+        return PK_ERR;
+
+    return PK_COOL;
 }
-
-#undef DCL_MAXBITS
-#undef DCL_MAXWIN
-#undef DCL_BAD_DATA
-#undef DCL_NO_INPUT

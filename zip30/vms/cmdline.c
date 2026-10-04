@@ -171,9 +171,10 @@ $DESCRIPTOR(cli_comment_archive,"COMMENTS.ARCHIVE");    /* -z */
 $DESCRIPTOR(cli_comment_zipfile,"COMMENTS.ZIP_FILE");   /* -z */
 $DESCRIPTOR(cli_comment_files,  "COMMENTS.FILES");      /* -c */
 $DESCRIPTOR(cli_compression,    "COMPRESSION");         /* -Z */
-$DESCRIPTOR(cli_compression_b,  "COMPRESSION.BZIP2");   /* -Zb */
-$DESCRIPTOR(cli_compression_d,  "COMPRESSION.DEFLATE"); /* -Zd */
-$DESCRIPTOR(cli_compression_s,  "COMPRESSION.STORE");   /* -Zs */
+$DESCRIPTOR(cli_compression_b,  "COMPRESSION.BZIP2");      /* -Zb */
+$DESCRIPTOR(cli_compression_d,  "COMPRESSION.DEFLATE");    /* -Zd */
+$DESCRIPTOR(cli_compression_i,  "COMPRESSION.DCL_IMPLODE");/* -Zdcl-implode */
+$DESCRIPTOR(cli_compression_s,  "COMPRESSION.STORE");      /* -Zs */
 $DESCRIPTOR(cli_copy_entries,   "COPY_ENTRIES");        /* -U */
 $DESCRIPTOR(cli_descriptors,    "DESCRIPTORS");         /* -fd */
 $DESCRIPTOR(cli_difference,     "DIFFERENCE");          /* -DF */
@@ -1292,6 +1293,7 @@ vms_zip_cmdline (int *argc_p, char ***argv_p)
     */
 #define OPT_ZB "-Zb"
 #define OPT_ZD "-Zd"
+#define OPT_ZI "-Zdcl-implode"
 #define OPT_ZS "-Zs"
 
     status = cli$present( &cli_compression);
@@ -1313,6 +1315,15 @@ vms_zip_cmdline (int *argc_p, char ***argv_p)
             cmdl_len += strlen( OPT_ZD)+ 1;
             CHECK_BUFFER_ALLOCATION( the_cmd_line, cmdl_size, cmdl_len)
             strcpy( &the_cmd_line[ x], OPT_ZD);
+        }
+
+        if ((status = cli$present( &cli_compression_i)) & 1)
+        {
+            /* /COMPRESSION = DCL_IMPLODE */
+            x = cmdl_len;
+            cmdl_len += strlen( OPT_ZI)+ 1;
+            CHECK_BUFFER_ALLOCATION( the_cmd_line, cmdl_size, cmdl_len)
+            strcpy( &the_cmd_line[ x], OPT_ZI);
         }
 
         if ((status = cli$present( &cli_compression_s)) & 1)
@@ -1770,7 +1781,7 @@ void VMSCLI_help(void)  /* VMSCLI version */
 #else /* !CRYPT */
 "    /QUIET, /VERBOSE[={MORE|DEBUG}], /[NO]DIRNAMES, /JUNK,",
 #endif /* ?CRYPT */
-"    /COMPRESSION = {BZIP2|DEFLATE|STORE}, /LEVEL=[0-9], /NOVMS|/VMS[=ALL],",
+"    /COMPRESSION = {BZIP2|DCL_IMPLODE|DEFLATE|STORE}, /LEVEL=[0-9], /NOVMS|/VMS[=ALL],",
 "    /STORE_TYPES=(type_list), /[NO]PRESERVE_CASE[=([NO]ODS{2|5}[,...])],", 
 "    /[NO]PKZIP, /[NO]KEEP_VERSION, /DOT_VERSION, /TRANSLATE_EOL[={LF|CRLF}],",
 "    /DISPLAY=([BYTES][,COUNTS][,DOTS=mb_per_dot][,GLOBALDOTS][,USIZE]",

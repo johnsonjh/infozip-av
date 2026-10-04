@@ -1685,9 +1685,9 @@ OPTIONS
 
        -Z cm
        --compression-method cm
-              Set  the default compression method.  Currently the main methods
-              supported by zip are store and deflate.  Compression method  can
-              be set to:
+              Set  the default compression method.  The supported methods are
+              store, deflate, and dcl-implode (plus bzip2 when compiled in).
+              Compression method can be set to:
 
               store  -  Setting  the compression method to store forces zip to
               store entries with no compression.   This  is  generally  faster
@@ -1697,6 +1697,10 @@ OPTIONS
               deflate - This is the default method for zip.  If zip determines
               that  storing is better than deflation, the entry will be stored
               instead.
+
+              dcl-implode - Use PKWARE DCL Implode (ZIP method 10).  Zip uses
+              binary literal coding, a 4K dictionary, and the compatible extra
+              parsing mode.
 
               bzip2 - If bzip2 support is compiled in, this compression method
               also  becomes available.  Only some modern unzips currently sup-

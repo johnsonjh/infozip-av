@@ -3940,7 +3940,10 @@ char **argv;            /* command line tokens */
         case 'z':   /* Edit zip file comment */
           zipedit = 1;  break;
         case 'Z':   /* Compression method */
-          if (abbrevmatch("deflate", value, 0, 1)) {
+          if (strcmp(value, "dcl-implode") == 0) {
+            /* PKWARE DCL Implode, ZIP method 10 */
+            method = DCLIMPLODE;
+          } else if (abbrevmatch("deflate", value, 0, 1)) {
             /* deflate */
             method = DEFLATE;
           } else if (abbrevmatch("store", value, 0, 1)) {
@@ -3955,9 +3958,9 @@ char **argv;            /* command line tokens */
 #endif
           } else {
 #ifdef BZIP2_SUPPORT
-            zipwarn("valid compression methods are:  store, deflate, bzip2", "");
+            zipwarn("valid compression methods are:  store, deflate, dcl-implode, bzip2", "");
 #else
-            zipwarn("valid compression methods are:  store, deflate)", "");
+            zipwarn("valid compression methods are:  store, deflate, dcl-implode", "");
 #endif
             zipwarn("unknown compression method found:  ", value);
             free(value);

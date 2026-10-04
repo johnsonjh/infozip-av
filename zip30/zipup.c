@@ -27,6 +27,11 @@
 #include "revision.h"
 #include "crc32.h"
 #include "crypt.h"
+#include "pkdcl.h"
+
+/* Keep the PKDCLX engine source unchanged and compile it with zipup.c */
+#include "pkdcl.c"
+
 #ifdef USE_ZLIB
 #  include "zlib.h"
 #endif
@@ -150,6 +155,7 @@ local unsigned file_read OF((char *buf, unsigned size));
 
 /* zip64 support 08/29/2003 R.Nausedat */
 local zoff_t filecompress OF((struct zlist far *z_entry, int *cmpr_method));
+local zoff_t dclfilecompress OF((struct zlist far *z_entry));
 
 #ifdef BZIP2_SUPPORT
 local zoff_t bzfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
@@ -1040,13 +1046,15 @@ struct zlist far *z;    /* zip entry to compress */
   else if (m != STORE) {
     if (set_type) z->att = (ush)UNKNOWN;
     /* ... is finally set in file compression routine */
+    if (m == DCLIMPLODE) {
+      s = dclfilecompress(z);
+    }
 #ifdef BZIP2_SUPPORT
-    if (m == BZIP2) {
+    else if (m == BZIP2) {
       s = bzfilecompress(z, &m);
     }
-    else
 #endif /* BZIP2_SUPPORT */
-    {
+    else {
       s = filecompress(z, &m);
     }
 #ifndef PGP
@@ -1245,6 +1253,8 @@ struct zlist far *z;    /* zip entry to compress */
       /* Need PKUNZIP 2.0 for DEFLATE */
       case DEFLATE:
         z->ver = 20; break;
+      case DCLIMPLODE:
+        z->ver = 20; break;
 #ifdef BZIP2_SUPPORT
       case BZIP2:
         z->ver = 46; break;
@@ -1318,6 +1328,8 @@ struct zlist far *z;    /* zip entry to compress */
 #endif
     if (m == DEFLATE)
       fprintf(mesg, " (deflated %d%%)\n", percent(isize, s));
+    else if (m == DCLIMPLODE)
+      fprintf(mesg, " (DCL imploded %d%%)\n", percent(isize, s));
     else
       fprintf(mesg, " (stored 0%%)\n");
     mesg_line_started = 0;
@@ -1332,6 +1344,8 @@ struct zlist far *z;    /* zip entry to compress */
 #endif
     if (m == DEFLATE)
       fprintf(logfile, " (deflated %d%%)\n", percent(isize, s));
+    else if (m == DCLIMPLODE)
+      fprintf(logfile, " (DCL imploded %d%%)\n", percent(isize, s));
     else
       fprintf(logfile, " (stored 0%%)\n");
     logfile_line_started = 0;
@@ -1524,6 +1538,74 @@ local unsigned file_read(buf, size)
   return len;
 }
 
+
+struct dcl_zip_state {
+    zoff_t output_size;
+    int write_error;
+};
+
+static unsigned short dcl_zip_read(unsigned char *buffer,
+                                   unsigned short *size, void *opaque)
+{
+    unsigned got;
+
+    (void)opaque;
+    got = file_read((char *)buffer, (unsigned)*size);
+    if (got == (unsigned)EOF)
+        return 0;
+
+    if (got != 0 && file_binary_final == 0 &&
+        !is_text_buf((char *)buffer, got))
+        file_binary_final = 1;
+
+    return (unsigned short)got;
+}
+
+static void dcl_zip_write(unsigned char *buffer, unsigned short *size,
+                          void *opaque)
+{
+    struct dcl_zip_state *s;
+    unsigned count;
+
+    s = (struct dcl_zip_state *)opaque;
+    count = (unsigned)*size;
+    if (count == 0 || s->write_error)
+        return;
+
+    if (zfwrite(buffer, 1, (extent)count) != (extent)count) {
+        s->write_error = 1;
+        return;
+    }
+    s->output_size += (zoff_t)count;
+}
+
+/*
+ * PKWARE DCL Implode compression for ZIP method 10.  ZIP deliberately uses
+ * binary literal coding, a 4K dictionary, and the compatible EXTRA parser.
+ */
+local zoff_t dclfilecompress(z_entry)
+    struct zlist far *z_entry;
+{
+    struct dcl_zip_state s;
+    unsigned short r;
+
+    s.output_size = 0;
+    s.write_error = 0;
+
+    r = pkdcl_implode_ex(dcl_zip_read, dcl_zip_write, &s,
+                         PKDCL_CMP_BINARY, PKDCL_DICT_4K,
+                         PKDCL_FLAG_EXTRA);
+
+    if (s.write_error)
+        ziperr(ZE_TEMP, "error writing DCL implode data to zipfile");
+    if (r == PKDCL_CMP_ABORT)
+        ziperr(ZE_MEM, "DCL implode compression failed");
+    if (r != PKDCL_CMP_NO_ERROR)
+        ziperr(ZE_LOGIC, "DCL implode compression failed");
+
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    return s.output_size;
+}
 
 #ifdef USE_ZLIB
 

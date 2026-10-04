@@ -98,10 +98,10 @@ archive with a single command.
 
 Compression
 
-Compression ratios of 2:1 to 3:1 are common for text files.  Zip has one
-standard compression method ("deflate") and can also store files without
-compression.  Zip (and UnZip) may be built with optional support for the
-bzip2 compression method.  Then, the user may select bzip2 compression
+Compression ratios of 2:1 to 3:1 are common for text files.  Zip supports
+the deflate and PKWARE DCL Implode compression methods and can also store
+files without compression.  Zip (and UnZip) may be built with optional
+support for the bzip2 compression method.  Then, the user may select bzip2 compression
 instead of the default "deflate" method.  Zip automatically chooses
 simple storage over compression for a file, if the specified compression
 method does not actually compress the data in that file.
@@ -666,14 +666,14 @@ line containing just a period, or by an end-of-file character (CTRL/Z).
 <QUALIFIER>
 /COMPRESSION
 
-/COMPRESSION = {BZIP2|DEFLATE|STORE}
+/COMPRESSION = {BZIP2|DCL_IMPLODE|DEFLATE|STORE}
 
 Specify the compression method to be used when adding or updating files
-in an archive.  STORE disables compression (like /LEVEL = 0).  Default:
-/COMPRESSION = DEFLATE.
+in an archive.  DCL_IMPLODE selects PKWARE DCL Implode (ZIP method 10)
+using binary literal coding and a 4K dictionary.  STORE disables compression
+(like /LEVEL = 0).  Default: /COMPRESSION = DEFLATE.
 
-Zip can archive files with or without compression.  The standard
-compression method ("deflate") is compatible with all UnZip versions
+Zip can archive files with or without compression.  The default compression method ("deflate") is compatible with all UnZip versions
 (except really old ones that only understand the "store" method).
 Current Zip and UnZip versions may be built with optional support for
 the bzip2 compression method.  (The bzip2 method can compress better,
@@ -1551,7 +1551,7 @@ be separated by a space or "=".  For example:
 | X   strip-extra         strip all but critical extra fields
 | X-  strip-extra-        keep all extra fields
 | x   exclude  pat1 [pat2 [...]]  exclude all names matching the patterns
-| Z   compression-method mthd  use cmprs method "mthd" (bzip2 or deflate)
+| Z   compression-method mthd  use cmprs method "mthd" (store, deflate, dcl-implode, bzip2)
 | z   archive-comment     ask for archive comment
 <0LARETIL>
 

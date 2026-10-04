@@ -97,6 +97,7 @@ Define	Type		COMMENTS_KEYWORDS
 
 Define	Type		COMPRESS_OPTS
 	Keyword		BZIP2
+	Keyword		DCL_IMPLODE
 	Keyword		DEFLATE, DEFAULT
 	Keyword		STORE
 

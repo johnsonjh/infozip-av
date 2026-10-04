@@ -331,11 +331,12 @@ extern int scanimage;           /* Scan through image files */
 #define BEST -1                 /* Use best method (deflation or store) */
 #define STORE 0                 /* Store method */
 #define DEFLATE 8               /* Deflation method*/
+#define DCLIMPLODE 10           /* PKWARE DCL Implode method */
 #define BZIP2 12                /* BZIP2 method */
 #ifdef BZIP2_SUPPORT
 #define LAST_KNOWN_COMPMETHOD   BZIP2
 #else
-#define LAST_KNOWN_COMPMETHOD   DEFLATE
+#define LAST_KNOWN_COMPMETHOD   DCLIMPLODE
 #endif
 
 extern int method;              /* Restriction on compression method */

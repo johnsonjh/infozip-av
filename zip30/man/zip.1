@@ -133,8 +133,8 @@ An entire directory structure can be packed into a
 archive with a single command.
 Compression ratios of 2:1 to 3:1 are common for text files.
 .I zip
-has one compression method (deflation) and can also store files without
-compression.  (If \fBbzip2\fP support is added, \fIzip\fP can also
+supports deflation and PKWARE DCL Implode compression, and can also store
+files without compression.  (If \fBbzip2\fP support is added, \fIzip\fP can also
 compress using \fBbzip2\fP compression, but such entries require a
 reasonably modern unzip to decompress.  When \fBbzip2\fP compression
 is selected, it replaces deflation as the default method.)
@@ -2384,9 +2384,9 @@ The comment can be taken from a file:
 .TP
 .PD
 .B \-\-compression\-method\ \fRcm
-Set the default compression method.  Currently the main methods supported
-by \fIzip\fP are \fBstore\fP and \fBdeflate\fP.  Compression method
-can be set to:
+Set the default compression method.  The main methods supported by
+\fIzip\fP are \fBstore\fP, \fBdeflate\fP, and \fBdcl-implode\fP.
+Compression method can be set to:
 
 \fBstore\fP \- Setting the compression method to \fBstore\fP forces
 \fIzip\fP to store entries with no compression.  This is generally
@@ -2396,6 +2396,10 @@ This is the same as using \fB\-0\fP (compression level zero).
 \fBdeflate\fP \- This is the default method for \fIzip\fP.  If \fIzip\fP
 determines that storing is better than deflation, the entry will be
 stored instead.
+
+\fBdcl-implode\fP \- Use PKWARE DCL Implode (ZIP method 10).  Zip uses
+binary literal coding, a 4K dictionary, and the compatible extra parsing
+mode.
 
 \fBbzip2\fP \- If \fBbzip2\fP support is compiled in, this compression
 method also becomes available.  Only some modern unzips currently support
