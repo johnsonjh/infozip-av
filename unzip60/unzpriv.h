@@ -1073,9 +1073,17 @@
 #  define COPYRIGHT_CLEAN
 #endif
 
-/* The LZW patent is expired worldwide since 2004-Jul-07, so USE_UNSHRINK
- * is now enabled by default.  See unshrink.c.
+/*
+ * Methods 1 through 6 in the full UnZip build are supplied by the
+ * MIT/public-domain OldUnzip engines (ozunshrink, ozunreduce, unimplode6a).
+ * The legacy COPYRIGHT_CLEAN/LZW_CLEAN switches no longer disable these
+ * methods; they refer only to the now unused historical implementations.
  */
+#if (!defined(SFX) && !defined(FUNZIP))
+#  define USE_OLDUNZIP
+#endif
+
+/* Retain this historical feature macro for source/build compatibility. */
 #if (!defined(LZW_CLEAN) && !defined(USE_UNSHRINK))
 #  define USE_UNSHRINK
 #endif
@@ -2467,15 +2475,10 @@ int    huft_build                OF((__GPRO__ ZCONST unsigned *b, unsigned n,
    int    inflate_free           OF((__GPRO));                  /* inflate.c */
 #endif /* ?USE_ZLIB */
 #if (!defined(SFX) && !defined(FUNZIP))
-#ifndef COPYRIGHT_CLEAN
+# ifdef USE_OLDUNZIP
    int    unreduce               OF((__GPRO));                 /* unreduce.c */
-/* static void  LoadFollowers    OF((__GPRO__ f_array *follower, uch *Slen));
-                                                                * unreduce.c */
-#endif /* !COPYRIGHT_CLEAN */
-#ifndef LZW_CLEAN
    int    unshrink               OF((__GPRO));                 /* unshrink.c */
-/* static void  partial_clear    OF((__GPRO));                  * unshrink.c */
-#endif /* !LZW_CLEAN */
+# endif
 #endif /* !SFX && !FUNZIP */
 #ifdef USE_BZIP2
    int    UZbunzip2              OF((__GPRO));                  /* extract.c */

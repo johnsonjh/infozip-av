@@ -893,9 +893,10 @@ static ZCONST char Far Inflate[] = "inflate";
 
 #ifndef SFX
    static ZCONST char Far Explode[] = "explode";
-#ifndef LZW_CLEAN
+# ifdef USE_OLDUNZIP
    static ZCONST char Far Unshrink[] = "unshrink";
-#endif
+   static ZCONST char Far Unreduce[] = "unreduce";
+# endif
 #endif
 
 #if (!defined(DELETE_IF_FULL) || !defined(HAVE_UNLINK))
@@ -1676,16 +1677,13 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
       && UNKN_BZ2 && UNKN_LZMA && UNKN_WAVP && UNKN_PPMD)
 #  endif
 #else
-#  ifdef COPYRIGHT_CLEAN  /* no reduced files */
+#  ifdef USE_OLDUNZIP
+#    define UNKN_RED  FALSE  /* OldUnzip Reduce methods 2..5 */
+#    define UNKN_SHR  FALSE  /* OldUnzip Shrink method 1 */
+#  else
 #    define UNKN_RED (G.crec.compression_method >= REDUCED1 && \
                       G.crec.compression_method <= REDUCED4)
-#  else
-#    define UNKN_RED  FALSE  /* reducing not unknown */
-#  endif
-#  ifdef LZW_CLEAN  /* no shrunk files */
 #    define UNKN_SHR (G.crec.compression_method == SHRUNK)
-#  else
-#    define UNKN_SHR  FALSE  /* unshrinking not unknown */
 #  endif
 #  ifdef USE_DEFLATE64
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
@@ -2633,7 +2631,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             break;
 
 #ifndef SFX
-#ifndef LZW_CLEAN
+#ifdef USE_OLDUNZIP
         case SHRUNK:
             if (!uO.tflag && QCOND2) {
                 Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
@@ -2660,9 +2658,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
                 error = r;
             }
             break;
-#endif /* !LZW_CLEAN */
 
-#ifndef COPYRIGHT_CLEAN
         case REDUCED1:
         case REDUCED2:
         case REDUCED3:
@@ -2674,11 +2670,25 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
                   "" : (G.pInfo->textfile? txt : bin), uO.cflag? NEWLINE : ""));
             }
             if ((r = unreduce(__G)) != PK_COOL) {
-                /* unreduce() returns only PK_COOL, PK_DISK, or IZ_CTRLC */
+                if (r < PK_DISK) {
+                    if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipFile), r == PK_MEM3 ?
+                          LoadFarString(NotEnoughMem) :
+                          LoadFarString(InvalidComprData),
+                          LoadFarStringSmall2(Unreduce),
+                          FnFilter1(G.filename)));
+                    else
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipNoFile), r == PK_MEM3 ?
+                          LoadFarString(NotEnoughMem) :
+                          LoadFarString(InvalidComprData),
+                          LoadFarStringSmall2(Unreduce)));
+                }
                 error = r;
             }
             break;
-#endif /* !COPYRIGHT_CLEAN */
+#endif /* USE_OLDUNZIP */
 
         case IMPLODED:
             if (!uO.tflag && QCOND2) {
@@ -3034,7 +3044,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 #       define SIG 0x08074b50           // optional data descriptor signature
 #ifdef LARGE_FILE_SUPPORT
         uch buf[24];
-        int got = readbuf((char *)buf, sizeof(buf));
+        int got = readbuf(__G__ (char *)buf, sizeof(buf));
         if (got >= 24 && makelong(buf) == SIG &&
                          makelong(buf + 4) == G.lrec.crc32 &&
                          makeint64(buf + 8) == G.lrec.csize &&
@@ -3050,7 +3060,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             // Both lengths are short enough to fit in 32 bits.
 #else
         uch buf[16];
-        int got = readbuf((char *)buf, sizeof(buf));
+        int got = readbuf(__G__ (char *)buf, sizeof(buf));
 #endif
         {
             if (got >= 16 && makelong(buf) == SIG &&

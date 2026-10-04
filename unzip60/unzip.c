@@ -404,7 +404,7 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif
 #  ifdef COPYRIGHT_CLEAN
      static ZCONST char Far Copyright_Clean[] =
-     "COPYRIGHT_CLEAN (PKZIP 0.9x unreducing method not supported)";
+     "COPYRIGHT_CLEAN (legacy Smith unreduce code excluded)";
 #  endif
 #  ifdef DEBUG
      static ZCONST char Far UDebug[] = "DEBUG";
@@ -420,7 +420,7 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif
 #  ifdef LZW_CLEAN
      static ZCONST char Far LZW_Clean[] =
-     "LZW_CLEAN (PKZIP/Zip 1.x unshrinking method not supported)";
+     "LZW_CLEAN (legacy Info-ZIP unshrink code excluded)";
 #  endif
 #  ifndef MORE
      static ZCONST char Far No_More[] = "NO_MORE";
@@ -469,13 +469,9 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  ifdef USE_EF_UT_TIME
      static ZCONST char Far Use_EF_UT_time[] = "USE_EF_UT_TIME";
 #  endif
-#  ifndef LZW_CLEAN
-     static ZCONST char Far Use_Unshrink[] =
-     "USE_UNSHRINK (PKZIP/Zip 1.x unshrinking method supported)";
-#  endif
-#  ifndef COPYRIGHT_CLEAN
-     static ZCONST char Far Use_Smith_Code[] =
-     "USE_SMITH_CODE (PKZIP 0.9x unreducing method supported)";
+#  ifdef USE_OLDUNZIP
+     static ZCONST char Far Use_OldUnzip[] =
+     "OLDUNZIP (Shrink/Reduce/Implode methods 1-6 supported)";
 #  endif
 #  ifdef USE_DEFLATE64
      static ZCONST char Far Use_Deflate64[] =
@@ -576,29 +572,15 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 /* UnzipUsageLine1[] is also used in vms/cmdline.c:  do not make it static */
    ZCONST char Far UnzipUsageLine1[] = "\
 UnZip %d.%d%d%s of %s, by Info-ZIP.  For more details see: unzip -v.\n\n";
-# ifdef COPYRIGHT_CLEAN
    static ZCONST char Far UnzipUsageLine1v[] = "\
 UnZip %d.%d%d%s of %s, by Info-ZIP.  Maintained by C. Spieler.  Send\n\
 bug reports using http://www.info-zip.org/zip-bug.html; see README for details.\
 \n\n";
-# else
-   static ZCONST char Far UnzipUsageLine1v[] = "\
-UnZip %d.%d%d%s of %s, by Info-ZIP.  UnReduce (c) 1989 by S. H. Smith.\n\
-Send bug reports using //www.info-zip.org/zip-bug.html; see README for details.\
-\n\n";
-# endif /* ?COPYRIGHT_CLEAN */
 #else /* !VMS */
-# ifdef COPYRIGHT_CLEAN
    static ZCONST char Far UnzipUsageLine1[] = "\
 UnZip %d.%d%d%s of %s, by Info-ZIP.  Maintained by C. Spieler.  Send\n\
 bug reports using http://www.info-zip.org/zip-bug.html; see README for details.\
 \n\n";
-# else
-   static ZCONST char Far UnzipUsageLine1[] = "\
-UnZip %d.%d%d%s of %s, by Info-ZIP.  UnReduce (c) 1989 by S. H. Smith.\n\
-Send bug reports using //www.info-zip.org/zip-bug.html; see README for details.\
-\n\n";
-# endif /* ?COPYRIGHT_CLEAN */
 # define UnzipUsageLine1v       UnzipUsageLine1
 #endif /* ?VMS */
 
@@ -2613,14 +2595,9 @@ static void show_version_info(__G)
           LoadFarStringSmall(Use_EF_UT_time)));
         ++numopts;
 #endif
-#ifndef COPYRIGHT_CLEAN
+#ifdef USE_OLDUNZIP
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
-          LoadFarStringSmall(Use_Smith_Code)));
-        ++numopts;
-#endif
-#ifndef LZW_CLEAN
-        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
-          LoadFarStringSmall(Use_Unshrink)));
+          LoadFarStringSmall(Use_OldUnzip)));
         ++numopts;
 #endif
 #ifdef USE_DEFLATE64

@@ -39,6 +39,12 @@ It also adds the ability to compress and decompress files using
 `-Z dcl-implode` or `--compression-method dcl-implode` and writes standard
 binary-literal, 4K-dictionary DCL streams.
 
+For historical ZIP archives, UnZip additionally supports Shrink (method 1),
+Reduce (methods 2 through 5), and ZIP Implode (method 6) using ANSI C89
+adaptations of Jason Summers' OldUnzip decoding libraries.  These decoders
+are used by the full UnZip build in place of the historical Info-ZIP/Smith
+implementations.
+
 This support is built on Fedora's current
 [`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
 [`unzip`](https://src.fedoraproject.org/rpms/unzip) (6.0‑71,&nbsp;2026‑07‑27)
@@ -401,3 +407,9 @@ No errors detected in compressed data of fwkcs122.zip.
 * The Info‑ZIP software components (Zip and UnZip) are distributed under their
   respective [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) and
   [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
+
+* The Shrink, Reduce, and legacy Implode implementations are based on MIT
+  licensed code by [Jason Summers](https://github.com/jsummers/oldunzip).
+
+* The DCL Implode compression and decompression implementations are the MIT-0
+  licensed [PKDCLX](https://github.com/johnsonjh/pkdclx) routines.

@@ -2450,7 +2450,7 @@ int do_string(__G__ length, option)   /* return PK-type error code */
             if ((length2 = readbuf(__G__ (char *)G.extra_field, length)) == 0)
                 return PK_EOF;
             if(length2 < length) {
-              memset (__G__ (char *)G.extra_field+length2, 0 , length-length2);
+              memset ((char *)G.extra_field+length2, 0 , length-length2);
               length = length2;
             }
             /* Looks like here is where extra fields are read */

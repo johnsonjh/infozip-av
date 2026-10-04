@@ -373,27 +373,21 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         option in the future 6.1 release of UnZip.
 
       LZW_CLEAN
-      USE_UNSHRINK (now default, as of January 2005)
-        The "shrinking" algorithm from PKZIP 1.0 is an LZW variant.  Unisys
-        patented the Lempel-Ziv-Welch algorithm in 1985 and has publicly
-        claimed that decompression is covered by it.  (IBM also patented the
-        same thing in a filing 3 weeks prior to Unisys's.)  In 2004, the
-        Unisys and IBM patents expired worldwide, so unshrinking is now
-        enabled again by default.  If you do not wish to include the LZW
-        method, you may still disable it by defining LZW_CLEAN.
-        (Unshrinking was used by PKZIP 1.0 and 1.1, and Zip 1.0 and 1.1.
-        All newer archives use only the deflation method.)
+      USE_UNSHRINK
+        These historical switches are retained for source and build-file
+        compatibility, but they no longer control Shrink (method 1) support in
+        the full UnZip program.  Shrink is decoded by the MIT-licensed
+        OldUnzip ozunshrink engine.  The historical Info-ZIP unshrink
+        implementation is no longer used.
 
-      COPYRIGHT_CLEAN   (now default)
+      COPYRIGHT_CLEAN
       USE_SMITH_CODE
-        The last chunk of code in UnZip that was blatantly derived from Sam
-        Smith's unzip 2.0 (as in, "substantially similar") is in unreduce.c.
-        Since reducing was only used by very early PKZIP beta versions (0.9x),
-        support for it is now omitted by default (COPYRIGHT_CLEAN).  To in-
-        clude unreducing capability, define USE_SMITH_CODE and replace the
-        stub unreduce.c source file by the separatly distributed full source
-        code module.  Note that this subjects UnZip to any and all restrictions
-        in Smith's copyright; see the UnZip COPYING.OLD file for details.
+        These historical switches are also retained for source and build-file
+        compatibility.  Reduce methods 2 through 5 in the full UnZip program
+        are decoded by the MIT-licensed OldUnzip ozunreduce engine and do not
+        depend on Samuel H. Smith-derived code.  COPYRIGHT_CLEAN therefore no
+        longer disables Reduce support.  The historical Smith unreduce
+        implementation is no longer used.
 
       USE_CRYPT
         Enable decryption support for all binaries.  The default setting

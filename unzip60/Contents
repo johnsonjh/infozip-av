@@ -27,7 +27,8 @@ at the end contain their own Contents listings:
   crypt.h       de-/encryption header file (required*)
   ebcdic.h      static lookup table for ASCII <-> EBCDIC translation (required)
   envargs.c     code to read options from environment variables (required)
-  explode.c     code for exploding (required)
+  explode.c     adapters for ZIP Implode and DCL Implode (required)
+  unimplode6a.h OldUnzip ZIP Implode (method 6) engine (required)
   extract.c     high-level extraction and decryption code (required)
   fileio.c      file manipulation and password code (required)
   funzip.c      filter unzip:  extracts in a pipe from stdin to stdout
@@ -44,8 +45,10 @@ at the end contain their own Contents listings:
   ttyio.c       code for handling nonecho tty input: password, pager (required)
   ttyio.h       header file for nonecho tty input: password, pager (required)
   ubz2err.c     callback handler for fatal bzip2 errors (bzip2 support only)
-  unreduce.c    code for unreducing (required)
-  unshrink.c    code for unshrinking (required)
+  unreduce.c    OldUnzip Reduce adapter, methods 2-5 (required)
+  ozunreduce.h  OldUnzip Reduce engine, methods 2-5 (required)
+  unshrink.c    OldUnzip Shrink adapter, method 1 (required)
+  ozunshrink.h  OldUnzip Shrink engine, method 1 (required)
   unzip.c       UnZip main(), usage and options code (required)
   unzip.h       public half of main UnZip header file (required*)
   unzipstb.c    minimal UnZip "stub" file demonstrating use of DLL versions

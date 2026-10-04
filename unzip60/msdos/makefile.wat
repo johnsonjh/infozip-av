@@ -10,8 +10,8 @@
 #   PMODE/W is recommended over DOS/4GW for best performance.
 # To build with debug info use "WMAKE DEBUG=1 ..."
 # To build with no assembly modules use "WMAKE NOASM=1 ..."
-# To omit unshrinking support use "WMAKE NO_LZW=1 ..."
-# To support unreducing, get the real unreduce.c and go "WMAKE OFFEND_RMS=1 ..."
+# NO_LZW and OFFEND_RMS are retained as legacy build switches; the full
+# UnZip build now uses the OldUnzip engines for Shrink and Reduce regardless.
 # To include support for bzip2 decompression (only for 32-bit), get the bzip2
 #  source distribution into the bzip2/ subfolder and start compilation
 #  with "WMAKE PM=1 USEBZ2=1 ..."

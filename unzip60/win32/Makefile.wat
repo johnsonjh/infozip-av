@@ -5,8 +5,8 @@
 # Invoke from UnZip source dir with "WMAKE -F WIN32\MAKEFILE.WAT [targets]"
 # To build with debug info use "WMAKE DEBUG=1 ..."
 # To build with no assembly modules use "WMAKE NOASM=1 ..."
-# To omit unshrinking support use "WMAKE NO_LZW=1 ..."
-# To support unreducing, get the real unreduce.c and go "WMAKE OFFEND_RMS=1 ..."
+# NO_LZW and OFFEND_RMS are retained as legacy build switches; the full
+# UnZip build now uses the OldUnzip engines for Shrink and Reduce regardless.
 # To use Info-Zip's generic timezone functions use "WMAKE USE_IZTIMEZONE=1 ..."
 # To include support for bzip2 decompression, get the bzip2 source distribution
 #  into the bzip2/ subfolder and start compilation with "WMAKE USEBZ2=1 ..."
