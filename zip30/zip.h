@@ -333,6 +333,13 @@ extern int scanimage;           /* Scan through image files */
 #define DEFLATE 8               /* Deflation method*/
 #define DCLIMPLODE 10           /* PKWARE DCL Implode method */
 #define BZIP2 12                /* BZIP2 method */
+#define PPMD 98                 /* PPMd Variant I, ZIP method 98 */
+
+/* PPMd needs a flat space large enough for 1MB! */
+#if !defined(NO_PPMD) && !defined(MEMORY16)
+# define PPMD_SUPPORT
+#endif
+
 #ifdef BZIP2_SUPPORT
 #define LAST_KNOWN_COMPMETHOD   BZIP2
 #else

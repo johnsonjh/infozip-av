@@ -1511,6 +1511,10 @@ local void help_extended()
 "  -Z cm     set compression method to cm:",
 "              store   - store without compression, same as option -0",
 "              deflate - original zip deflate, same as -1 to -9 (default)",
+"              dcl-implode - PKWARE DCL Implode (method 10)",
+#ifdef PPMD_SUPPORT
+"              ppmd    - PPMd Variant I (method 98; -1..-9 tune model)",
+#endif
 "            if bzip2 is enabled:",
 "              bzip2 - use bzip2 compression (need modern unzip)",
 "",
@@ -1796,6 +1800,9 @@ local void version_info()
 #endif
 #ifdef ZIP64_SUPPORT
     "ZIP64_SUPPORT        (use Zip64 to store large files in archives)",
+#endif
+#ifdef PPMD_SUPPORT
+    "PPM/PPMd support     (ZIP method 98; public-domain PPMd from 7-Zip 26.03 commit 0766b73)",
 #endif
 #ifdef UNICODE_SUPPORT
     "UNICODE_SUPPORT      (store and read UTF-8 Unicode paths)",
@@ -3956,9 +3963,20 @@ char **argv;            /* command line tokens */
 #else
             ZIPERR(ZE_COMPERR, "Compression method bzip2 not enabled");
 #endif
+          } else if (abbrevmatch("ppmd", value, 0, 1)) {
+            /* PPMd Variant I, ZIP method 98 */
+#ifdef PPMD_SUPPORT
+            method = PPMD;
+#else
+            ZIPERR(ZE_COMPERR, "Compression method ppmd not enabled");
+#endif
           } else {
-#ifdef BZIP2_SUPPORT
+#if defined(BZIP2_SUPPORT) && defined(PPMD_SUPPORT)
+            zipwarn("valid compression methods are:  store, deflate, dcl-implode, bzip2, ppmd", "");
+#elif defined(BZIP2_SUPPORT)
             zipwarn("valid compression methods are:  store, deflate, dcl-implode, bzip2", "");
+#elif defined(PPMD_SUPPORT)
+            zipwarn("valid compression methods are:  store, deflate, dcl-implode, ppmd", "");
 #else
             zipwarn("valid compression methods are:  store, deflate, dcl-implode", "");
 #endif

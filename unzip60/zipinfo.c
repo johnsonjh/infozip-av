@@ -1088,7 +1088,12 @@ static int zi_long(__G__ pEndprev, error_in_archive)
     unknown compressed size).  We won't worry about prepended junk here...
   ---------------------------------------------------------------------------*/
 
-    if (G.crec.relative_offset_local_header != *pEndprev && *pEndprev > 0L) {
+    /* The estimate in *pEndprev is based on central-directory metadata and
+     * heuristics for local-only extra fields.  Since local and central extra
+     * fields may legitimately differ, the estimate can be larger than the
+     * next local-header offset.  In that case there cannot be "extra bytes"
+     * preceding the file, so do not report a nonsensical negative count. */
+    if (G.crec.relative_offset_local_header > *pEndprev && *pEndprev > 0L) {
         /*  GRR DEBUG
         Info(slide, 0, ((char *)slide,
           "  [crec.relative_offset_local_header = %lu, endprev = %lu]\n",

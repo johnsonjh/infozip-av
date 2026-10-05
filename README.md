@@ -35,16 +35,17 @@ This project adds full
 ([MD5](https://en.wikipedia.org/wiki/MD5)) support to
 [Info‑ZIP](https://infozip.sourceforge.net/).
 
-It also adds the ability to both *compress* and *decompress* files using
-[**DCL Implode**](http://fileformats.archiveteam.org/wiki/PKWARE_DCL_Implode)
-(method 10) compression.  Additionally, for *decompression* of historical
-archives, new implementations of **Shrink** (method 1), **Reduce** (methods 2
-through 5), and **ZIP Implode** (method 6) have been added.
+The ability to both compress and decompress archives using **DCL Implode**
+(method 10) and **PPMd** (method 98) has been added.  New decompression‑only
+support for **Shrink** (method 1), **Reduce** (methods 2 through 5), and
+**ZIP Implode** (method 6) has also been added.  The common **Store** (method
+0), **Deflate** (method 8), and **Deflate64** (method 9) algorithms remain
+supported.
 
-These changes are built over Fedora's current
+These changes are built using Fedora's current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
 [`unzip`](https://src.fedoraproject.org/rpms/unzip) (6.0‑71,&nbsp;2026‑07‑27)
-source packages.
+source packages as a base.
 
 If you want, you can compare the changes against the Fedora upstream version
 using [GitHub](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
@@ -429,16 +430,19 @@ No errors detected in compressed data of pkz110.exe.
 
 ## Licenses
 
-* The PKAV additions to Info‑ZIP are provided under the [MIT‑0 License](LICENSE)
-  or, at your option, the [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
+* The PKAV additions to Info‑ZIP are provided under the [MIT‑0](LICENSE)
+  license, or, at your option, the [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
   [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
 
-* The new **Shrink**, **Reduce**, and **ZIP Implode** decompression
-  implementations are based on MIT licensed code by
+* The **Shrink**, **Reduce**, and **ZIP Implode** decompression
+  implementations are based on MIT licensed code from
   [Jason Summers](https://github.com/jsummers/oldunzip).
 
-* The new **DCL Implode** compression and decompression implementations use the
+* The **DCL Implode** compression and decompression implementations use the
   MIT‑0 licensed [PKDCLX](https://github.com/johnsonjh/pkdclx) routines.
+
+* The **PPMd** compression and decompression implementations are derived from
+  the public‑domain [7‑Zip PPMd](https://www.7-zip.org/sdk.html) routines.
 
 * The Info‑ZIP software suites (Zip and UnZip, with included tools) are
   distributed under their respective [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE)

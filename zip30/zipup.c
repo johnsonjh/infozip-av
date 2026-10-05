@@ -32,6 +32,12 @@
 /* Keep the PKDCLX engine source unchanged and compile it with zipup.c */
 #include "pkdcl.c"
 
+/* Same with our custom ppmd */
+#ifdef PPMD_SUPPORT
+# include "ppmd8.c"
+# include "ppmd8enc.c"
+#endif
+
 #ifdef USE_ZLIB
 #  include "zlib.h"
 #endif
@@ -156,6 +162,9 @@ local unsigned file_read OF((char *buf, unsigned size));
 /* zip64 support 08/29/2003 R.Nausedat */
 local zoff_t filecompress OF((struct zlist far *z_entry, int *cmpr_method));
 local zoff_t dclfilecompress OF((struct zlist far *z_entry));
+#ifdef PPMD_SUPPORT
+local zoff_t ppmdfilecompress OF((struct zlist far *z_entry));
+#endif
 
 #ifdef BZIP2_SUPPORT
 local zoff_t bzfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
@@ -960,6 +969,10 @@ struct zlist far *z;    /* zip entry to compress */
   if (method == BZIP2)
       z->ver = (ush)(m == STORE ? 10 : 46);
 #endif
+#ifdef PPMD_SUPPORT
+  if (method == PPMD)
+      z->ver = (ush)(m == STORE ? 10 : 63);
+#endif
   z->crc = 0;  /* to be updated later */
   /* Assume first that we will need an extended local header: */
   if (isdir)
@@ -1049,6 +1062,11 @@ struct zlist far *z;    /* zip entry to compress */
     if (m == DCLIMPLODE) {
       s = dclfilecompress(z);
     }
+#ifdef PPMD_SUPPORT
+    else if (m == PPMD) {
+      s = ppmdfilecompress(z);
+    }
+#endif
 #ifdef BZIP2_SUPPORT
     else if (m == BZIP2) {
       s = bzfilecompress(z, &m);
@@ -1259,6 +1277,10 @@ struct zlist far *z;    /* zip entry to compress */
       case BZIP2:
         z->ver = 46; break;
 #endif
+#ifdef PPMD_SUPPORT
+      case PPMD:
+        z->ver = 63; break;
+#endif
       }
       /*
        * The encryption header needs the crc, but we don't have it
@@ -1330,6 +1352,10 @@ struct zlist far *z;    /* zip entry to compress */
       fprintf(mesg, " (deflated %d%%)\n", percent(isize, s));
     else if (m == DCLIMPLODE)
       fprintf(mesg, " (DCL imploded %d%%)\n", percent(isize, s));
+#ifdef PPMD_SUPPORT
+    else if (m == PPMD)
+      fprintf(mesg, " (PPMd compressed %d%%)\n", percent(isize, s));
+#endif
     else
       fprintf(mesg, " (stored 0%%)\n");
     mesg_line_started = 0;
@@ -1346,6 +1372,10 @@ struct zlist far *z;    /* zip entry to compress */
       fprintf(logfile, " (deflated %d%%)\n", percent(isize, s));
     else if (m == DCLIMPLODE)
       fprintf(logfile, " (DCL imploded %d%%)\n", percent(isize, s));
+#ifdef PPMD_SUPPORT
+    else if (m == PPMD)
+      fprintf(logfile, " (PPMd compressed %d%%)\n", percent(isize, s));
+#endif
     else
       fprintf(logfile, " (stored 0%%)\n");
     logfile_line_started = 0;
@@ -1606,6 +1636,149 @@ local zoff_t dclfilecompress(z_entry)
     z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
     return s.output_size;
 }
+
+#ifdef PPMD_SUPPORT
+#define PPMD_ZIP_OUTBUF 16384U
+
+typedef struct {
+    IByteOut vt;
+    Byte *buffer;
+    unsigned used;
+    zoff_t output_size;
+    int write_error;
+} ppmd_zip_out;
+
+static void *ppmd_zip_alloc(ISzAllocPtr a, size_t size)
+{
+    (void)a;
+    return malloc(size);
+}
+
+static void ppmd_zip_free(ISzAllocPtr a, void *address)
+{
+    (void)a;
+    free(address);
+}
+
+static ISzAlloc ppmd_zip_allocator = { ppmd_zip_alloc, ppmd_zip_free };
+
+static void ppmd_zip_flush_out(ppmd_zip_out *s)
+{
+    if (s->used == 0 || s->write_error)
+        return;
+    if (zfwrite(s->buffer, 1, (extent)s->used) != (extent)s->used) {
+        s->write_error = 1;
+        return;
+    }
+    s->output_size += (zoff_t)s->used;
+    s->used = 0;
+}
+
+static void ppmd_zip_write(IByteOutPtr stream, Byte b)
+{
+    ppmd_zip_out *s;
+
+    s = (ppmd_zip_out *)stream;
+    if (s->write_error)
+        return;
+    s->buffer[s->used++] = b;
+    if (s->used == PPMD_ZIP_OUTBUF)
+        ppmd_zip_flush_out(s);
+}
+
+typedef struct {
+    unsigned order;
+    unsigned mem_mb;
+} ppmd_zip_level;
+
+/* Map Zip's normal -1 .. -9 scale onto PPMdI model depth and memory.
+ * Level 6 matches the APPNOTE's order-8 / 50-MiB nominal defaults; lower
+ * levels trade model size for speed and memory, while -9 reaches PPMdI's
+ * maximum order and memory field.  Restart restoration is used throughout
+ * because it has the broadest interoperability. */
+static ZCONST ppmd_zip_level ppmd_zip_levels[9] = {
+    {  6U,   2U },
+    {  7U,   4U },
+    {  8U,   8U },
+    {  8U,  16U },
+    {  8U,  32U },
+    {  8U,  50U },
+    { 10U,  64U },
+    { 12U, 128U },
+    { 16U, 256U }
+};
+
+local zoff_t ppmdfilecompress(z_entry)
+    struct zlist far *z_entry;
+{
+    CPpmd8 model;
+    ppmd_zip_out output;
+    Byte *inbuf;
+    unsigned got, i, lev, props;
+    unsigned order, mem_mb;
+
+    lev = (level >= 1 && level <= 9) ? (unsigned)level : 6U;
+    order = ppmd_zip_levels[lev - 1U].order;
+    mem_mb = ppmd_zip_levels[lev - 1U].mem_mb;
+
+    output.vt.Write = ppmd_zip_write;
+    output.buffer = (Byte *)malloc(PPMD_ZIP_OUTBUF);
+    output.used = 0;
+    output.output_size = 0;
+    output.write_error = 0;
+    if (output.buffer == NULL)
+        ziperr(ZE_MEM, "PPMd output buffer allocation failed");
+
+    inbuf = (Byte *)malloc(SBSZ);
+    if (inbuf == NULL) {
+        free(output.buffer);
+        ziperr(ZE_MEM, "PPMd input buffer allocation failed");
+    }
+
+    Ppmd8_Construct(&model);
+    if (!Ppmd8_Alloc(&model, (UInt32)mem_mb << 20, &ppmd_zip_allocator)) {
+        free(inbuf);
+        free(output.buffer);
+        ziperr(ZE_MEM, "PPMd model allocation failed");
+    }
+
+    /* ZIP method 98's little-endian two-byte properties word precedes the
+     * range-coded bytes and is part of the compressed/encrypted data. */
+    props = (order - 1U) | ((mem_mb - 1U) << 4);
+    ppmd_zip_write(&output.vt, (Byte)props);
+    ppmd_zip_write(&output.vt, (Byte)(props >> 8));
+
+    model.Stream.Out = &output.vt;
+    Ppmd8_Init_RangeEnc(&model);
+    Ppmd8_Init(&model, order, PPMD8_RESTORE_METHOD_RESTART);
+
+    while (!output.write_error) {
+        got = file_read((char *)inbuf, SBSZ);
+        if (got == (unsigned)EOF || got == 0)
+            break;
+        if (file_binary_final == 0 && !is_text_buf((char *)inbuf, got))
+            file_binary_final = 1;
+        for (i = 0; i < got; ++i)
+            Ppmd8_EncodeSymbol(&model, (int)inbuf[i]);
+    }
+
+    if (!output.write_error) {
+        Ppmd8_EncodeSymbol(&model, PPMD8_SYM_END);
+        Ppmd8_Flush_RangeEnc(&model);
+        ppmd_zip_flush_out(&output);
+    }
+
+    Ppmd8_Free(&model, &ppmd_zip_allocator);
+    free(inbuf);
+    free(output.buffer);
+
+    if (output.write_error)
+        ziperr(ZE_TEMP, "error writing PPMd data to zipfile");
+
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    return output.output_size;
+}
+#endif /* PPMD_SUPPORT */
 
 #ifdef USE_ZLIB
 

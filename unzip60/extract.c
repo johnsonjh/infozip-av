@@ -45,6 +45,147 @@
 #include "crc32.h"
 #include "crypt.h"
 
+#ifdef USE_PPMD
+#  include "ppmd8.c"
+#  include "ppmd8dec.c"
+
+typedef struct {
+    IByteIn vt;
+    zoff_t remaining;
+    int input_error;
+#ifdef REENTRANT
+    Uz_Globs *pG;
+#endif
+} uz_ppmd_in;
+
+static void *uz_ppmd_alloc(ISzAllocPtr a, size_t size)
+{
+    (void)a;
+    return malloc(size);
+}
+
+static void uz_ppmd_free(ISzAllocPtr a, void *address)
+{
+    (void)a;
+    free(address);
+}
+
+static ISzAlloc uz_ppmd_allocator = { uz_ppmd_alloc, uz_ppmd_free };
+
+static Byte uz_ppmd_read(IByteInPtr stream)
+{
+    uz_ppmd_in *s;
+    int c;
+#ifdef REENTRANT
+    Uz_Globs *pG;
+#endif
+
+    s = (uz_ppmd_in *)stream;
+#ifdef REENTRANT
+    pG = s->pG;
+#endif
+    if (s->remaining <= 0) {
+        s->input_error = 1;
+        return 0;
+    }
+    c = NEXTBYTE;
+    if (c == EOF) {
+        s->input_error = 1;
+        s->remaining = 0;
+        return 0;
+    }
+    --s->remaining;
+    return (Byte)c;
+}
+
+/* Decode ZIP method 98 (PPMd Variant I, revision 1).  The two-byte ZIP
+ * properties word is part of the compressed data and is therefore read via
+ * NEXTBYTE, which also preserves traditional ZipCrypto handling. */
+static int uz_ppmd_decompress(__G)
+    __GDEF
+{
+    CPpmd8 model;
+    uz_ppmd_in input;
+    zoff_t compressed;
+    zusz_t total;
+    ulg outcnt;
+    unsigned props, order, mem_mb, restore;
+    int sym, r;
+
+    compressed = G.csize + (zoff_t)G.incnt;
+    if (compressed < 2)
+        return PK_ERR;
+
+    input.vt.Read = uz_ppmd_read;
+    input.remaining = compressed;
+    input.input_error = 0;
+#ifdef REENTRANT
+    input.pG = pG;
+#endif
+
+    props = (unsigned)uz_ppmd_read(&input.vt);
+    props |= (unsigned)uz_ppmd_read(&input.vt) << 8;
+    if (input.input_error)
+        return PK_ERR;
+
+    order = (props & 0x0fU) + 1U;
+    mem_mb = ((props >> 4) & 0xffU) + 1U;
+    restore = props >> 12;
+    if (order < PPMD8_MIN_ORDER || order > PPMD8_MAX_ORDER ||
+        mem_mb < 1U || mem_mb > 256U ||
+        restore > PPMD8_RESTORE_METHOD_FREEZE)
+        return PK_ERR;
+
+    Ppmd8_Construct(&model);
+    /* ZIP method 98 specifies PPMd Variant I revision 1.  FREEZE streams
+     * therefore need the original rev.1 bitstream behavior; restart and
+     * cut-off use the corrected 26.03 model unchanged. */
+    Ppmd8_SetLegacyFreeze(&model,
+        restore == PPMD8_RESTORE_METHOD_FREEZE);
+    if (!Ppmd8_Alloc(&model, (UInt32)mem_mb << 20, &uz_ppmd_allocator))
+        return PK_MEM3;
+
+    model.Stream.In = &input.vt;
+    if (!Ppmd8_Init_RangeDec(&model)) {
+        Ppmd8_Free(&model, &uz_ppmd_allocator);
+        return PK_ERR;
+    }
+    Ppmd8_Init(&model, order, restore);
+
+    total = 0;
+    outcnt = 0;
+    r = PK_COOL;
+    while (total < G.lrec.ucsize) {
+        sym = Ppmd8_DecodeSymbol(&model);
+        if (sym < 0) {
+            r = PK_ERR;
+            break;
+        }
+        slide[outcnt++] = (uch)sym;
+        ++total;
+        if (outcnt == WSIZE) {
+            r = flush(__G__ slide, outcnt, 0);
+            outcnt = 0;
+            if (r != PK_COOL)
+                break;
+        }
+    }
+
+    if (r == PK_COOL && outcnt != 0)
+        r = flush(__G__ slide, outcnt, 0);
+    if (r == PK_COOL) {
+        sym = Ppmd8_DecodeSymbol(&model);
+        if (sym != PPMD8_SYM_END || input.input_error ||
+            !Ppmd8_RangeDec_IsFinishedOK(&model) ||
+            input.remaining != 0 || G.csize + (zoff_t)G.incnt != 0)
+            r = PK_ERR;
+    }
+
+    Ppmd8_Free(&model, &uz_ppmd_allocator);
+    return r;
+}
+#endif /* USE_PPMD */
+
 #define GRRDUMP(buf,len) { \
     int i, j; \
  \
@@ -1700,11 +1841,16 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #  endif
 #endif
 
-#if (defined(USE_BZIP2) && (UNZIP_VERSION < UNZIP_BZ2VERS))
-    int unzvers_support = (UNKN_BZ2 ? UNZIP_VERSION : UNZIP_BZ2VERS);
-#   define UNZVERS_SUPPORT  unzvers_support
-#else
-#   define UNZVERS_SUPPORT  UNZIP_VERSION
+    int unzvers_support = UNZIP_VERSION;
+#define UNZVERS_SUPPORT unzvers_support
+
+#ifdef USE_BZIP2
+    if (!UNKN_BZ2 && unzvers_support < UNZIP_BZ2VERS)
+        unzvers_support = UNZIP_BZ2VERS;
+#endif
+#ifdef USE_PPMD
+    if (!UNKN_PPMD && unzvers_support < UNZIP_PPMDVERS)
+        unzvers_support = UNZIP_PPMDVERS;
 #endif
 
 /*---------------------------------------------------------------------------
@@ -2767,6 +2913,35 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             }
             break;
 #endif /* !SFX */
+
+#ifdef USE_PPMD
+        case PPMDED:
+            if (!uO.tflag && QCOND2) {
+                Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
+                  "decod", FnFilter1(G.filename), avmark, avsep,
+                  (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
+                  uO.cflag ? NEWLINE : ""));
+            }
+            r = uz_ppmd_decompress(__G);
+            if (r != PK_COOL) {
+                if (r < PK_DISK) {
+                    if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipFile),
+                          r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
+                          LoadFarString(InvalidComprData),
+                          "PPMd", FnFilter1(G.filename)));
+                    else
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipNoFile),
+                          r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
+                          LoadFarString(InvalidComprData), "PPMd"));
+                    error = (r == PK_MEM3) ? PK_MEM3 : PK_ERR;
+                } else
+                    error = r;
+            }
+            break;
+#endif /* USE_PPMD */
 
         case DEFLATED:
 #ifdef USE_DEFLATE64

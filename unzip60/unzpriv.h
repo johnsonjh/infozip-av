@@ -676,7 +676,15 @@
 /*  Defines  */
 /*************/
 
+/* PPMd ZIP method 98 needs PKWARE extraction version 6.3.
+ * It is enabled by default on non-16-bit targets; define NO_PPMD to omit it.
+ * Requires at least 1MB of contiguous memory */
+#if !defined(NO_PPMD) && !defined(__16BIT__)
+#  define USE_PPMD
+#endif
+
 #define UNZIP_BZ2VERS   46
+#define UNZIP_PPMDVERS  63
 #ifdef ZIP64_SUPPORT
 # ifdef USE_BZIP2
 #  define UNZIP_VERSION   UNZIP_BZ2VERS
