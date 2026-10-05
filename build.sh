@@ -55,7 +55,8 @@ mkdir -p "${PREFIX:?}/man1"
       install
 )
 
-"${STRIP:-strip}" "${PREFIX:?}"/bin/* || :
+"${STRIP:-strip}" "${PREFIX:?}"/bin/* 2> /dev/null || :
 "${SSTRIP:-sstrip}" -z "${PREFIX:?}"/bin/* 2> /dev/null || :
+upx -qq --best "build/bin/unzipsfx" 2> /dev/null || :
 
 ls -la "${PREFIX}"/*/*
