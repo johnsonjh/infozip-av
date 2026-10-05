@@ -80,12 +80,14 @@ for older and smaller systems.  If you find Zip 3.0 does not fit on or
 otherwise does not work well on a particular OS, send in the details and
 we might be able to help.
 
-Compression methods.  In addition to the standard store and deflate methods,
-Zip now can use the bzip2 compression format using the bzip2 library.  Though
-bzip2 compression generally takes longer, in many cases using bzip2 results
-in much better compression.  However, many unzips may not yet support
-bzip2 compressed entries in archives, so test your unzip first before using
-bzip2 compression.
+Compression methods.  In addition to store, deflate, and PKWARE DCL Implode,
+Zip can create PPMd Variant I entries using ZIP method 98 with -Z ppmd.
+PPMd is built in on non-16-bit targets and uses public-domain PPMd sources
+derived from 7-Zip 26.03 commit 0766b73, adapted to strict ANSI C89.  The
+normal -1 through -9 compression levels tune the PPMd model from order 6 /
+2 MiB at -1 through order 16 / 256 MiB at -9; the default -6 is order 8 /
+50 MiB.  PPMd archives require a method-98-capable extractor.  Zip can also
+use the bzip2 compression format when the bzip2 library is available.
 
 Installation.  Please read the file INSTALL for information on how to compile
 and install zip, zipsplit, zipcloak, and zipnote and please read the manual
@@ -152,6 +154,12 @@ Q. How about "compression method 12"?
 
 A. Compression method 12 is bzip2 and requires a relatively modern unzip.
    Please get the latest version of unzip.
+
+
+Q. And "compression method 98"?
+
+A. Compression method 98 is PPMd Variant I.  Use an unzip built with PPMd
+   support; this tree enables it by default on non-16-bit targets.
 
 
 Q. I can't extract this zip file that I just downloaded.  I get

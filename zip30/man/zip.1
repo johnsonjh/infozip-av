@@ -71,8 +71,13 @@ better compatibility).
 version 3.0 is compatible with PKZIP 2.04 and also supports
 the Zip64 extensions of PKZIP 4.5 which allow archives
 as well as files to exceed the previous 2 GB limit (4 GB in
-some cases).  \fIzip\fP also now supports \fBbzip2\fP compression
-if the \fBbzip2\fP library is included when \fIzip\fP is compiled.
+some cases).  \fIzip\fP also supports \fBPPMd Variant I\fP compression
+(ZIP method 98) on non-16-bit builds, and \fBbzip2\fP compression if the
+\fBbzip2\fP library is included when \fIzip\fP is compiled.  The built-in
+PPMd implementation is derived from the public-domain PPMd sources in 7-Zip
+26.03 commit 0766b73 and is adapted to strict ANSI C89.  PPMd entries
+specifically require a method-98-capable extractor; older PKUNZIP and UnZip
+versions that otherwise read Zip 3.0 archives cannot decode method 98.
 Note that PKUNZIP 1.10 cannot extract files produced by
 PKZIP 2.04 or
 \fIzip\ 3.0\fP. You must use PKUNZIP 2.04g or
@@ -133,15 +138,13 @@ An entire directory structure can be packed into a
 archive with a single command.
 Compression ratios of 2:1 to 3:1 are common for text files.
 .I zip
-supports deflation and PKWARE DCL Implode compression, and can also store
-files without compression.  (If \fBbzip2\fP support is added, \fIzip\fP can also
-compress using \fBbzip2\fP compression, but such entries require a
-reasonably modern unzip to decompress.  When \fBbzip2\fP compression
-is selected, it replaces deflation as the default method.)
+supports deflation, PKWARE DCL Implode, and PPMd Variant I compression,
+and can also store files without compression.  (If \fBbzip2\fP support is
+added, \fIzip\fP can also compress using \fBbzip2\fP.)  PPMd entries use
+ZIP method 98 and require a PPMd-capable extractor.
 .I zip
-automatically chooses the better of the two (deflation or store or, if
-\fBbzip2\fP is selected, \fBbzip2\fP or store) for each file to be
-compressed.
+automatically chooses between the selected compression method and storing
+the file when storing produces the smaller result.
 .LP
 \fBCommand\ format.\fP  The basic command format is
 .IP
@@ -2385,7 +2388,8 @@ The comment can be taken from a file:
 .PD
 .B \-\-compression\-method\ \fRcm
 Set the default compression method.  The main methods supported by
-\fIzip\fP are \fBstore\fP, \fBdeflate\fP, and \fBdcl-implode\fP.
+\fIzip\fP are \fBstore\fP, \fBdeflate\fP, \fBdcl-implode\fP, and
+\fBppmd\fP (plus \fBbzip2\fP when compiled in).
 Compression method can be set to:
 
 \fBstore\fP \- Setting the compression method to \fBstore\fP forces
@@ -2401,13 +2405,24 @@ stored instead.
 binary literal coding, a 4K dictionary, and the compatible extra parsing
 mode.
 
+\fBppmd\fP \- Use PPMd Variant I (ZIP method 98).  PPMd support is built
+in on non-16-bit targets unless disabled at compile time with \fBNO_PPMD\fP.
+Archives using method 98 require a PPMd-capable extractor and advertise ZIP
+extraction version 6.3.  The encoder uses PPMd restart restoration.
+
 \fBbzip2\fP \- If \fBbzip2\fP support is compiled in, this compression
 method also becomes available.  Only some modern unzips currently support
 the \fBbzip2\fP compression method, so test the unzip you will be using
 before relying on archives using this method (compression method 12).
 
-For example, to add \fBbar.c\fP to archive \fBfoo\fP using \fBbzip2\fP
+For example, to add \fBbar.c\fP to archive \fBfoo\fP using PPMd
 compression:
+.RS
+.IP
+zip -Z ppmd -6 foo bar.c
+.RE
+.IP
+Or, using \fBbzip2\fP compression:
 .RS
 .IP
 zip -Z bzip2 foo bar.c
@@ -2438,9 +2453,25 @@ indicates the slowest compression speed (optimal compression, ignores
 the suffix list). The default compression level is
 .BR \-6.
 
-Though still being worked, the intention is this setting will control
-compression speed for all compression methods.  Currently only
-deflation is controlled.
+This setting controls deflation and PPMd compression.  For PPMd, the
+level selects both model order and model-memory allocation as follows:
+.RS
+.nf
+Level   Order   Model memory
+-1      6       2 MiB
+-2      7       4 MiB
+-3      8       8 MiB
+-4      8       16 MiB
+-5      8       32 MiB
+-6      8       50 MiB
+-7      10      64 MiB
+-8      12      128 MiB
+-9      16      256 MiB
+.fi
+.RE
+The model-memory value is the PPMd model allocation, not total process memory.
+The default \fB-6\fP therefore uses order 8 with a 50 MiB model, while
+\fB-9\fP uses PPMdI's maximum order 16 with a 256 MiB model.
 .TP
 .PD 0
 .B \-!

@@ -72,8 +72,13 @@ Installation on Unix (see below for installation on other systems)
      if you see optimization for your system is not ideal, send in
      the changes so we can improve it.
 
-     By default, Zip uses the "deflate" compression method.  To add
-     the additional optional "bzip2" compression method, see the file
+     By default, Zip uses the "deflate" compression method.  PPMd Variant I
+     (ZIP method 98) support is built-in on non-16-bit targets and needs no
+     external library, but can be omitted with -DNO_PPMD.  PPMd compression
+     may allocate from 2 MiB (-1) through 256 MiB (-9) for its model; the
+     default -6 level uses a 50 MiB model.
+
+     To add the additional optional "bzip2" compression method, see the file
      bzip2/install.txt.  Note that bzip2 support is provided by
      compiling or linking in the bzip2 library.  See the bzip2 site
      (http://www.bzip.org/) for more on bzip2.
@@ -316,6 +321,15 @@ Compiler Flags
     restoring the descriptors (file ACL's, etc.).
 
     This is on by default for Win32.  Use NO_NTSD_EAS to turn this off.
+
+  PPMD_SUPPORT
+    Enable PPMd Variant I compression (ZIP method 98).  This is enabled
+    automatically unless NO_PPMD or a 16-bit memory model (MEMORY16) is used.
+    No external library is required.  PPMd needs a flat address space and
+    allocates a model according to the selected compression level.  The
+    default -6 level uses 50 MiB; -9 uses 256 MiB.
+
+    Define NO_PPMD to build Zip without method-98 compression.
 
   BZIP2_SUPPORT
     Enable compressing zip entries using the bzip2 library.  You must get

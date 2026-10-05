@@ -244,9 +244,11 @@ LIMITATIONS
 
        As  noted  above,  a number of the normal unzip(1L) functions have been
        removed in order to make unzipsfx smaller:  usage and diagnostic  info,
-       listing  functions  and  extraction  to  other directories.  Also, only
-       stored and deflated files are  supported.   The  latter  limitation  is
-       mainly relevant to those who create SFX archives, however.
+       listing functions and extraction to other directories.  Stored and
+       deflated entries are supported, and non-16-bit builds in this tree also
+       retain PPMd Variant I (ZIP method 98) support unless compiled with
+       NO_PPMD.  PPMd SFX archives can require substantial model memory (up to
+       256 MiB).
 
        VMS  users  must know how to set up self-extracting archives as foreign
        commands in order to use any of unzipsfx's options.  This is not neces-

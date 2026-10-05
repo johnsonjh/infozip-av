@@ -63,6 +63,11 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
     details, see the make procedures and accompanied documentation for your
     particular target OS.
 
+    This tree includes built-in PPMd Variant I support for ZIP compression
+    method 98 on non-16-bit targets.  No external PPMd library is needed.
+    Define NO_PPMD to omit this decoder.  Method-98 streams may request up to
+    256 MiB of model memory.
+
     As of UnZip 5.53, support for the bzip2 compression algorithm has been
     added to UnZip. However, this support requires the original sources of
     the bzip2 compression library which have to be aquired separately;
@@ -337,6 +342,15 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         Zip utility does not support it (quite likely, this will never
         get implemented).  So, the NO_DEFLATE64 option is provided to allow
         exclusion of the deflate64 support.
+
+      USE_PPMD (default on non-16-bit targets)
+      NO_PPMD
+        Enable or disable extraction of PPMd Variant I ZIP method 98 streams.
+        PPMd is built in and requires no external library.  The decoder accepts
+        restart, cut-off, and revision-1 freeze restoration modes.  It needs a
+        flat address space and may allocate from 1 MiB through 256 MiB of model
+        memory as requested by the archive, so it is disabled automatically for
+        16-bit targets.  Define NO_PPMD to omit the decoder explicitly.
 
       USE_BZIP2 (requires additional external code distribution)
        UnZip can optionally support the "bzip2" compression algorithm for

@@ -33,10 +33,14 @@ DESCRIPTION
        facilitate better compatibility).  zip version 3.0 is  compatible  with
        PKZIP  2.04  and  also supports the Zip64 extensions of PKZIP 4.5 which
        allow archives as well as files to exceed the previous 2 GB limit (4 GB
-       in  some  cases).  zip also now supports bzip2 compression if the bzip2
-       library is included when zip is compiled.  Note that PKUNZIP 1.10  can-
-       not extract files produced by PKZIP 2.04 or zip 3.0. You must use PKUN-
-       ZIP 2.04g or unzip 5.0p1 (or later versions) to extract them.
+       in some cases).  zip also supports  PPMd compression (ZIP method 98) on
+       non-16-bit builds,  and  bzip2  compression  if  the  bzip2  library is
+       included  when  zip  is  compiled.  PPMd entries specifically require a
+       method-98-capable  extractor;  older  PKUNZIP and UnZip  versions  that
+       otherwise read  Zip 3.0 archives cannot decode  method 98.   Note  that
+       PKUNZIP 1.10  cannot extract  files produced by  PKZIP 2.04 or zip 3.0.
+       You  must  use  PKUNZIP  2.04g  or  unzip 5.0p1 (or later versions)  to
+       extract them.
 
        See the EXAMPLES section at the bottom of this  page  for  examples  of
        some typical uses of zip.
@@ -78,13 +82,12 @@ USE
        of last modification, protection, and check information to verify  file
        integrity).   An  entire  directory  structure can be packed into a zip
        archive with a single command.  Compression ratios of 2:1  to  3:1  are
-       common  for text files.  zip has one compression method (deflation) and
-       can also store files without compression.  (If bzip2 support is  added,
-       zip can also compress using bzip2 compression, but such entries require
-       a reasonably modern unzip to decompress.   When  bzip2  compression  is
-       selected,  it replaces deflation as the default method.)  zip automati-
-       cally chooses the better of the two (deflation or store or, if bzip2 is
-       selected, bzip2 or store) for each file to be compressed.
+       common for text files.  zip supports deflation, PKWARE DCL Implode, and
+       PPMd compression,  and can  also  store  files without compression.  If
+       bzip2 support is added, zip can also compress using bzip2. PPMd entries
+       use  ZIP  method  98  and  require   a  PPMd-capable   extractor.   zip
+       automatically  chooses  between  the  selected  compression  method and
+       storing the file when storing produces the smaller result.
 
        Command format.  The basic command format is
 
@@ -1685,9 +1688,9 @@ OPTIONS
 
        -Z cm
        --compression-method cm
-              Set  the default compression method.  The supported methods are
-              store, deflate, and dcl-implode (plus bzip2 when compiled in).
-              Compression method can be set to:
+              Set the default compression method.  The supported methods are
+              store, deflate, dcl-implode, and ppmd (plus bzip2 when compiled
+              in).  Compression method can be set to:
 
               store  -  Setting  the compression method to store forces zip to
               store entries with no compression.   This  is  generally  faster
@@ -1702,14 +1705,23 @@ OPTIONS
               binary literal coding, a 4K dictionary, and the compatible extra
               parsing mode.
 
+              ppmd - Use PPMd Variant I (ZIP method 98).  PPMd support is
+              built in on non-16-bit targets unless disabled at compile time
+              with NO_PPMD.  Archives using method 98 require a PPMd-capable
+              extractor and advertise ZIP extraction version 6.3.  The encoder
+              uses PPMd restart restoration.
+
               bzip2 - If bzip2 support is compiled in, this compression method
-              also  becomes available.  Only some modern unzips currently sup-
+              also becomes available.  Only some modern unzips currently sup-
               port the bzip2 compression method, so test the unzip you will be
-              using  before relying on archives using this method (compression
+              using before relying on archives using this method (compression
               method 12).
 
-              For example, to add bar.c to archive foo  using  bzip2  compres-
-              sion:
+              For example, to add bar.c to archive foo using PPMd compression:
+
+                     zip -Z ppmd -6 foo bar.c
+
+              Or, using bzip2 compression:
 
                      zip -Z bzip2 foo bar.c
 
@@ -1725,9 +1737,23 @@ OPTIONS
               indicates the slowest compression  speed  (optimal  compression,
               ignores the suffix list). The default compression level is -6.
 
-              Though  still  being  worked, the intention is this setting will
-              control compression speed for  all  compression  methods.   Cur-
-              rently only deflation is controlled.
+              This setting controls deflation and PPMd compression.  For PPMd,
+              the level selects both model order and model-memory allocation:
+
+                     Level    Order    Model memory
+                     -1       6        2 MiB
+                     -2       7        4 MiB
+                     -3       8        8 MiB
+                     -4       8        16 MiB
+                     -5       8        32 MiB
+                     -6       8        50 MiB
+                     -7       10       64 MiB
+                     -8       12       128 MiB
+                     -9       16       256 MiB
+
+              The model-memory value is the PPMd model allocation, not total
+              process memory.  The default -6 uses order 8 with a 50 MiB model;
+              -9 uses PPMdI's maximum order 16 with a 256 MiB model.
 
        -!
        --use-privileges

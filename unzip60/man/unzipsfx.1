@@ -292,9 +292,10 @@ Atari TOS, MacOS, etc.
 .PP
 As noted above, a number of the normal \fIunzip\fP(1L) functions have
 been removed in order to make \fIunzipsfx\fP smaller:  usage and diagnostic
-info, listing functions and extraction to other directories.  Also, only
-stored and deflated files are supported.  The latter limitation is mainly
-relevant to those who create SFX archives, however.
+info, listing functions and extraction to other directories.  Stored and
+deflated entries are supported, and non-16-bit builds in this tree also retain
+PPMd Variant I (ZIP method 98) support unless compiled with \fBNO_PPMD\fP.
+PPMd SFX archives can require substantial model memory (up to 256 MiB).
 .PP
 VMS users must know how to set up self-extracting archives as foreign
 commands in order to use any of \fIunzipsfx\fP's options.  This is not

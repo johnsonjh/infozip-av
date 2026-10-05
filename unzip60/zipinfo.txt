@@ -191,14 +191,15 @@ DETAILED DESCRIPTION
        any attributes in the archive.
 
        Finally, the sixth field indicates the compression method and  possible
-       sub-method  used.  There are six methods known at present:  storing (no
+       submethod used. The traditional methods described here are: storing (no
        compression), reducing, shrinking, imploding,  tokenizing  (never  pub-
        licly  released), and deflating.  In addition, there are four levels of
        reducing (1 through 4); four types of imploding (4K or 8K sliding  dic-
        tionary,  and  2 or 3 Shannon-Fano trees); and four levels of deflating
        (superfast, fast, normal,  maximum  compression).   zipinfo  represents
        these  methods  and  their  sub-methods  as follows:  stor; re:1, re:2,
-       etc.; shrk; i4:2, i8:3, etc.; tokn; and defS, defF, defN, and defX.
+       etc.; shrk; i4:2, i8:3, etc.; tokn; and defS, defF, defN, and defX. ZIP
+       method 98 (PPMd Variant I) is displayed as ppmd.
 
        The medium and long listings are almost identical to the  short  format
        except that they add information on the file's compression.  The medium

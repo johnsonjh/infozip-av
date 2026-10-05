@@ -237,8 +237,8 @@ attributes is unreliable because some Macintosh archivers don't store any
 attributes in the archive.
 .PP
 Finally, the sixth field indicates
-the compression method and possible sub-method used.  There are six methods
-known at present:  storing (no compression), reducing, shrinking, imploding,
+the compression method and possible sub-method used.  The traditional methods
+described here are:  storing (no compression), reducing, shrinking, imploding,
 tokenizing (never publicly released), and deflating.  In addition, there are
 four levels of reducing (1 through 4); four types of imploding (4K or 8K
 sliding dictionary, and 2 or 3 Shannon-Fano trees); and four levels of
@@ -246,6 +246,7 @@ deflating (superfast, fast, normal, maximum compression).  \fIzipinfo\fP
 represents these methods and their sub-methods as follows:  \fIstor\fP;
 \fIre:1\fP, \fIre:2\fP, etc.; \fIshrk\fP; \fIi4:2\fP, \fIi8:3\fP, etc.;
 \fItokn\fP; and \fIdefS\fP, \fIdefF\fP, \fIdefN\fP, and \fIdefX\fP.
+ZIP method 98 (PPMd Variant I) is displayed as \fIppmd\fP.
 .PP
 The medium and long listings are almost identical to the short format except
 that they add information on the file's compression.  The medium format lists
