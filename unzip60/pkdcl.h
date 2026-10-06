@@ -1,4 +1,5 @@
 /*
+ * PKDCLX 1.1
  * Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>
  * SPDX-License-Identifier: MIT-0
  */
@@ -65,6 +66,7 @@ unsigned long crc32 (const unsigned char *buffer, const unsigned short *size,
 # define PKDCL_DICT_16K 16384UL
 # define PKDCL_DICT_32K 32768UL
 # define PKDCL_FLAG_EXTRA 1U
+# define PKDCL_FLAG_OPTIMAL 2U
 
 unsigned short pkdcl_implode_ex (pkdcl_read_func read_func,
                                  pkdcl_write_func write_func, void *opaque,

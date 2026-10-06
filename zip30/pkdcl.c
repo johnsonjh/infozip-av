@@ -1,4 +1,5 @@
 /*
+ * PKDCLX 1.1
  * Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>
  * SPDX-License-Identifier: MIT-0
  */
@@ -1848,6 +1849,225 @@ x_best (const unsigned char *in, unsigned long n, unsigned long pos,
 }
 
 static int
+x_optimal_encode (const unsigned char *in, unsigned long n, unsigned short type,
+                  unsigned long dictionary_size, struct xbuf *out)
+{
+  struct xbits x;
+  unsigned long *prev, *head, pos;
+  unsigned int dbits, h;
+  unsigned long *cost;
+  unsigned short *mlen;
+  unsigned long *mdist;
+  unsigned long *path;
+  unsigned long i, p_count, curr;
+
+  (void)memset (&x, 0, sizeof (x));
+  dbits = 0U;
+
+  for (i = dictionary_size; i > 64UL; i >>= 1)
+    {
+      dbits++;
+    }
+
+  if (dbits < 4U || dbits > 9U)
+    {
+      return 0;
+    }
+
+  prev = (unsigned long *)malloc (
+      (size_t)((n ? n : 1UL) * sizeof (unsigned long)));
+  head = (unsigned long *)calloc (
+      PKDCL_HASH_COUNT, sizeof (unsigned long));
+  cost = (unsigned long *)malloc (
+      (size_t)((n + 1UL) * sizeof (unsigned long)));
+  mlen = (unsigned short *)malloc (
+      (size_t)((n + 1UL) * sizeof (unsigned short)));
+  mdist = (unsigned long *)malloc (
+      (size_t)((n + 1UL) * sizeof (unsigned long)));
+  path = (unsigned long *)malloc (
+      (size_t)((n + 1UL) * sizeof (unsigned long)));
+
+  if (prev == NULL || head == NULL || cost == NULL || mlen == NULL
+      || mdist == NULL || path == NULL)
+    {
+      free (prev);
+      free (head);
+      free (cost);
+      free (mlen);
+      free (mdist);
+      free (path);
+      free (x.b.p);
+
+      return 0;
+    }
+
+  for (pos = 0UL; pos <= n; pos++)
+    {
+      cost[pos] = ~0UL;
+    }
+
+  cost[0] = 0UL;
+
+  for (pos = 0UL; pos < n; pos++)
+    {
+      unsigned long c;
+
+      if (cost[pos] == ~0UL)
+        {
+          continue;
+        }
+
+      c = cost[pos] + (unsigned long)x_lit_bits (type, in[pos]);
+
+      if (c < cost[pos + 1UL])
+        {
+          cost[pos + 1UL] = c;
+          mlen[pos + 1UL] = 0U;
+        }
+
+      if (pos + 1UL < n)
+        {
+          unsigned long q;
+          unsigned int seen;
+
+          h = x_hash (in + pos);
+          q = head[h];
+          seen = 0U;
+
+          while (q != 0UL && seen++ < 4096U)
+            {
+              unsigned long d;
+              unsigned int l;
+
+              q--;
+
+              if (q >= pos)
+                {
+                  break;
+                }
+
+              d = pos - q;
+
+              if (d > dictionary_size)
+                {
+                  break;
+                }
+
+              l = 0U;
+
+              while (l < 518U && pos + (unsigned long)l < n
+                     && in[q + (unsigned long)l] == in[pos + (unsigned long)l])
+                {
+                  l++;
+                }
+
+              if (l >= 2U)
+                {
+                  unsigned int cl;
+                  unsigned int min_l = (d > 256UL) ? 3U : 2U;
+
+                  for (cl = min_l; cl <= l; cl++)
+                    {
+                      unsigned long mcost = cost[pos] + (unsigned long)x_match_bits (cl, d, dbits);
+
+                      if (mcost < cost[pos + cl])
+                        {
+                          cost[pos + cl] = mcost;
+                          mlen[pos + cl] = (unsigned short)cl;
+                          mdist[pos + cl] = d;
+                        }
+                    }
+
+                  if (l >= 518U)
+                    {
+                      break;
+                    }
+                }
+
+              q = prev[q];
+            }
+
+          prev[pos] = head[h];
+          head[h] = pos + 1UL;
+        }
+      else
+        {
+          prev[pos] = 0UL;
+        }
+    }
+
+  p_count = 0UL;
+  curr = n;
+
+  while (curr > 0UL)
+    {
+      path[p_count++] = curr;
+
+      if (mlen[curr] == 0U)
+        {
+          curr -= 1UL;
+        }
+      else
+        {
+          curr -= (unsigned long)mlen[curr];
+        }
+    }
+
+  (void)xb_put (&x, 8U, type);
+  (void)xb_put (&x, 8U, dbits);
+
+  for (i = p_count; i > 0UL; i--)
+    {
+      unsigned long end_pos = path[i - 1UL];
+      unsigned long start_pos;
+
+      if (i == p_count)
+        {
+          start_pos = 0UL;
+        }
+      else
+        {
+          start_pos = path[i];
+        }
+
+      if (mlen[end_pos] == 0U)
+        {
+          x_emit_lit (&x, type, in[start_pos]);
+        }
+      else
+        {
+          x_emit_match (&x, (unsigned int)mlen[end_pos], mdist[end_pos], dbits);
+        }
+    }
+
+  {
+    unsigned int lb;
+    unsigned long lc;
+
+    x_len_code (519U, &lb, &lc);
+    (void)xb_put (&x, lb, lc);
+  }
+
+  free (prev);
+  free (head);
+  free (cost);
+  free (mlen);
+  free (mdist);
+  free (path);
+
+  if (x.oom)
+    {
+      free (x.b.p);
+
+      return 0;
+    }
+
+  *out = x.b;
+
+  return 1;
+}
+
+static int
 x_encode (const unsigned char *in, unsigned long n, unsigned short type,
           unsigned long dictionary_size, int deep, struct xbuf *out)
 {
@@ -2107,7 +2327,29 @@ pkdcl_implode_ex (pkdcl_read_func read_func, pkdcl_write_func write_func,
       return PKDCL_CMP_ABORT;
     }
 
-  if ((flags & PKDCL_FLAG_EXTRA) != 0U)
+  if ((flags & PKDCL_FLAG_OPTIMAL) != 0U)
+    {
+      ok = x_optimal_encode (in.p, in.n, type, dictionary_size, &b);
+
+      if (!ok)
+        {
+          free (in.p);
+          free (a.p);
+
+          return PKDCL_CMP_ABORT;
+        }
+
+      if (b.n < a.n)
+        {
+          free (a.p);
+          a = b;
+        }
+      else
+        {
+          free (b.p);
+        }
+    }
+  else if ((flags & PKDCL_FLAG_EXTRA) != 0U)
     {
       if (dictionary_size <= 4096UL)
         {
