@@ -55,7 +55,7 @@ extern int noisy;
 
 #ifdef NT_TZBUG_WORKAROUND
 local int FSusesLocalTime(const char *path);
-#ifdef UNICODE_SUPPORt
+#ifdef UNICODE_SUPPORT
 local int FSusesLocalTimeW(const wchar_t *path);
 #endif
 #endif
