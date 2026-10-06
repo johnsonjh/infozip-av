@@ -309,8 +309,10 @@ installation instructions for details on adding bzip2 compression
 support at build time.)
 .sk
 Numeric compression level options control the effort put into data
-compression, with -1 being the fastest, and -9 giving the most
-compression.
+compression, with -1 being the fastest normal level and -9 giving the most
+normal compression.  Level -11 is special: with Deflate it selects the
+built-in Zopfli optimizer when available; for other level-aware methods it
+maps to -9.  Zopfli output remains ordinary ZIP method-8 Deflate.
 .sk
 Compression control options:
 .sk;.lm +10;.literal
@@ -327,6 +329,7 @@ Compression control options:
 -7  (--compress-7)           compression level 7
 -8  (--compress-8)           compression level 8
 -9  (--compress-9)           compression level 9
+-11 (--compress-11)          Zopfli Deflate; other methods use level 9
 .end literal;.lm -10
 .sk
 Normally, a file which is already compressed will not be compressed much 
@@ -347,8 +350,10 @@ to compress them.
 The default type list is .Z:.zip:.zoo:.arc:.lzh:.arj, and the comparison
 is case-insensitive.
 .sk
--9 (--compress-9) will override -n (--suffixes), causing compression to
-be attempted for all files.
+-9 (--compress-9) and -11 (--compress-11) override -n (--suffixes),
+causing compression to be attempted for all files.  Zopfli optimization
+iterations default to 15 and may be changed with the generic long option
+--zopfli-iterations when using Unix-style command syntax.
 .!------------------------------------------------------------------------------
 .indent -4
 2 Encryption
@@ -872,6 +877,7 @@ be separated by a space or "=".  For example:
  0   store               store (instead of compress)
  1   compress-1          compress faster (-2, -3, -4, ...)
  9   compress-9          compress better
+ 11  compress-11         Zopfli Deflate (other methods same as level 9)
  ?                       show the Zip help screen
  @   names-stdin         read input file patterns from SYS$INPUT (1/line)
  A   adjust-sfx          adjust self-extracting executable

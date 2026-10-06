@@ -533,7 +533,7 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif
 #  ifdef USE_PPMD
      static ZCONST char Far UsePPMd[] =
-     "PPM/PPMd support (ZIP method 98; public-domain PPMd from 7-Zip 26.03 commit 0766b73)";
+     "PPM/PPMd support (ZIP method 98; public-domain PPMd derived from 7-Zip)";
 #  endif
 #  ifdef VMS_TEXT_CONV
      static ZCONST char Far VmsTextConv[] = "VMS_TEXT_CONV";

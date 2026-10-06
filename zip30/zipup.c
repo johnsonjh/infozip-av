@@ -38,6 +38,11 @@
 # include "ppmd8enc.c"
 #endif
 
+/* Our Zopfli is a self-contained amalgamation */
+#ifdef ZOPFLI_SUPPORT
+# include "zopfli.c"
+#endif
+
 #ifdef USE_ZLIB
 #  include "zlib.h"
 #endif
@@ -161,9 +166,12 @@ local unsigned file_read OF((char *buf, unsigned size));
 
 /* zip64 support 08/29/2003 R.Nausedat */
 local zoff_t filecompress OF((struct zlist far *z_entry, int *cmpr_method));
-local zoff_t dclfilecompress OF((struct zlist far *z_entry));
+#ifdef ZOPFLI_SUPPORT
+local zoff_t zopflifilecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#endif
+local zoff_t dclfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #ifdef PPMD_SUPPORT
-local zoff_t ppmdfilecompress OF((struct zlist far *z_entry));
+local zoff_t ppmdfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
 
 #ifdef BZIP2_SUPPORT
@@ -1060,11 +1068,11 @@ struct zlist far *z;    /* zip entry to compress */
     if (set_type) z->att = (ush)UNKNOWN;
     /* ... is finally set in file compression routine */
     if (m == DCLIMPLODE) {
-      s = dclfilecompress(z);
+      s = dclfilecompress(z, &m);
     }
 #ifdef PPMD_SUPPORT
     else if (m == PPMD) {
-      s = ppmdfilecompress(z);
+      s = ppmdfilecompress(z, &m);
     }
 #endif
 #ifdef BZIP2_SUPPORT
@@ -1569,18 +1577,186 @@ local unsigned file_read(buf, size)
 }
 
 
+/*
+ * Keep a small input and compressed-output candidate until it is known
+ * whether the whole input fits in memory.  This lets external compressors
+ * make the same STORE-vs-compress decision which the traditional Deflate
+ * paths make for small files, without writing candidate bytes to the archive
+ * first.  Buffering is disabled when data descriptors are required because
+ * the local-header method cannot then be rewritten safely.
+ */
+struct small_store_state {
+    uch *input;
+    size_t input_size;
+    size_t input_limit;
+    uch *output;
+    size_t output_size;
+    size_t output_alloc;
+    int active;
+};
+
+local void small_store_init(s, limit)
+    struct small_store_state *s;
+    size_t limit;
+{
+    s->input = NULL;
+    s->input_size = 0;
+    s->input_limit = limit;
+    s->output = NULL;
+    s->output_size = 0;
+    s->output_alloc = 0;
+    s->active = FALSE;
+
+    if (limit == 0 || use_descriptors || !fseekable(y))
+        return;
+
+    s->input = (uch *)malloc(limit);
+    if (s->input != NULL)
+        s->active = TRUE;
+}
+
+local void small_store_discard(s)
+    struct small_store_state *s;
+{
+    free(s->input);
+    free(s->output);
+    s->input = NULL;
+    s->output = NULL;
+    s->input_size = 0;
+    s->output_size = 0;
+    s->output_alloc = 0;
+    s->active = FALSE;
+}
+
+local void small_store_disable(s)
+    struct small_store_state *s;
+{
+    if (!s->active)
+        return;
+
+    if (s->output_size != 0 &&
+        zfwrite(s->output, 1, (extent)s->output_size) !=
+            (extent)s->output_size) {
+        small_store_discard(s);
+        ziperr(ZE_TEMP, "error writing compressed data to zipfile");
+    }
+    small_store_discard(s);
+}
+
+local unsigned small_store_read(s, buf, size)
+    struct small_store_state *s;
+    char *buf;
+    unsigned size;
+{
+    unsigned got;
+
+    got = file_read(buf, size);
+    if (s->active && got != (unsigned)EOF && got != 0) {
+        if ((size_t)got > s->input_limit - s->input_size) {
+            small_store_disable(s);
+        } else {
+            memcpy(s->input + s->input_size, buf, (size_t)got);
+            s->input_size += (size_t)got;
+        }
+    }
+    return got;
+}
+
+local unsigned small_store_write(s, buf, count)
+    struct small_store_state *s;
+    zvoid *buf;
+    unsigned count;
+{
+    size_t needed;
+    size_t alloc;
+    uch *new_output;
+
+    if (!s->active)
+        return zfwrite(buf, 1, (extent)count);
+    if (count == 0)
+        return 0;
+
+    needed = s->output_size + (size_t)count;
+    if (needed < s->output_size) {
+        small_store_disable(s);
+        return zfwrite(buf, 1, (extent)count);
+    }
+
+    if (needed > s->output_alloc) {
+        alloc = s->output_alloc == 0 ? 1024U : s->output_alloc;
+        while (alloc < needed) {
+            size_t next;
+            next = alloc * 2U;
+            if (next <= alloc) {
+                alloc = needed;
+                break;
+            }
+            alloc = next;
+        }
+        new_output = (uch *)realloc(s->output, alloc);
+        if (new_output == NULL) {
+            small_store_disable(s);
+            return zfwrite(buf, 1, (extent)count);
+        }
+        s->output = new_output;
+        s->output_alloc = alloc;
+    }
+
+    memcpy(s->output + s->output_size, buf, (size_t)count);
+    s->output_size += (size_t)count;
+    return count;
+}
+
+local zoff_t small_store_finish(s, cmpr_method, cmpr_size)
+    struct small_store_state *s;
+    int *cmpr_method;
+    zoff_t cmpr_size;
+{
+    zoff_t result;
+
+    if (!s->active)
+        return cmpr_size;
+
+    Assert(cmpr_size == (zoff_t)s->output_size,
+           "small-store compressed byte count mismatch");
+
+    if (cmpr_size >= (zoff_t)s->input_size) {
+        if (s->input_size != 0 &&
+            zfwrite(s->input, 1, (extent)s->input_size) !=
+                (extent)s->input_size) {
+            small_store_discard(s);
+            ziperr(ZE_TEMP, "error writing stored data to zipfile");
+        }
+        *cmpr_method = STORE;
+        result = (zoff_t)s->input_size;
+    } else {
+        if (s->output_size != 0 &&
+            zfwrite(s->output, 1, (extent)s->output_size) !=
+                (extent)s->output_size) {
+            small_store_discard(s);
+            ziperr(ZE_TEMP, "error writing compressed data to zipfile");
+        }
+        result = cmpr_size;
+    }
+
+    small_store_discard(s);
+    return result;
+}
+
 struct dcl_zip_state {
     zoff_t output_size;
     int write_error;
+    struct small_store_state *store_test;
 };
 
 static unsigned short dcl_zip_read(unsigned char *buffer,
                                    unsigned short *size, void *opaque)
 {
+    struct dcl_zip_state *s;
     unsigned got;
 
-    (void)opaque;
-    got = file_read((char *)buffer, (unsigned)*size);
+    s = (struct dcl_zip_state *)opaque;
+    got = small_store_read(s->store_test, (char *)buffer, (unsigned)*size);
     if (got == (unsigned)EOF)
         return 0;
 
@@ -1602,7 +1778,7 @@ static void dcl_zip_write(unsigned char *buffer, unsigned short *size,
     if (count == 0 || s->write_error)
         return;
 
-    if (zfwrite(buffer, 1, (extent)count) != (extent)count) {
+    if (small_store_write(s->store_test, buffer, count) != count) {
         s->write_error = 1;
         return;
     }
@@ -1613,28 +1789,38 @@ static void dcl_zip_write(unsigned char *buffer, unsigned short *size,
  * PKWARE DCL Implode compression for ZIP method 10.  ZIP deliberately uses
  * binary literal coding, a 4K dictionary, and the compatible EXTRA parser.
  */
-local zoff_t dclfilecompress(z_entry)
+local zoff_t dclfilecompress(z_entry, cmpr_method)
     struct zlist far *z_entry;
+    int *cmpr_method;
 {
     struct dcl_zip_state s;
+    struct small_store_state store_test;
     unsigned short r;
 
+    small_store_init(&store_test, (size_t)SBSZ);
     s.output_size = 0;
     s.write_error = 0;
+    s.store_test = &store_test;
 
     r = pkdcl_implode_ex(dcl_zip_read, dcl_zip_write, &s,
                          PKDCL_CMP_BINARY, PKDCL_DICT_4K,
                          PKDCL_FLAG_EXTRA);
 
-    if (s.write_error)
+    if (s.write_error) {
+        small_store_discard(&store_test);
         ziperr(ZE_TEMP, "error writing DCL implode data to zipfile");
-    if (r == PKDCL_CMP_ABORT)
+    }
+    if (r == PKDCL_CMP_ABORT) {
+        small_store_discard(&store_test);
         ziperr(ZE_MEM, "DCL implode compression failed");
-    if (r != PKDCL_CMP_NO_ERROR)
+    }
+    if (r != PKDCL_CMP_NO_ERROR) {
+        small_store_discard(&store_test);
         ziperr(ZE_LOGIC, "DCL implode compression failed");
+    }
 
     z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
-    return s.output_size;
+    return small_store_finish(&store_test, cmpr_method, s.output_size);
 }
 
 #ifdef PPMD_SUPPORT
@@ -1646,6 +1832,7 @@ typedef struct {
     unsigned used;
     zoff_t output_size;
     int write_error;
+    struct small_store_state *store_test;
 } ppmd_zip_out;
 
 static void *ppmd_zip_alloc(ISzAllocPtr a, size_t size)
@@ -1666,7 +1853,7 @@ static void ppmd_zip_flush_out(ppmd_zip_out *s)
 {
     if (s->used == 0 || s->write_error)
         return;
-    if (zfwrite(s->buffer, 1, (extent)s->used) != (extent)s->used) {
+    if (small_store_write(s->store_test, s->buffer, s->used) != s->used) {
         s->write_error = 1;
         return;
     }
@@ -1708,30 +1895,38 @@ static ZCONST ppmd_zip_level ppmd_zip_levels[9] = {
     { 16U, 256U }
 };
 
-local zoff_t ppmdfilecompress(z_entry)
+local zoff_t ppmdfilecompress(z_entry, cmpr_method)
     struct zlist far *z_entry;
+    int *cmpr_method;
 {
     CPpmd8 model;
+    struct small_store_state store_test;
     ppmd_zip_out output;
     Byte *inbuf;
     unsigned got, i, lev, props;
     unsigned order, mem_mb;
 
-    lev = (level >= 1 && level <= 9) ? (unsigned)level : 6U;
+    lev = (level == 11) ? 9U :
+          ((level >= 1 && level <= 9) ? (unsigned)level : 6U);
     order = ppmd_zip_levels[lev - 1U].order;
     mem_mb = ppmd_zip_levels[lev - 1U].mem_mb;
 
+    small_store_init(&store_test, (size_t)SBSZ);
     output.vt.Write = ppmd_zip_write;
     output.buffer = (Byte *)malloc(PPMD_ZIP_OUTBUF);
     output.used = 0;
     output.output_size = 0;
     output.write_error = 0;
-    if (output.buffer == NULL)
+    output.store_test = &store_test;
+    if (output.buffer == NULL) {
+        small_store_discard(&store_test);
         ziperr(ZE_MEM, "PPMd output buffer allocation failed");
+    }
 
     inbuf = (Byte *)malloc(SBSZ);
     if (inbuf == NULL) {
         free(output.buffer);
+        small_store_discard(&store_test);
         ziperr(ZE_MEM, "PPMd input buffer allocation failed");
     }
 
@@ -1739,6 +1934,7 @@ local zoff_t ppmdfilecompress(z_entry)
     if (!Ppmd8_Alloc(&model, (UInt32)mem_mb << 20, &ppmd_zip_allocator)) {
         free(inbuf);
         free(output.buffer);
+        small_store_discard(&store_test);
         ziperr(ZE_MEM, "PPMd model allocation failed");
     }
 
@@ -1753,7 +1949,7 @@ local zoff_t ppmdfilecompress(z_entry)
     Ppmd8_Init(&model, order, PPMD8_RESTORE_METHOD_RESTART);
 
     while (!output.write_error) {
-        got = file_read((char *)inbuf, SBSZ);
+        got = small_store_read(&store_test, (char *)inbuf, SBSZ);
         if (got == (unsigned)EOF || got == 0)
             break;
         if (file_binary_final == 0 && !is_text_buf((char *)inbuf, got))
@@ -1772,11 +1968,13 @@ local zoff_t ppmdfilecompress(z_entry)
     free(inbuf);
     free(output.buffer);
 
-    if (output.write_error)
+    if (output.write_error) {
+        small_store_discard(&store_test);
         ziperr(ZE_TEMP, "error writing PPMd data to zipfile");
+    }
 
     z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
-    return output.output_size;
+    return small_store_finish(&store_test, cmpr_method, output.output_size);
 }
 #endif /* PPMD_SUPPORT */
 
@@ -1903,6 +2101,220 @@ int seekable()
 #endif /* ?USE_ZLIB */
 
 
+#ifdef ZOPFLI_SUPPORT
+
+/* Zopfli's raw Deflate part API can use at most the Deflate-standard 32 KiB
+ * history window.  The 1,000,000-byte master chunk matches upstream Zopfli's
+ * own large-input partitioning, while a full-read helper makes chunk
+ * boundaries independent of short reads from pipes or devices. */
+#define ZOPFLI_ZIP_HISTORY 32768U
+#define ZOPFLI_ZIP_CHUNK   1000000UL
+
+local size_t zopfli_read_chunk(store_test, buf, capacity, at_eof)
+    struct small_store_state *store_test;
+    uch *buf;
+    size_t capacity;
+    int *at_eof;
+{
+    size_t total;
+
+    total = 0;
+    *at_eof = 0;
+    while (total < capacity) {
+        unsigned want;
+        unsigned got;
+
+        want = (unsigned)(capacity - total);
+        got = small_store_read(store_test, (char *)buf + total, want);
+        if (got == (unsigned)EOF || got == 0) {
+            *at_eof = 1;
+            break;
+        }
+        if (file_binary_final == 0 &&
+            !is_text_buf((char *)buf + total, got))
+            file_binary_final = 1;
+        total += (size_t)got;
+    }
+    return total;
+}
+
+local void zopfli_write_part(store_test, options, final, in, instart, inend,
+                             bp, carry, total_out)
+    struct small_store_state *store_test;
+    ZopfliOptions *options;
+    int final;
+    ZCONST uch *in;
+    size_t instart;
+    size_t inend;
+    uch *bp;
+    uch *carry;
+    zoff_t *total_out;
+{
+    uch *out;
+    size_t outsize;
+    size_t write_size;
+
+    out = NULL;
+    outsize = 0;
+
+    /* If the preceding part ended in a partial byte, seed the new dynamic
+     * output with that byte.  Zopfli then continues writing at *bp. */
+    if (*bp != 0) {
+        out = (uch *)malloc(1);
+        if (out == NULL)
+            ziperr(ZE_MEM, "allocating Zopfli output carry byte");
+        out[0] = *carry;
+        outsize = 1;
+    }
+
+    ZopfliDeflatePart(options, 2, final, in, instart, inend,
+                      bp, &out, &outsize);
+
+    if (final || *bp == 0) {
+        write_size = outsize;
+    } else {
+        Assert(outsize != 0, "Zopfli partial output missing carry byte");
+        write_size = outsize - 1;
+        *carry = out[outsize - 1];
+    }
+
+    if (write_size != 0) {
+        if (small_store_write(store_test, out, (unsigned)write_size) !=
+            (unsigned)write_size) {
+            free(out);
+            ziperr(ZE_TEMP, "error writing Zopfli data to zipfile");
+        }
+        *total_out += (zoff_t)write_size;
+    }
+    free(out);
+}
+
+local zoff_t zopflifilecompress(z_entry, cmpr_method)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+{
+    ZopfliOptions options;
+    struct small_store_state store_test;
+    uch *work;
+    uch *next;
+    size_t history;
+    size_t current_size;
+    size_t next_size;
+    int current_eof;
+    int next_eof;
+    uch bp;
+    uch carry;
+    zoff_t total_out;
+    zoff_t processed;
+    unsigned mrk_cnt;
+
+    small_store_init(&store_test, (size_t)SBSZ);
+
+    work = (uch *)malloc((size_t)ZOPFLI_ZIP_HISTORY +
+                         (size_t)ZOPFLI_ZIP_CHUNK);
+    next = (uch *)malloc((size_t)ZOPFLI_ZIP_CHUNK);
+    if (work == NULL || next == NULL) {
+        free(work);
+        free(next);
+        small_store_discard(&store_test);
+        ziperr(ZE_MEM, "allocating Zopfli input buffers");
+    }
+
+    ZopfliInitOptions(&options);
+    options.numiterations = zopfli_iterations;
+
+    history = 0;
+    bp = 0;
+    carry = 0;
+    total_out = 0;
+    processed = 0;
+    mrk_cnt = 1;
+
+    current_size = zopfli_read_chunk(&store_test, work,
+                                     (size_t)ZOPFLI_ZIP_CHUNK,
+                                     &current_eof);
+    next_size = 0;
+    next_eof = 0;
+    if (!current_eof)
+        next_size = zopfli_read_chunk(&store_test, next,
+                                      (size_t)ZOPFLI_ZIP_CHUNK,
+                                      &next_eof);
+
+    for (;;) {
+        int final;
+
+        final = current_eof || (next_eof && next_size == 0);
+        zopfli_write_part(&store_test, &options, final, work, history,
+                          history + current_size, &bp, &carry, &total_out);
+        processed += (zoff_t)current_size;
+
+        if (verbose || noisy) {
+            while ((unsigned)(processed / (zoff_t)(ulg)WSIZE) > mrk_cnt) {
+                mrk_cnt++;
+                if (!display_globaldots) {
+                    if (dot_size > 0) {
+                        if (noisy && dot_count == -1) {
+#ifndef WINDLL
+                            putc(' ', mesg);
+                            fflush(mesg);
+#else
+                            fprintf(stdout, "%c", ' ');
+#endif
+                            dot_count++;
+                        }
+                        dot_count++;
+                        if (dot_size <= (dot_count + 1) * WSIZE)
+                            dot_count = 0;
+                    }
+                    if (noisy && dot_size && !dot_count) {
+#ifndef WINDLL
+                        putc('.', mesg);
+                        fflush(mesg);
+#else
+                        fprintf(stdout, "%c", '.');
+#endif
+                        mesg_line_started = 1;
+                    }
+                }
+            }
+        }
+
+        if (final)
+            break;
+
+        {
+            size_t keep;
+            size_t available;
+
+            available = history + current_size;
+            keep = available < (size_t)ZOPFLI_ZIP_HISTORY ?
+                   available : (size_t)ZOPFLI_ZIP_HISTORY;
+            if (keep != 0)
+                memmove(work, work + available - keep, keep);
+            history = keep;
+        }
+
+        memcpy(work + history, next, next_size);
+        current_size = next_size;
+        current_eof = next_eof;
+
+        next_size = 0;
+        next_eof = 0;
+        if (!current_eof)
+            next_size = zopfli_read_chunk(&store_test, next,
+                                          (size_t)ZOPFLI_ZIP_CHUNK,
+                                          &next_eof);
+    }
+
+    free(next);
+    free(work);
+
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    z_entry->flg |= 2;               /* maximum-compression Deflate marker */
+    return small_store_finish(&store_test, cmpr_method, total_out);
+}
+#endif /* ZOPFLI_SUPPORT */
+
 /* ===========================================================================
  * Compression to archive file.
  */
@@ -1910,6 +2322,10 @@ local zoff_t filecompress(z_entry, cmpr_method)
     struct zlist far *z_entry;
     int *cmpr_method;
 {
+#ifdef ZOPFLI_SUPPORT
+    if (level == 11)
+        return zopflifilecompress(z_entry, cmpr_method);
+#endif
 #ifdef USE_ZLIB
     int err = Z_OK;
     unsigned mrk_cnt = 1;
@@ -2098,6 +2514,7 @@ ulg memcompress(tgt, tgtsize, src, srcsize)
     ulg crc;
     unsigned out_total;
     int method   = DEFLATE;
+    int mem_level = (level == 11 ? 9 : level);
 #ifdef USE_ZLIB
     int err      = Z_OK;
 #else
@@ -2110,7 +2527,7 @@ ulg memcompress(tgt, tgtsize, src, srcsize)
 
 #ifdef USE_ZLIB
     if (!deflInit) {
-        err = zl_deflate_init(level);
+        err = zl_deflate_init(mem_level);
         if (err != ZE_OK)
             ziperr(err, errbuf);
     }
@@ -2136,7 +2553,7 @@ ulg memcompress(tgt, tgtsize, src, srcsize)
 
     bi_init(tgt + (2 + 4), (unsigned)(tgtsize - (2 + 4)), FALSE);
     ct_init(&att, &method);
-    lm_init((level != 0 ? level : 1), &flags);
+    lm_init((mem_level != 0 ? mem_level : 1), &flags);
     out_total += (unsigned)deflate();
     window_size = 0L; /* was updated by lm_init() */
 #endif /* ?USE_ZLIB */
@@ -2248,7 +2665,7 @@ int *cmpr_method;
         ziperr(ZE_MEM, "allocating zlib/bzlib file-I/O buffers");
 
     if (!bzipInit) {
-        err = bz_compress_init(level);
+        err = bz_compress_init(level == 11 ? 9 : level);
         if (err != ZE_OK)
             ziperr(err, errbuf);
     }

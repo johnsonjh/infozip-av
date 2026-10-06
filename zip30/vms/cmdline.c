@@ -203,7 +203,7 @@ $DESCRIPTOR(cli_help_extended,  "HELP.EXTENDED");       /* -h2 */
 $DESCRIPTOR(cli_junk,           "JUNK");                /* -j */
 $DESCRIPTOR(cli_keep_version,   "KEEP_VERSION");        /* -w */
 $DESCRIPTOR(cli_latest,         "LATEST");              /* -o */
-$DESCRIPTOR(cli_level,          "LEVEL");               /* -[0-9] */
+$DESCRIPTOR(cli_level,          "LEVEL");               /* -0..-9, -11 */
 $DESCRIPTOR(cli_license,        "LICENSE");             /* -L */
 $DESCRIPTOR(cli_log_file,       "LOG_FILE");            /* -la,-lf,-li */
 $DESCRIPTOR(cli_log_file_append, "LOG_FILE.APPEND");    /* -la */
@@ -461,7 +461,7 @@ vms_zip_cmdline (int *argc_p, char ***argv_p)
         *ptr++ = 'u';
 
     /*
-    **  Check for the compression level (-0 through -9).
+    **  Check for the compression level (-0 through -9, or -11).
     */
     status = cli$present(&cli_level);
     if (status & 1) {
@@ -471,10 +471,15 @@ vms_zip_cmdline (int *argc_p, char ***argv_p)
 
         status = cli$get_value(&cli_level, &work_str);
         status = ots$cvt_tu_l(&work_str, &binval);
-        if (!(status & 1) || (binval > 9)) {
+        if (!(status & 1) || (binval > 11) || (binval == 10)) {
            return (SS$_ABORT);
         }
-        *ptr++ = binval + '0';
+        if (binval == 11) {
+            *ptr++ = '1';
+            *ptr++ = '1';
+        } else {
+            *ptr++ = binval + '0';
+        }
     }
 
     /*

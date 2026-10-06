@@ -89,6 +89,15 @@ normal -1 through -9 compression levels tune the PPMd model from order 6 /
 50 MiB.  PPMd archives require a method-98-capable extractor.  Zip can also
 use the bzip2 compression format when the bzip2 library is available.
 
+Optimized Deflate.  On supported builds, -11 selects an embedded strict-C89
+amalgamation of Zopfli 1.0.3 for Deflate.  Zopfli still writes ordinary ZIP
+method-8 Deflate, so no special extractor support is required.  It processes
+input in fixed 1,000,000-byte parts while retaining the full 32 KiB Deflate
+history, so stdin and very large files do not require whole-file buffering.
+--zopfli-iterations sets the optimization iteration count (default 15, range
+1 through 10000).  For PPMd and bzip2, -11 maps exactly to -9.  Zopfli can be
+omitted with NO_ZOPFLI and is not enabled for 16-bit or Windows DLL builds.
+
 Installation.  Please read the file INSTALL for information on how to compile
 and install zip, zipsplit, zipcloak, and zipnote and please read the manual
 pages ZIP.txt, ZIPSPLIT.txt, ZIPCLOAK.txt, and ZIPNOTE.txt for information on

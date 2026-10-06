@@ -83,11 +83,12 @@ USE
        integrity).   An  entire  directory  structure can be packed into a zip
        archive with a single command.  Compression ratios of 2:1  to  3:1  are
        common for text files.  zip supports deflation, PKWARE DCL Implode, and
-       PPMd compression,  and can  also  store  files without compression.  If
-       bzip2 support is added, zip can also compress using bzip2. PPMd entries
-       use  ZIP  method  98  and  require   a  PPMd-capable   extractor.   zip
-       automatically  chooses  between  the  selected  compression  method and
-       storing the file when storing produces the smaller result.
+       PPMd compression, and can also store files without compression.  If bzip2
+       support is added, zip can also compress using bzip2.  With -11, Deflate
+       uses the built-in Zopfli optimizer where supported; the result is still
+       ordinary ZIP method 8.  PPMd entries use ZIP method 98 and require a
+       PPMd-capable extractor.  zip automatically chooses between the selected
+       compression method and storing the file when storing is smaller.
 
        Command format.  The basic command format is
 
@@ -1697,9 +1698,11 @@ OPTIONS
               than compressing entries, but results in no space savings.  This
               is the same as using -0 (compression level zero).
 
-              deflate - This is the default method for zip.  If zip determines
-              that  storing is better than deflation, the entry will be stored
-              instead.
+              deflate - This is the default method for zip.  Levels -1 through
+              -9 use normal Deflate.  On supported builds, -11 uses the built-in
+              Zopfli 1.0.3 optimizer and still writes ordinary ZIP method-8
+              Deflate.  If Zopfli is not enabled, -11 with Deflate is an error
+              rather than silently falling back to -9.
 
               dcl-implode - Use PKWARE DCL Implode (ZIP method 10).  Zip uses
               binary literal coding, a 4K dictionary, and the compatible extra
@@ -1709,13 +1712,13 @@ OPTIONS
               built in on non-16-bit targets unless disabled at compile time
               with NO_PPMD.  Archives using method 98 require a PPMd-capable
               extractor and advertise ZIP extraction version 6.3.  The encoder
-              uses PPMd restart restoration.
+              uses PPMd restart restoration.  With PPMd, -11 is the same as -9.
 
               bzip2 - If bzip2 support is compiled in, this compression method
               also becomes available.  Only some modern unzips currently sup-
               port the bzip2 compression method, so test the unzip you will be
               using before relying on archives using this method (compression
-              method 12).
+              method 12).  With bzip2, -11 is the same as -9.
 
               For example, to add bar.c to archive foo using PPMd compression:
 
@@ -1730,15 +1733,19 @@ OPTIONS
                      zip -Zb foo bar.c
 
        -#
-       (-0, -1, -2, -3, -4, -5, -6, -7, -8, -9)
-              Regulate  the  speed of compression using the specified digit #,
-              where -0 indicates no compression (store all  files),  -1  indi-
-              cates  the  fastest  compression speed (less compression) and -9
-              indicates the slowest compression  speed  (optimal  compression,
-              ignores the suffix list). The default compression level is -6.
+       (-0, -1, -2, -3, -4, -5, -6, -7, -8, -9, -11)
+              Regulate compression effort.  -0 stores, -1 is the fastest normal
+              compression level, and -9 is the slowest normal level and ignores
+              the suffix list.  The default is -6.
 
-              This setting controls deflation and PPMd compression.  For PPMd,
-              the level selects both model order and model-memory allocation:
+              -11 is special.  For Deflate it selects Zopfli optimized Deflate
+              when Zopfli support is compiled in; entries remain ZIP method 8.
+              Without Zopfli support, -11 with Deflate is an error.  Other
+              level-aware methods map -11 exactly to -9.  Like -9, -11 ignores
+              the suffix list.
+
+              For PPMd, the effective level selects both model order and model-
+              memory allocation; -11 uses the -9 row:
 
                      Level    Order    Model memory
                      -1       6        2 MiB
@@ -1753,7 +1760,15 @@ OPTIONS
 
               The model-memory value is the PPMd model allocation, not total
               process memory.  The default -6 uses order 8 with a 50 MiB model;
-              -9 uses PPMdI's maximum order 16 with a 256 MiB model.
+              -9 and -11 use PPMdI's maximum order 16 with a 256 MiB model.
+
+       --zopfli-iterations n
+       --zopfli-iterations=n
+              Set Zopfli optimization iterations (default 15, range 1 through
+              10000).  This option is valid only when -11 ultimately selects
+              Deflate.  Larger values can take substantially more CPU time for
+              progressively smaller gains.  Input is processed in fixed-size
+              parts while retaining the full 32 KiB Deflate history.
 
        -!
        --use-privileges

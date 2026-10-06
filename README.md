@@ -39,8 +39,11 @@ The ability to both compress and decompress archives using **DCL Implode**
 (method 10) and **PPMd** (method 98) has been added.  New decompression‑only
 support for **Shrink** (method 1), **Reduce** (methods 2 through 5), and
 **ZIP Implode** (method 6) has also been added.  The common **Store** (method
-0), **Deflate** (method 8), and **Deflate64** (method 9) algorithms remain
-supported.
+0), **Deflate** (method 8), and (decompression‑only) **Deflate64** (method 9)
+algorithms remain supported.
+
+New [Zopfli](https://github.com/google/zopfli)‑enhanced **Deflate** support is
+also available (when compressing using `zip -11`).
 
 These changes are built using Fedora's current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
@@ -443,6 +446,10 @@ No errors detected in compressed data of pkz110.exe.
 
 * The **PPMd** compression and decompression implementations are derived from
   the public‑domain [7‑Zip PPMd](https://www.7-zip.org/sdk.html) routines.
+
+* The **Zopfli** compression algorithm used is derived from the
+  [Apache‑2.0](zip30/zopfli.LICENSE) licensed upstream
+  [reference implementation](https://github.com/google/zopfli).
 
 * The Info‑ZIP software suites (Zip and UnZip, with included tools) are
   distributed under their respective [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE)

@@ -78,6 +78,12 @@ Installation on Unix (see below for installation on other systems)
      may allocate from 2 MiB (-1) through 256 MiB (-9) for its model; the
      default -6 level uses a 50 MiB model.
 
+     On supported ANSI C89 flat-memory builds, -11 selects the built-in
+     Zopfli 1.0.3 optimizer for ordinary method-8 Deflate.  The embedded
+     zopfli.c/zopfli.h amalgamation needs no external Zopfli library and no
+     additional math library.  Define NO_ZOPFLI to omit it.  Zopfli support
+     is not enabled for 16-bit memory models or the Windows DLL build.
+
      To add the additional optional "bzip2" compression method, see the file
      bzip2/install.txt.  Note that bzip2 support is provided by
      compiling or linking in the bzip2 library.  See the bzip2 site
@@ -330,6 +336,24 @@ Compiler Flags
     default -6 level uses 50 MiB; -9 uses 256 MiB.
 
     Define NO_PPMD to build Zip without method-98 compression.
+
+  ZOPFLI_SUPPORT
+    Enable the built-in Zopfli 1.0.3 optimizer used by compression level -11
+    for Deflate.  The imported source is amalgamated into zopfli.c/zopfli.h,
+    is compiled directly with Zip, and requires no external Zopfli library
+    or libm.  Zopfli is Apache 2.0 licensed code, see zopfli.LICENSE.
+
+    ZOPFLI_SUPPORT is enabled automatically on normal ANSI C89 flat-memory
+    builds.  It is not enabled with MEMORY16, WINDLL, or legacy compiler
+    configurations lacking the standard ANSI prototypes/types required by
+    Zopfli.  Define NO_ZOPFLI to disable it explicitly.
+
+    -11 uses Zopfli only when the selected method is Deflate.  Other
+    level-aware methods map -11 to their -9 settings.  The Zopfli streaming
+    adapter reads fixed 1,000,000-byte parts and carries the complete 32 KiB
+    Deflate history between parts, so whole-file input buffering is not
+    required.  --zopfli-iterations selects 1 through 10000 optimization
+    iterations; the default is 15.
 
   BZIP2_SUPPORT
     Enable compressing zip entries using the bzip2 library.  You must get

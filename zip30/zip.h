@@ -340,6 +340,15 @@ extern int scanimage;           /* Scan through image files */
 # define PPMD_SUPPORT
 #endif
 
+/* Zopfli requires an ANSI C89 compiler and large flat memory.  Keep it
+ * out of 16-bit/non-ANSI targets and the Windows DLL, but allow any build
+ * to disable it explicitly with NO_ZOPFLI. */
+#if !defined(NO_ZOPFLI) && !defined(MEMORY16) && !defined(WINDLL) && \
+    !defined(NO_PROTO) && !defined(NO_CONST) && !defined(NO_STDLIB_H) && \
+    !defined(NO_STDDEF_H) && !defined(NO_SIZE_T) && !defined(NO_VOID)
+# define ZOPFLI_SUPPORT
+#endif
+
 #ifdef BZIP2_SUPPORT
 #define LAST_KNOWN_COMPMETHOD   BZIP2
 #else
@@ -361,6 +370,7 @@ extern int filesync;            /* 1=file sync, delete entries not on file syste
 extern int adjust;              /* Adjust the unzipsfx'd zip file */
 extern int fwkcs_md5;           /* Add FWKCS MD5 central extra field */
 extern int level;               /* Compression level */
+extern int zopfli_iterations;   /* Zopfli optimization iterations */
 extern int translate_eol;       /* Translate end-of-line LF -> CR LF */
 #ifdef VMS
    extern int vmsver;           /* Append VMS version number to file names */

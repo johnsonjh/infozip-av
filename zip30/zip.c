@@ -1508,6 +1508,8 @@ local void help_extended()
 "Compression:",
 "  -0        store files (no compression)",
 "  -1 to -9  compress fastest to compress best (default is 6)",
+"  -11       Zopfli optimized Deflate (other level-aware methods use -9)",
+"  --zopfli-iterations n  Zopfli optimization passes (default 15, 1..10000)",
 "  -Z cm     set compression method to cm:",
 "              store   - store without compression, same as option -0",
 "              deflate - original zip deflate, same as -1 to -9 (default)",
@@ -1802,7 +1804,10 @@ local void version_info()
     "ZIP64_SUPPORT        (use Zip64 to store large files in archives)",
 #endif
 #ifdef PPMD_SUPPORT
-    "PPM/PPMd support     (ZIP method 98; public-domain PPMd from 7-Zip 26.03 commit 0766b73)",
+    "PPM/PPMd support     (ZIP method 98; public-domain PPMd derived from 7-Zip)",
+#endif
+#ifdef ZOPFLI_SUPPORT
+    "ZOPFLI_SUPPORT       (Zopfli 1.0.3 optimized DEFLATE algorithm)",
 #endif
 #ifdef UNICODE_SUPPORT
     "UNICODE_SUPPORT      (store and read UTF-8 Unicode paths)",
@@ -2606,6 +2611,8 @@ int set_filetype(out_path)
 #define o_sf            0x132
 #define o_so            0x133
 #define o_fwkcs_md5     0x14b
+#define o_11            0x14c
+#define o_zopfli_iter   0x14d
 #define o_sp            0x134
 #define o_su            0x135
 #define o_sU            0x136
@@ -2642,6 +2649,7 @@ struct option_struct far options[] = {
 #endif
     {"0",  "store",       o_NO_VALUE,       o_NOT_NEGATABLE, '0',  "store"},
     {"1",  "compress-1",  o_NO_VALUE,       o_NOT_NEGATABLE, '1',  "compress 1"},
+    {"11", "compress-11", o_NO_VALUE,       o_NOT_NEGATABLE, o_11, "Zopfli deflate"},
     {"2",  "compress-2",  o_NO_VALUE,       o_NOT_NEGATABLE, '2',  "compress 2"},
     {"3",  "compress-3",  o_NO_VALUE,       o_NOT_NEGATABLE, '3',  "compress 3"},
     {"4",  "compress-4",  o_NO_VALUE,       o_NOT_NEGATABLE, '4',  "compress 4"},
@@ -2785,6 +2793,7 @@ struct option_struct far options[] = {
     {"",   "pkav-avextra", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_pkav_avextra, "PKAV AVEXTRA text file"},
     {"z",  "archive-comment", o_NO_VALUE,   o_NOT_NEGATABLE, 'z',  "ask for archive comment"},
     {"Z",  "compression-method", o_REQUIRED_VALUE, o_NOT_NEGATABLE, 'Z', "compression method"},
+    {"",   "zopfli-iterations", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_zopfli_iter, "Zopfli optimization iterations"},
 #if defined(MSDOS) || defined(OS2)
     {"$",  "volume-label", o_NO_VALUE,      o_NOT_NEGATABLE, '$',  "store volume label"},
 #endif
@@ -2869,6 +2878,7 @@ char **argv;            /* command line tokens */
   int seen_doubledash = 0; /* seen -- argument */
   int key_needed = 0;   /* prompt for encryption key */
   int have_out = 0;     /* if set in_path and out_path different archive */
+  int zopfli_iterations_set = 0; /* --zopfli-iterations was specified */
 #ifdef UNICODE_TEST
   int create_files = 0;
 #endif
@@ -2982,7 +2992,8 @@ char **argv;            /* command line tokens */
   fix = 0;             /* 1=fix the zip file */
   adjust = 0;          /* 1=adjust offsets for sfx'd file (keep preamble) */
   fwkcs_md5 = 0;       /* 1=add FWKCS MD5 metadata */
-  level = 6;           /* 0=fastest compression, 9=best compression */
+  level = 6;           /* 0=store, 1..9=normal, 11=Zopfli for Deflate */
+  zopfli_iterations = 15;
   translate_eol = 0;   /* Translate end-of-line LF -> CR LF */
 #if defined(OS2) || defined(WIN32)
   use_longname_ea = 0; /* 1=use the .LONGNAME EA as the file's name */
@@ -3354,6 +3365,8 @@ char **argv;            /* command line tokens */
         case '5':  case '6':  case '7':  case '8':  case '9':
           /* Set the compression efficacy */
           level = (int)option - '0';  break;
+        case o_11:
+          level = 11; break;
         case 'A':   /* Adjust unzipsfx'd zipfile:  adjust offsets only */
           adjust = 1; break;
 #if defined(WIN32)
@@ -3946,6 +3959,25 @@ char **argv;            /* command line tokens */
           break;
         case 'z':   /* Edit zip file comment */
           zipedit = 1;  break;
+        case o_zopfli_iter:
+          {
+            char *endp;
+            long zi;
+            errno = 0;
+            endp = NULL;
+            zi = strtol(value, &endp, 10);
+            if (errno == ERANGE || endp == value || *endp != '\0' ||
+                zi < 1 || zi > 10000) {
+              free(value);
+              ZIPERR(ZE_PARMS,
+                     "--zopfli-iterations must be an integer from 1 to 10000");
+            }
+            zopfli_iterations = (int)zi;
+            zopfli_iterations_set = 1;
+            free(value);
+          }
+          break;
+
         case 'Z':   /* Compression method */
           if (strcmp(value, "dcl-implode") == 0) {
             /* PKWARE DCL Implode, ZIP method 10 */
@@ -4285,6 +4317,17 @@ char **argv;            /* command line tokens */
   }
 
 
+  if (level == 11 && (method == BEST || method == DEFLATE)) {
+#ifndef ZOPFLI_SUPPORT
+    ZIPERR(ZE_COMPERR, "Zopfli support not enabled");
+#endif
+  }
+  if (zopfli_iterations_set &&
+      !(level == 11 && (method == BEST || method == DEFLATE))) {
+    ZIPERR(ZE_PARMS,
+           "--zopfli-iterations requires -11 with Deflate compression");
+  }
+
   /* open log file */
   if (logfile_path) {
     char mode[10];
@@ -4481,7 +4524,7 @@ char **argv;            /* command line tokens */
   if (special == NULL) {
     ZIPERR(ZE_PARMS, "missing suffix list");
   }
-  if (level == 9 || !strcmp(special, ";") || !strcmp(special, ":"))
+  if (level == 9 || level == 11 || !strcmp(special, ";") || !strcmp(special, ":"))
     special = NULL; /* compress everything */
 
   if (action == DELETE && (method != BEST || dispose || recurse ||

@@ -78,6 +78,10 @@ PPMd implementation is derived from the public-domain PPMd sources in 7-Zip
 26.03 commit 0766b73 and is adapted to strict ANSI C89.  PPMd entries
 specifically require a method-98-capable extractor; older PKUNZIP and UnZip
 versions that otherwise read Zip 3.0 archives cannot decode method 98.
+On supported builds, \fB-11\fP selects the built-in Zopfli 1.0.3 optimizer for
+ordinary ZIP method-8 Deflate.  Zopfli output needs no special extractor: it
+is a standard raw Deflate stream.  Zopfli is omitted from 16-bit and Windows
+DLL builds and may be disabled explicitly at compile time with \fBNO_ZOPFLI\fP.
 Note that PKUNZIP 1.10 cannot extract files produced by
 PKZIP 2.04 or
 \fIzip\ 3.0\fP. You must use PKUNZIP 2.04g or
@@ -140,8 +144,10 @@ Compression ratios of 2:1 to 3:1 are common for text files.
 .I zip
 supports deflation, PKWARE DCL Implode, and PPMd Variant I compression,
 and can also store files without compression.  (If \fBbzip2\fP support is
-added, \fIzip\fP can also compress using \fBbzip2\fP.)  PPMd entries use
-ZIP method 98 and require a PPMd-capable extractor.
+added, \fIzip\fP can also compress using \fBbzip2\fP.)  With \fB-11\fP,
+Deflate compression uses the built-in Zopfli optimizer where supported; the
+result is still ordinary ZIP method 8.  PPMd entries use ZIP method 98 and
+require a PPMd-capable extractor.
 .I zip
 automatically chooses between the selected compression method and storing
 the file when storing produces the smaller result.
@@ -1497,9 +1503,11 @@ To attempt compression on all files, use:
 zip -n : foo
 .RE
 .IP
-The maximum compression option
+The maximum compression options
 .B \-9
-also attempts compression on all files regardless of extension.
+and
+.B \-11
+also attempt compression on all files regardless of extension.
 .IP
 On Acorn RISC OS systems the suffixes are actually filetypes (3 hex digit
 format). By default, \fIzip\fP does not compress files with filetypes in the list
@@ -2397,9 +2405,13 @@ Compression method can be set to:
 faster than compressing entries, but results in no space savings.
 This is the same as using \fB\-0\fP (compression level zero).
 
-\fBdeflate\fP \- This is the default method for \fIzip\fP.  If \fIzip\fP
-determines that storing is better than deflation, the entry will be
-stored instead.
+\fBdeflate\fP \- This is the default method for \fIzip\fP.  Levels
+\fB-1\fP through \fB-9\fP use the normal Deflate implementation.  On
+builds with Zopfli support, \fB-11\fP uses the built-in Zopfli 1.0.3
+optimizer and still writes ordinary ZIP method-8 Deflate data.  If Zopfli
+support is not enabled, \fB-11\fP with Deflate is an error rather than a
+silent fallback to \fB-9\fP.  If \fIzip\fP determines that storing is
+better than deflation, the entry will be stored instead.
 
 \fBdcl-implode\fP \- Use PKWARE DCL Implode (ZIP method 10).  Zip uses
 binary literal coding, a 4K dictionary, and the compatible extra parsing
@@ -2408,12 +2420,14 @@ mode.
 \fBppmd\fP \- Use PPMd Variant I (ZIP method 98).  PPMd support is built
 in on non-16-bit targets unless disabled at compile time with \fBNO_PPMD\fP.
 Archives using method 98 require a PPMd-capable extractor and advertise ZIP
-extraction version 6.3.  The encoder uses PPMd restart restoration.
+extraction version 6.3.  The encoder uses PPMd restart restoration.  With
+PPMd, \fB-11\fP has exactly the same settings as \fB-9\fP.
 
 \fBbzip2\fP \- If \fBbzip2\fP support is compiled in, this compression
 method also becomes available.  Only some modern unzips currently support
 the \fBbzip2\fP compression method, so test the unzip you will be using
 before relying on archives using this method (compression method 12).
+With bzip2, \fB-11\fP has exactly the same settings as \fB-9\fP.
 
 For example, to add \fBbar.c\fP to archive \fBfoo\fP using PPMd
 compression:
@@ -2439,22 +2453,27 @@ zip -Zb foo bar.c
 .BI \-#
 .TP
 .PD
-.B (\-0, \-1, \-2, \-3, \-4, \-5, \-6, \-7, \-8, \-9)
-Regulate the speed of compression using the specified digit
-.BR # ,
-where
+.B (\-0, \-1, \-2, \-3, \-4, \-5, \-6, \-7, \-8, \-9, \-11)
+Regulate compression effort.  With the normal compressors,
 .B \-0
 indicates no compression (store all files),
 .B \-1
-indicates the fastest compression speed (less compression)
-and
+indicates the fastest compression speed (less compression), and
 .B \-9
-indicates the slowest compression speed (optimal compression, ignores
-the suffix list). The default compression level is
+indicates the slowest normal compression speed (optimal compression and
+ignores the suffix list). The default compression level is
 .BR \-6.
+.PP
+.B \-11
+is a special level.  For Deflate it selects Zopfli optimized Deflate
+when Zopfli support is compiled in; the resulting entries remain
+standard ZIP method 8.  If Zopfli support is unavailable,
+using \fB-11\fP with Deflate reports an error.  For every other compression
+method whose behavior depends on the numeric level, \fB-11\fP is mapped to
+exactly \fB-9\fP.  Like \fB-9\fP, \fB-11\fP ignores the suffix list.
 
-This setting controls deflation and PPMd compression.  For PPMd, the
-level selects both model order and model-memory allocation as follows:
+For PPMd, the effective level selects both model order and model-memory
+allocation as follows; \fB-11\fP uses the \fB-9\fP row:
 .RS
 .nf
 Level   Order   Model memory
@@ -2471,7 +2490,21 @@ Level   Order   Model memory
 .RE
 The model-memory value is the PPMd model allocation, not total process memory.
 The default \fB-6\fP therefore uses order 8 with a 50 MiB model, while
-\fB-9\fP uses PPMdI's maximum order 16 with a 256 MiB model.
+\fB-9\fP and \fB-11\fP use PPMdI's maximum order 16 with a 256 MiB model.
+.TP
+.PD 0
+.BI \-\-zopfli-iterations\ n
+.TP
+.PD
+.BI \-\-zopfli-iterations= n
+Set the number of Zopfli optimization iterations.  The default is 15 and
+valid values are 1 through 10000.  This option is valid only when
+\fB-11\fP ultimately selects Deflate compression.  It is an error with
+other levels or compression methods, regardless of option ordering.  Larger
+values can take substantially more CPU time for progressively smaller gains.
+Zopfli processes input in fixed-size parts while retaining the full 32 KiB
+Deflate history, so it also works with pipes and very large files without
+buffering the complete input file.
 .TP
 .PD 0
 .B \-!
