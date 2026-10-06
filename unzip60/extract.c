@@ -186,6 +186,165 @@ static int uz_ppmd_decompress(__G)
 }
 #endif /* USE_PPMD */
 
+#ifdef USE_LZMA
+/* Decode ZIP method 14.
+ * The ZIP-specific properties header is part of the compressed/encrypted
+ * byte stream, so all input is consumed through the normal UnZip input
+ * buffer after defer_leftover_input() */
+static int uz_lzma_decompress(__G)
+    __GDEF
+{
+    lzma_stream strm = LZMA_STREAM_INIT;
+    lzma_filter filters[2];
+    lzma_options_lzma *options;
+    uch *props;
+    unsigned props_size;
+    unsigned i;
+    unsigned produced;
+    unsigned outsize;
+    zusz_t expected_size;
+    int c;
+    int r;
+    int eos;
+    lzma_ret lr;
+
+    if (G.csize + (zoff_t)G.incnt < 4)
+        return PK_ERR;
+
+    /* SDK version bytes are informational */
+    c = NEXTBYTE;
+    if (c == EOF) return PK_ERR;
+    c = NEXTBYTE;
+    if (c == EOF) return PK_ERR;
+    c = NEXTBYTE;
+    if (c == EOF) return PK_ERR;
+    props_size = (unsigned)c;
+    c = NEXTBYTE;
+    if (c == EOF) return PK_ERR;
+    props_size |= (unsigned)c << 8;
+
+    if ((zoff_t)props_size > G.csize + (zoff_t)G.incnt)
+        return PK_ERR;
+    props = (uch *)malloc(props_size == 0 ? 1U : (size_t)props_size);
+    if (props == NULL)
+        return PK_MEM3;
+    for (i = 0; i < props_size; ++i) {
+        c = NEXTBYTE;
+        if (c == EOF) {
+            free(props);
+            return PK_ERR;
+        }
+        props[i] = (uch)c;
+    }
+
+    eos = (G.lrec.general_purpose_bit_flag & 2) != 0;
+    filters[0].id = eos ? LZMA_FILTER_LZMA1 : LZMA_FILTER_LZMA1EXT;
+    filters[0].options = NULL;
+    filters[1].id = LZMA_VLI_UNKNOWN;
+    filters[1].options = NULL;
+    lr = lzma_properties_decode(&filters[0], NULL,
+                                (const uint8_t *)props, (size_t)props_size);
+    free(props);
+    if (lr == LZMA_MEM_ERROR)
+        return PK_MEM3;
+    if (lr != LZMA_OK)
+        return PK_ERR;
+
+    options = (lzma_options_lzma *)filters[0].options;
+    if (!eos) {
+        options->ext_flags = 0;
+        lzma_set_ext_size((*options), (uint64_t)G.lrec.ucsize);
+    }
+
+    lr = lzma_raw_decoder(&strm, filters);
+    if (lr != LZMA_OK) {
+        free(filters[0].options);
+        return lr == LZMA_MEM_ERROR ? PK_MEM3 : PK_ERR;
+    }
+
+#if (defined(DLL) && !defined(NO_SLIDE_REDIR))
+    if (G.redirect_slide) {
+        outsize = G.redirect_size;
+        redirSlide = G.redirect_buffer;
+    } else {
+        outsize = WSIZE;
+        redirSlide = slide;
+    }
+#else
+    outsize = WSIZE;
+#endif
+
+    strm.next_in = NULL;
+    strm.avail_in = 0;
+    strm.next_out = (uint8_t *)redirSlide;
+    strm.avail_out = (size_t)outsize;
+    expected_size = G.lrec.ucsize;
+    r = PK_COOL;
+
+    for (;;) {
+        if (strm.avail_in == 0) {
+            if (G.incnt <= 0 && G.csize > 0 && fillinbuf(__G) == 0) {
+                r = PK_ERR;
+                break;
+            }
+            if (G.incnt > 0) {
+                strm.next_in = (const uint8_t *)G.inptr;
+                strm.avail_in = (size_t)G.incnt;
+            }
+        }
+
+        {
+            const uint8_t *before_in;
+            size_t before_avail;
+            before_in = strm.next_in;
+            before_avail = strm.avail_in;
+            lr = lzma_code(&strm, LZMA_RUN);
+            if (before_avail != 0) {
+                unsigned consumed;
+                consumed = (unsigned)(strm.next_in - before_in);
+                G.inptr += consumed;
+                G.incnt -= (int)consumed;
+            }
+        }
+
+        produced = outsize - (unsigned)strm.avail_out;
+        if (produced != 0 && (strm.avail_out == 0 || lr == LZMA_STREAM_END)) {
+            r = FLUSH(produced);
+            if (r != PK_COOL)
+                break;
+            strm.next_out = (uint8_t *)redirSlide;
+            strm.avail_out = (size_t)outsize;
+        }
+
+        if (lr == LZMA_STREAM_END)
+            break;
+        if (lr == LZMA_MEM_ERROR) {
+            r = PK_MEM3;
+            break;
+        }
+        if (lr != LZMA_OK) {
+            r = PK_ERR;
+            break;
+        }
+        if (strm.avail_in == 0 && G.incnt <= 0 && G.csize <= 0) {
+            r = PK_ERR;
+            break;
+        }
+    }
+
+    /* payload must occupy the compressed-data segment and
+     * produce exactly the size recorded in the ZIP header */
+    if (r == PK_COOL &&
+        ((zusz_t)strm.total_out != expected_size ||
+         G.csize + (zoff_t)G.incnt != 0))
+        r = PK_ERR;
+
+    lzma_end(&strm);
+    free(filters[0].options);
+    return r;
+}
+#endif /* USE_LZMA */
+
 #define GRRDUMP(buf,len) { \
     int i, j; \
  \
@@ -584,7 +743,7 @@ static int pkav_emit_filtered(__G__ buf, len, flags, preserve_formatting)
              * NB: Make the input to fnfilter 'safe' before calling.
              * Some fnfilter multibyte paths can fallback to copying
              * input unchanged if internal allocations fail. Escape C0
-	     * controls and DEL here so that fallback is safe.
+             * controls and DEL here so that fallback is safe.
              */
             raw_len = 0;
             for (i = 0; i < n; ++i) {
@@ -1848,6 +2007,10 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
     if (!UNKN_BZ2 && unzvers_support < UNZIP_BZ2VERS)
         unzvers_support = UNZIP_BZ2VERS;
 #endif
+#ifdef USE_LZMA
+    if (!UNKN_LZMA && unzvers_support < UNZIP_LZMAVERS)
+        unzvers_support = UNZIP_LZMAVERS;
+#endif
 #ifdef USE_PPMD
     if (!UNKN_PPMD && unzvers_support < UNZIP_PPMDVERS)
         unzvers_support = UNZIP_PPMDVERS;
@@ -2913,6 +3076,35 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             }
             break;
 #endif /* !SFX */
+
+#ifdef USE_LZMA
+        case LZMAED:
+            if (!uO.tflag && QCOND2) {
+                Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
+                  "decod", FnFilter1(G.filename), avmark, avsep,
+                  (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
+                  uO.cflag ? NEWLINE : ""));
+            }
+            r = uz_lzma_decompress(__G);
+            if (r != PK_COOL) {
+                if (r < PK_DISK) {
+                    if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipFile),
+                          r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
+                          LoadFarString(InvalidComprData),
+                          "LZMA", FnFilter1(G.filename)));
+                    else
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipNoFile),
+                          r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
+                          LoadFarString(InvalidComprData), "LZMA"));
+                    error = (r == PK_MEM3) ? PK_MEM3 : PK_ERR;
+                } else
+                    error = r;
+            }
+            break;
+#endif /* USE_LZMA */
 
 #ifdef USE_PPMD
         case PPMDED:

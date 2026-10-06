@@ -48,6 +48,9 @@
 #  ifdef USE_BZIP2      /* fUnZip does not support bzip2 decompression */
 #    undef USE_BZIP2
 #  endif
+#  ifdef USE_LZMA       /* fUnZip does not support LZMA decompression */
+#    undef USE_LZMA
+#  endif
 #endif
 
 #if (defined(USE_ZLIB) && !defined(HAVE_ZL_INFLAT64) && !defined(NO_DEFLATE64))
@@ -70,6 +73,12 @@
 /* disable bzip2 support for SFX stub, unless explicitly requested */
 #if (defined(SFX) && !defined(BZIP2_SFX) && defined(USE_BZIP2))
 #  undef USE_BZIP2
+#endif
+
+/* LZMA uses an external library!
+ * Avoid that dep in the SFX stub unless explicitly requested */
+#if (defined(SFX) && !defined(LZMA_SFX) && defined(USE_LZMA))
+#  undef USE_LZMA
 #endif
 
 #if (defined(NO_VMS_TEXT_CONV) || defined(VMS))
@@ -684,6 +693,7 @@
 #endif
 
 #define UNZIP_BZ2VERS   46
+#define UNZIP_LZMAVERS  63
 #define UNZIP_PPMDVERS  63
 #ifdef ZIP64_SUPPORT
 # ifdef USE_BZIP2

@@ -84,6 +84,13 @@ Installation on Unix (see below for installation on other systems)
      additional math library.  Define NO_ZOPFLI to omit it.  Zopfli support
      is not enabled for 16-bit memory models or the Windows DLL build.
 
+     On Unix, the generic configure path also detects liblzma from XZ Utils
+     5.4.0 or newer.  When found, Zip enables LZMA compression (ZIP method 14)
+     through -Z lzma and links with -llzma.  No LZMA codec source is bundled.
+     Compression levels -1 through -9 map to the corresponding liblzma preset;
+     -11 uses preset 9.  Method-14 output always includes the recommended EOS
+     marker and advertises extraction version 6.3.
+
      To add the additional optional "bzip2" compression method, see the file
      bzip2/install.txt.  Note that bzip2 support is provided by
      compiling or linking in the bzip2 library.  See the bzip2 site
@@ -354,6 +361,19 @@ Compiler Flags
     Deflate history between parts, so whole-file input buffering is not
     required.  --zopfli-iterations selects 1 through 10000 optimization
     iterations; the default is 15.
+
+  LZMA_SUPPORT
+    Enable LZMA compression (ZIP method 14) using lzma from XZ-Utils 5.4.0+.
+    Unix generic builds define this automatically via the configure script
+    when the required header and library are found and link Zip with -llzma.
+    Other ports may enable LZMA_SUPPORT and arrange the liblzma link explicitly.
+
+    Select ZIP method using -Z lzma.  Levels -1 through -9 select the matching
+    liblzma preset (-11 maps to preset 9).  Zip writes a ZIP specific LZMA
+    property header with interoperability version bytes 9,4, writes an EOS
+    marker, sets general-purpose bit 1, and uses version-needed-to-extract 6.3.
+    If the normal small-file size comparison shows that compression is not
+    beneficial, the entry is stored instead.
 
   BZIP2_SUPPORT
     Enable compressing zip entries using the bzip2 library.  You must get

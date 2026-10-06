@@ -662,8 +662,46 @@ _EOF_
 fi
 
 
-echo CC=\"${CC}\" CF=\"${CFLAGSR} ${D_USE_BZ2}\" CRCA_O=\"${CRC32OA}\" \
+# liblzma (XZ Utils) -- ZIP method 14.
+echo "Check liblzma support (5.4.0 or newer)"
+D_USE_LZMA=""
+L_LZMA=""
+cat > conftest.c << _EOF_
+#include <lzma.h>
+#if LZMA_VERSION < 50040000
+# error liblzma 5.4.0 or newer is required
+#endif
+int main()
+{
+  lzma_stream strm = LZMA_STREAM_INIT;
+  lzma_options_lzma opt;
+  lzma_filter filters[2];
+  if (lzma_lzma_preset(&opt, 6)) return 1;
+  opt.ext_flags = LZMA_LZMA1EXT_ALLOW_EOPM;
+  lzma_set_ext_size(opt, 0);
+  filters[0].id = LZMA_FILTER_LZMA1EXT;
+  filters[0].options = &opt;
+  filters[1].id = LZMA_VLI_UNKNOWN;
+  filters[1].options = 0;
+  if (lzma_raw_decoder(&strm, filters) != LZMA_OK) return 1;
+  lzma_end(&strm);
+  return 0;
+}
+_EOF_
+$CC $CFLAGS -o conftest conftest.c -llzma > /dev/null 2>/dev/null
+if test $? -eq 0; then
+  echo "-- OS supports liblzma >= 5.4.0 - enabling LZMA method 14"
+  D_USE_LZMA="-DUSE_LZMA"
+  L_LZMA="-llzma"
+else
+  echo "-- liblzma 5.4.0+ headers/library not found - no LZMA support"
+fi
+rm -f conftest conftest.c conftest.o
+
+
+echo CC=\"${CC}\" CF=\"${CFLAGSR} ${D_USE_BZ2} ${D_USE_LZMA}\" CRCA_O=\"${CRC32OA}\" \
        AS=\"${CC} -c\" LFLAGS1=\"${LFLAGS1}\" LF2=\"${LFLAGS2}\" \
        CC_BZ=\"${CC_BZ}\" CFLAGS_BZ=\"${CFLAGS_BZ}\" \
        IZ_BZIP2=\"${IZ_BZIP2}\" D_USE_BZ2=\"${D_USE_BZ2}\" \
-       L_BZ2=\"${L_BZ2}\" LIBBZ2=\"${LIBBZ2}\"  > flags
+       L_BZ2=\"${L_BZ2}\" LIBBZ2=\"${LIBBZ2}\" \
+       D_USE_LZMA=\"${D_USE_LZMA}\" L_LZMA=\"${L_LZMA}\" > flags

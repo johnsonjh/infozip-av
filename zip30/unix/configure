@@ -217,6 +217,40 @@ _EOF_
 fi
 
 
+# liblzma (XZ Utils) -- ZIP method 14.
+echo "Check liblzma support (5.4.0 or newer)"
+cat > conftest.c << _EOF_
+#include <lzma.h>
+#if LZMA_VERSION < 50040000
+# error liblzma 5.4.0 or newer is required
+#endif
+int main()
+{
+  lzma_stream strm = LZMA_STREAM_INIT;
+  lzma_options_lzma opt;
+  lzma_filter filters[2];
+  if (lzma_lzma_preset(&opt, 6)) return 1;
+  opt.ext_flags = LZMA_LZMA1EXT_ALLOW_EOPM;
+  filters[0].id = LZMA_FILTER_LZMA1EXT;
+  filters[0].options = &opt;
+  filters[1].id = LZMA_VLI_UNKNOWN;
+  filters[1].options = 0;
+  if (lzma_raw_encoder(&strm, filters) != LZMA_OK) return 1;
+  lzma_end(&strm);
+  return 0;
+}
+_EOF_
+$CC $CFLAGS -o conftest conftest.c -llzma > /dev/null 2>/dev/null
+if test $? -eq 0; then
+  echo "-- OS supports liblzma >= 5.4.0 - enabling LZMA method 14"
+  CFLAGS="${CFLAGS} -DLZMA_SUPPORT"
+  LFLAGS2="${LFLAGS2} -llzma"
+else
+  echo "-- liblzma 5.4.0+ headers/library not found - no LZMA support"
+fi
+rm -f conftest conftest.c conftest.o
+
+
 echo Check for the C preprocessor
 # on SVR4, cc -E does not produce correct assembler files. Need /lib/cpp.
 CPP="${CC} -E"

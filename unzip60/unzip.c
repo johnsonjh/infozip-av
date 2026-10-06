@@ -531,6 +531,10 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
      static ZCONST char Far UseBZip2[] =
      "USE_BZIP2 (PKZIP 4.6+, using bzip2 lib version %s)";
 #  endif
+#  ifdef USE_LZMA
+     static ZCONST char Far UseLZMA[] =
+     "USE_LZMA (ZIP method 14, using liblzma version %s)";
+#  endif
 #  ifdef USE_PPMD
      static ZCONST char Far UsePPMd[] =
      "PPM/PPMd support (ZIP method 98; public-domain PPMd derived from 7-Zip)";
@@ -2670,6 +2674,13 @@ static void show_version_info(__G)
 #ifdef USE_BZIP2
         sprintf((char *)(slide+256), LoadFarStringSmall(UseBZip2),
           BZ2_bzlibVersion());
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+          (char *)(slide+256)));
+        ++numopts;
+#endif
+#ifdef USE_LZMA
+        sprintf((char *)(slide+256), LoadFarStringSmall(UseLZMA),
+          lzma_version_string());
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
           (char *)(slide+256)));
         ++numopts;

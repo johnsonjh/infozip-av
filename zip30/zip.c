@@ -58,6 +58,10 @@
 # endif
 #endif
 
+#ifdef LZMA_SUPPORT
+# include "lzma.h"
+#endif
+
 #ifdef BZIP2_SUPPORT
   /* If IZ_BZIP2 is defined as the location of the bzip2 files then
      assume the location has been added to include path.  For Unix
@@ -1514,6 +1518,9 @@ local void help_extended()
 "              store   - store without compression, same as option -0",
 "              deflate - original zip deflate, same as -1 to -9 (default)",
 "              dcl-implode - PKWARE DCL Implode (method 10)",
+#ifdef LZMA_SUPPORT
+"              lzma    - LZMA (method 14; -1..-9 presets, -11 = -9)",
+#endif
 #ifdef PPMD_SUPPORT
 "              ppmd    - PPMd Variant I (method 98; -1..-9 tune model)",
 #endif
@@ -1803,6 +1810,9 @@ local void version_info()
 #ifdef ZIP64_SUPPORT
     "ZIP64_SUPPORT        (use Zip64 to store large files in archives)",
 #endif
+#ifdef LZMA_SUPPORT
+    "LZMA_SUPPORT         (ZIP method 14; using external liblzma)",
+#endif
 #ifdef PPMD_SUPPORT
     "PPM/PPMd support     (ZIP method 98; public-domain PPMd derived from 7-Zip)",
 #endif
@@ -1882,6 +1892,10 @@ local void version_info()
 #endif
 
   /* Fill in bzip2 version.  (32-char limit valid as of bzip 1.0.3.) */
+#ifdef LZMA_SUPPORT
+  printf("\tLZMA library version %s\n", lzma_version_string());
+#endif
+
 #ifdef BZIP2_SUPPORT
   sprintf( bz_opt_ver,
    "BZIP2_SUPPORT        (bzip2 library version %.32s)", BZ2_bzlibVersion());
@@ -3988,6 +4002,13 @@ char **argv;            /* command line tokens */
           } else if (abbrevmatch("store", value, 0, 1)) {
             /* store */
             method = STORE;
+          } else if (abbrevmatch("lzma", value, 0, 1)) {
+            /* LZMA, ZIP method 14 */
+#ifdef LZMA_SUPPORT
+            method = LZMA;
+#else
+            ZIPERR(ZE_COMPERR, "Compression method lzma not enabled");
+#endif
           } else if (abbrevmatch("bzip2", value, 0, 1)) {
             /* bzip2 */
 #ifdef BZIP2_SUPPORT
@@ -4003,15 +4024,25 @@ char **argv;            /* command line tokens */
             ZIPERR(ZE_COMPERR, "Compression method ppmd not enabled");
 #endif
           } else {
-#if defined(BZIP2_SUPPORT) && defined(PPMD_SUPPORT)
-            zipwarn("valid compression methods are:  store, deflate, dcl-implode, bzip2, ppmd", "");
-#elif defined(BZIP2_SUPPORT)
-            zipwarn("valid compression methods are:  store, deflate, dcl-implode, bzip2", "");
-#elif defined(PPMD_SUPPORT)
-            zipwarn("valid compression methods are:  store, deflate, dcl-implode, ppmd", "");
+#ifdef BZIP2_SUPPORT
+#define BZ_STR ", bzip2"
 #else
-            zipwarn("valid compression methods are:  store, deflate, dcl-implode", "");
+#define BZ_STR ""
 #endif
+#ifdef LZMA_SUPPORT
+#define LZ_STR ", lzma"
+#else
+#define LZ_STR ""
+#endif
+#ifdef PPMD_SUPPORT
+#define PP_STR ", ppmd"
+#else
+#define PP_STR ""
+#endif
+            zipwarn("valid compression methods include: store, deflate, dcl-implode" BZ_STR LZ_STR PP_STR, "");
+#undef BZ_STR
+#undef LZ_STR
+#undef PP_STR
             zipwarn("unknown compression method found:  ", value);
             free(value);
             ZIPERR(ZE_PARMS, "Option -Z (--compression-method):  unknown method");

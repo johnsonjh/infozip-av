@@ -45,7 +45,7 @@
 CC = cc#	try using "gcc" target rather than changing this (CC and LD
 LD = $(CC)#	must match, else "unresolved symbol:  ___main" is possible)
 AS = as
-LOC = $(D_USE_BZ2) $(LOCAL_UNZIP)
+LOC = $(D_USE_BZ2) $(D_USE_LZMA) $(LOCAL_UNZIP)
 AF = $(LOC)
 CFLAGS = -O
 CF_NOOPT = -I. -I$(IZ_BZIP2) -DUNIX $(LOC)
@@ -94,6 +94,11 @@ IZ_BZIP2 = $(IZ_OUR_BZIP2_DIR)
 #D_USE_BZ2 = -DUSE_BZIP2
 #L_BZ2 = -lbz2
 #LIBBZ2 = $(IZ_BZIP2)/libbz2.a
+#D_USE_LZMA = -DUSE_LZMA
+#L_LZMA = -llzma
+# For SFX build w/method-14 support, additionally set both of these:
+#D_USE_LZMA_SFX = -DLZMA_SFX
+#L_LZMA_SFX = -llzma
 
 # defaults for unzip's "built-in" bzip2 library compilation
 CC_BZ = $(CC)
@@ -280,10 +285,10 @@ unzipsdocs:	unzips docs
 # make utilities if default:  change "unzip$E:" to "unzip$E:&"
 
 unzip$E:	$(OBJS) $(LIBBZ2)	# add `&' for parallel makes
-	$(LD) $(LF) -L$(IZ_BZIP2) $(LOBJS) $(L_BZ2) $(LF2)
+	$(LD) $(LF) -L$(IZ_BZIP2) $(LOBJS) $(L_BZ2) $(L_LZMA) $(LF2)
 
 unzipsfx$E:	$(OBJX)			# add `&' for parallel makes
-	$(LD) $(SL) $(LOBJX) $(SL2)
+	$(LD) $(SL) $(LOBJX) $(L_LZMA_SFX) $(SL2)
 
 funzip$E:	$(OBJF)			# add `&' for parallel makes
 	$(LD) $(FL) $(OBJF) $(FL2)
@@ -326,37 +331,37 @@ zipinfo$O:	zipinfo.c $(UNZIP_H)
 
 # unzipsfx compilation section
 unzipsfx$O:	unzip.c $(UNZIP_H) crypt.h unzvers.h consts.h
-	$(CC) -c $(CF) -DSFX -o $@ unzip.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ unzip.c
 
 crc32_$O:	crc32.c $(UNZIP_H) zip.h crc32.h
-	$(CC) -c $(CF) -DSFX -o $@ crc32.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ crc32.c
 
 crypt_$O:	crypt.c $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h
-	$(CC) -c $(CF) -DSFX -o $@ crypt.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ crypt.c
 
 extract_$O:	extract.c $(UNZIP_H) crc32.h crypt.h
-	$(CC) -c $(CF) -DSFX -o $@ extract.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ extract.c
 
 fileio_$O:	fileio.c $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h
-	$(CC) -c $(CF) -DSFX -o $@ fileio.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ fileio.c
 
 globals_$O:	globals.c $(UNZIP_H)
-	$(CC) -c $(CF) -DSFX -o $@ globals.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ globals.c
 
 inflate_$O:	inflate.c inflate.h $(UNZIP_H) crypt.h
-	$(CC) -c $(CF) -DSFX -o $@ inflate.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ inflate.c
 
 match_$O:	match.c $(UNZIP_H)
-	$(CC) -c $(CF) -DSFX -o $@ match.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ match.c
 
 process_$O:	process.c $(UNZIP_H) crc32.h
-	$(CC) -c $(CF) -DSFX -o $@ process.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ process.c
 
 ttyio_$O:	ttyio.c $(UNZIP_H) zip.h crypt.h ttyio.h
-	$(CC) -c $(CF) -DSFX -o $@ ttyio.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ ttyio.c
 
 ubz2err_$O:	ubz2err.c $(UNZIP_H)
-	$(CC) -c $(CF) -DSFX -o $@ ubz2err.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ ubz2err.c
 
 
 # funzip compilation section
@@ -393,7 +398,7 @@ msdos$O:	msdos/msdos.c $(UNZIP_H) unzvers.h		# DOS only
 
 msdos_$O:	msdos/msdos.c $(UNZIP_H)			# DOS unzipsfx
 	-$(CP) msdos/msdos.c msdos_.c > nul
-	$(CC) -c $(CF) -DSFX msdos_.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX msdos_.c
 	$(RM) msdos_.c
 
 #os2$O:		os2/os2.c $(UNZIP_H)				# OS/2 only
@@ -403,7 +408,7 @@ unix$O:		unix/unix.c $(UNZIP_H) unzvers.h		# Unix only
 	$(CC) -c $(CF) unix/unix.c
 
 unix_$O:	unix/unix.c $(UNZIP_H)				# Unix unzipsfx
-	$(CC) -c $(CF) -DSFX -o $@ unix/unix.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) -DSFX -o $@ unix/unix.c
 
 unix.pic.o:	unix/unix.c $(UNZIP_H) unzvers.h		# Unix shlib
 	$(CC) -c $(CF) -o $@ unix/unix.c

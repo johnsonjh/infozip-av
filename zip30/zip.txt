@@ -34,8 +34,9 @@ DESCRIPTION
        PKZIP  2.04  and  also supports the Zip64 extensions of PKZIP 4.5 which
        allow archives as well as files to exceed the previous 2 GB limit (4 GB
        in some cases).  zip also supports  PPMd compression (ZIP method 98) on
-       non-16-bit builds,  and  bzip2  compression  if  the  bzip2  library is
-       included  when  zip  is  compiled.  PPMd entries specifically require a
+       non-16-bit builds.  On Unix builds with liblzma 5.4.0 or newer it also
+       supports LZMA (ZIP method 14), and bzip2 compression is available if the
+       bzip2 library is included when zip is compiled.  PPMd entries require a
        method-98-capable  extractor;  older  PKUNZIP and UnZip  versions  that
        otherwise read  Zip 3.0 archives cannot decode  method 98.   Note  that
        PKUNZIP 1.10  cannot extract  files produced by  PKZIP 2.04 or zip 3.0.
@@ -1689,9 +1690,10 @@ OPTIONS
 
        -Z cm
        --compression-method cm
-              Set the default compression method.  The supported methods are
-              store, deflate, dcl-implode, and ppmd (plus bzip2 when compiled
-              in).  Compression method can be set to:
+              Set the default compression method.  The main supported methods are
+              store, deflate, dcl-implode, lzma, and ppmd (with methods that
+              require external libraries available only when compiled in).
+              Compression method can be set to:
 
               store  -  Setting  the compression method to store forces zip to
               store entries with no compression.   This  is  generally  faster
@@ -1707,6 +1709,13 @@ OPTIONS
               dcl-implode - Use PKWARE DCL Implode (ZIP method 10).  Zip uses
               binary literal coding, a 4K dictionary, and the compatible extra
               parsing mode.
+
+              lzma - Use LZMA (ZIP method 14) through liblzma.  Unix generic
+              builds enable this method with XZ Utils/liblzma 5.4.0 or newer.
+              Levels -1 through -9 select the corresponding liblzma preset;
+              -11 uses preset 9.  Zip writes the recommended EOS marker and
+              advertises extraction version 6.3.  If compression is not
+              beneficial, the normal store fallback is used.
 
               ppmd - Use PPMd Variant I (ZIP method 98).  PPMd support is
               built in on non-16-bit targets unless disabled at compile time

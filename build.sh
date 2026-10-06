@@ -10,6 +10,10 @@ WLB="-Wl,-z,relro"
 CF_NOOPT="${LTO:-} -I. -DUNIX ${RPM_OPT_FLAGS:--O3} -DNOMEMCPY -DIZ_HAVE_UXUIDGID -DNO_LCHMOD"
 GLDFLAGS="${LTO:-} ${WLB:-}"
 
+# Enable LZMA-enabled unzipsfx
+D_USE_LZMA_SFX="-DLZMA_SFX"
+L_LZMA_SFX="-l:liblzma.a -s"
+
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
 
@@ -27,6 +31,8 @@ mkdir -p "${PREFIX:?}/man1"
     && "${MAKE:-make}" -j "${CPUS:?}" -f unix/Makefile generic_gcc \
       CF_NOOPT="${CF_NOOPT:?}" \
       LFLAGS2="${GLDFLAGS:?}" \
+      D_USE_LZMA_SFX="${D_USE_LZMA_SFX:-}" \
+      L_LZMA_SFX="${L_LZMA_SFX:-}" \
       PREFIX="${PREFIX:?}"
 )
 

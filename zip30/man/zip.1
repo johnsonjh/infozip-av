@@ -143,8 +143,10 @@ archive with a single command.
 Compression ratios of 2:1 to 3:1 are common for text files.
 .I zip
 supports deflation, PKWARE DCL Implode, and PPMd Variant I compression,
-and can also store files without compression.  (If \fBbzip2\fP support is
-added, \fIzip\fP can also compress using \fBbzip2\fP.)  With \fB-11\fP,
+and can also store files without compression.  On Unix builds with liblzma
+5.4.0 or newer, \fIzip\fP also supports LZMA (ZIP method 14).  (If
+\fBbzip2\fP support is added, \fIzip\fP can also compress using
+\fBbzip2\fP.)  With \fB-11\fP,
 Deflate compression uses the built-in Zopfli optimizer where supported; the
 result is still ordinary ZIP method 8.  PPMd entries use ZIP method 98 and
 require a PPMd-capable extractor.
@@ -2396,8 +2398,9 @@ The comment can be taken from a file:
 .PD
 .B \-\-compression\-method\ \fRcm
 Set the default compression method.  The main methods supported by
-\fIzip\fP are \fBstore\fP, \fBdeflate\fP, \fBdcl-implode\fP, and
-\fBppmd\fP (plus \fBbzip2\fP when compiled in).
+\fIzip\fP are \fBstore\fP, \fBdeflate\fP, \fBdcl-implode\fP,
+\fBlzma\fP, and \fBppmd\fP (with methods requiring external libraries
+available only when compiled in).
 Compression method can be set to:
 
 \fBstore\fP \- Setting the compression method to \fBstore\fP forces
@@ -2416,6 +2419,13 @@ better than deflation, the entry will be stored instead.
 \fBdcl-implode\fP \- Use PKWARE DCL Implode (ZIP method 10).  Zip uses
 binary literal coding, a 4K dictionary, and the compatible extra parsing
 mode.
+
+\fBlzma\fP \- Use LZMA (ZIP method 14) through liblzma.  Unix generic
+builds enable this method when XZ Utils/liblzma 5.4.0 or newer is available.
+Levels \fB-1\fP through \fB-9\fP select the corresponding liblzma preset;
+\fB-11\fP uses preset 9.  Zip writes an EOS marker as recommended by the ZIP
+specification and advertises extraction version 6.3.  If compression is not
+beneficial, the normal store fallback is used.
 
 \fBppmd\fP \- Use PPMd Variant I (ZIP method 98).  PPMd support is built
 in on non-16-bit targets unless disabled at compile time with \fBNO_PPMD\fP.

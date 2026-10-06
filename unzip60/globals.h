@@ -146,6 +146,10 @@
 #  include "bzlib.h"
 #endif
 
+#ifdef USE_LZMA
+#  include "lzma.h"
+#endif
+
 
 /*************/
 /*  Globals  */

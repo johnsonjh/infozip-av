@@ -46,6 +46,11 @@
 #ifdef USE_ZLIB
 #  include "zlib.h"
 #endif
+
+#ifdef LZMA_SUPPORT
+#  include "lzma.h"
+#endif
+
 #ifdef BZIP2_SUPPORT
 #  ifdef BZIP2_USEBZIP2DIR
 #    include "bzip2/bzlib.h"
@@ -172,6 +177,9 @@ local zoff_t zopflifilecompress OF((struct zlist far *z_entry, int *cmpr_method)
 local zoff_t dclfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #ifdef PPMD_SUPPORT
 local zoff_t ppmdfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#endif
+#ifdef LZMA_SUPPORT
+local zoff_t lzmafilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
 
 #ifdef BZIP2_SUPPORT
@@ -981,6 +989,10 @@ struct zlist far *z;    /* zip entry to compress */
   if (method == PPMD)
       z->ver = (ush)(m == STORE ? 10 : 63);
 #endif
+#ifdef LZMA_SUPPORT
+  if (method == LZMA)
+      z->ver = (ush)(m == STORE ? 10 : 63);
+#endif
   z->crc = 0;  /* to be updated later */
   /* Assume first that we will need an extended local header: */
   if (isdir)
@@ -988,6 +1000,11 @@ struct zlist far *z;    /* zip entry to compress */
     z->flg = 0;
   else
     z->flg = 8;  /* to be updated later */
+#ifdef LZMA_SUPPORT
+  /* APPNOTE 5.8.9: bit 1 means that an LZMA EOS marker is present. */
+  if (m == LZMA)
+    z->flg |= 2;
+#endif
 #if CRYPT
   if (!isdir && key != NULL) {
     z->flg |= 1;
@@ -1080,6 +1097,11 @@ struct zlist far *z;    /* zip entry to compress */
       s = bzfilecompress(z, &m);
     }
 #endif /* BZIP2_SUPPORT */
+#ifdef LZMA_SUPPORT
+    else if (m == LZMA) {
+      s = lzmafilecompress(z, &m);
+    }
+#endif /* LZMA_SUPPORT */
     else {
       s = filecompress(z, &m);
     }
@@ -1224,6 +1246,12 @@ struct zlist far *z;    /* zip entry to compress */
       z->siz += RAND_HEAD_LEN;
 #endif /* CRYPT */
     z->len = isize;
+#ifdef LZMA_SUPPORT
+    /* small_store_finish() may have changed method 14 to STORE.  GPBF bit 1
+     * has LZMA-specific EOS semantics, so it must not survive the fallback. */
+    if (z->how == LZMA && m == STORE)
+      z->flg &= ~2;
+#endif
     if (pkav_enabled) {
       z->att |= 0x0004;
       z->atx = (((ulg)pkav_xor8 << 24) |
@@ -1287,6 +1315,10 @@ struct zlist far *z;    /* zip entry to compress */
 #endif
 #ifdef PPMD_SUPPORT
       case PPMD:
+        z->ver = 63; break;
+#endif
+#ifdef LZMA_SUPPORT
+      case LZMA:
         z->ver = 63; break;
 #endif
       }
@@ -1364,6 +1396,10 @@ struct zlist far *z;    /* zip entry to compress */
     else if (m == PPMD)
       fprintf(mesg, " (PPMd compressed %d%%)\n", percent(isize, s));
 #endif
+#ifdef LZMA_SUPPORT
+    else if (m == LZMA)
+      fprintf(mesg, " (LZMA compressed %d%%)\n", percent(isize, s));
+#endif
     else
       fprintf(mesg, " (stored 0%%)\n");
     mesg_line_started = 0;
@@ -1383,6 +1419,10 @@ struct zlist far *z;    /* zip entry to compress */
 #ifdef PPMD_SUPPORT
     else if (m == PPMD)
       fprintf(logfile, " (PPMd compressed %d%%)\n", percent(isize, s));
+#endif
+#ifdef LZMA_SUPPORT
+    else if (m == LZMA)
+      fprintf(logfile, " (LZMA compressed %d%%)\n", percent(isize, s));
 #endif
     else
       fprintf(logfile, " (stored 0%%)\n");
@@ -1977,6 +2017,149 @@ local zoff_t ppmdfilecompress(z_entry, cmpr_method)
     return small_store_finish(&store_test, cmpr_method, output.output_size);
 }
 #endif /* PPMD_SUPPORT */
+
+#ifdef LZMA_SUPPORT
+#define LZMA_ZIP_OUTBUF 16384U
+
+/* ZIP method 14: a four-byte ZIP properties header followed by raw LZMA1.
+ * liblzma's raw LZMA1 encoder always emits the EOS marker required by our
+ * GPBF bit-1 policy. */
+local zoff_t lzmafilecompress(z_entry, cmpr_method)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+{
+    lzma_stream strm = LZMA_STREAM_INIT;
+    lzma_options_lzma options;
+    lzma_filter filters[2];
+    struct small_store_state store_test;
+    uint32_t props_size;
+    uint8_t *props;
+    uch *inbuf;
+    uch *outbuf;
+    unsigned lev;
+    unsigned got;
+    unsigned produced;
+    zoff_t output_size;
+    lzma_ret lr;
+    int done;
+
+    lev = (level == 11) ? 9U :
+          ((level >= 1 && level <= 9) ? (unsigned)level : 6U);
+    if (lzma_lzma_preset(&options, lev))
+        ziperr(ZE_LOGIC, "unsupported liblzma compression preset");
+
+    filters[0].id = LZMA_FILTER_LZMA1;
+    filters[0].options = &options;
+    filters[1].id = LZMA_VLI_UNKNOWN;
+    filters[1].options = NULL;
+
+    lr = lzma_properties_size(&props_size, &filters[0]);
+    if (lr != LZMA_OK || props_size > 65535U)
+        ziperr(ZE_LOGIC, "cannot encode LZMA properties");
+
+    props = (uint8_t *)malloc((size_t)props_size);
+    inbuf = (uch *)malloc((size_t)SBSZ);
+    outbuf = (uch *)malloc((size_t)LZMA_ZIP_OUTBUF);
+    if (props == NULL || inbuf == NULL || outbuf == NULL) {
+        free(props);
+        free(inbuf);
+        free(outbuf);
+        ziperr(ZE_MEM, "allocating LZMA compression buffers");
+    }
+
+    lr = lzma_properties_encode(&filters[0], props);
+    if (lr != LZMA_OK) {
+        free(props);
+        free(inbuf);
+        free(outbuf);
+        ziperr(ZE_LOGIC, "cannot encode LZMA properties");
+    }
+
+    lr = lzma_raw_encoder(&strm, filters);
+    if (lr != LZMA_OK) {
+        free(props);
+        free(inbuf);
+        free(outbuf);
+        if (lr == LZMA_MEM_ERROR)
+            ziperr(ZE_MEM, "initializing LZMA compressor");
+        ziperr(ZE_LOGIC, "initializing LZMA compressor");
+    }
+
+    small_store_init(&store_test, (size_t)SBSZ);
+    output_size = 0;
+
+    /* Interoperability convention used by established ZIP LZMA writers:
+     * LZMA SDK version 9.4, then the little-endian property size. */
+    outbuf[0] = 9;
+    outbuf[1] = 4;
+    outbuf[2] = (uch)(props_size & 0xffU);
+    outbuf[3] = (uch)((props_size >> 8) & 0xffU);
+    if (small_store_write(&store_test, outbuf, 4U) != 4U ||
+        (props_size != 0 && small_store_write(&store_test, props,
+          (unsigned)props_size) != (unsigned)props_size)) {
+        lzma_end(&strm);
+        small_store_discard(&store_test);
+        free(props);
+        free(inbuf);
+        free(outbuf);
+        ziperr(ZE_TEMP, "error writing LZMA data to zipfile");
+    }
+    output_size += (zoff_t)4 + (zoff_t)props_size;
+    free(props);
+
+    strm.next_out = (uint8_t *)outbuf;
+    strm.avail_out = (size_t)LZMA_ZIP_OUTBUF;
+    done = FALSE;
+    while (!done) {
+        got = small_store_read(&store_test, (char *)inbuf, SBSZ);
+        if (got == (unsigned)EOF)
+            got = 0;
+        if (got != 0 && file_binary_final == 0 &&
+            !is_text_buf((char *)inbuf, got))
+            file_binary_final = 1;
+
+        strm.next_in = (const uint8_t *)inbuf;
+        strm.avail_in = (size_t)got;
+        do {
+            lr = lzma_code(&strm, got == 0 ? LZMA_FINISH : LZMA_RUN);
+            if (lr != LZMA_OK && lr != LZMA_STREAM_END) {
+                lzma_end(&strm);
+                small_store_discard(&store_test);
+                free(inbuf);
+                free(outbuf);
+                if (lr == LZMA_MEM_ERROR)
+                    ziperr(ZE_MEM, "compressing with LZMA");
+                ziperr(ZE_LOGIC, "liblzma compression failed");
+            }
+
+            produced = LZMA_ZIP_OUTBUF - (unsigned)strm.avail_out;
+            if (produced != 0 &&
+                (strm.avail_out == 0 || lr == LZMA_STREAM_END)) {
+                if (small_store_write(&store_test, outbuf, produced) != produced) {
+                    lzma_end(&strm);
+                    small_store_discard(&store_test);
+                    free(inbuf);
+                    free(outbuf);
+                    ziperr(ZE_TEMP, "error writing LZMA data to zipfile");
+                }
+                output_size += (zoff_t)produced;
+                strm.next_out = (uint8_t *)outbuf;
+                strm.avail_out = (size_t)LZMA_ZIP_OUTBUF;
+            }
+        } while ((got != 0 && strm.avail_in != 0) ||
+                 (got == 0 && lr != LZMA_STREAM_END));
+
+        if (got == 0)
+            done = TRUE;
+    }
+
+    lzma_end(&strm);
+    free(inbuf);
+    free(outbuf);
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    return small_store_finish(&store_test, cmpr_method, output_size);
+}
+#endif /* LZMA_SUPPORT */
 
 #ifdef USE_ZLIB
 

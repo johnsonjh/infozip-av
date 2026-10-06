@@ -1852,7 +1852,7 @@ struct zlist far *z;
         sprintf(errbuf, "undefined bits used in flags = 0x%04x: ", z->flg);
         zipwarn(errbuf, z->oname);
     }
-    if (z->how > LAST_KNOWN_COMPMETHOD && z->how != PPMD)    {
+    if (!KNOWN_COMPMETHOD(z->how))    {
         sprintf(errbuf, "unknown compression method %u: ", z->how);
         zipwarn(errbuf, z->oname);
     }
