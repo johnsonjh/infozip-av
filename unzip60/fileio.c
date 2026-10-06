@@ -809,7 +809,7 @@ int readbyte(__G)   /* refill inbuf and return a byte if available, else EOF */
 
 
 
-#if defined(USE_ZLIB) || defined(USE_BZIP2) || defined(USE_LZMA) || defined(USE_XZ)
+#if defined(USE_ZLIB) || defined(USE_BZIP2) || defined(USE_LZMA) || defined(USE_XZ) || defined(USE_ZSTD)
 
 /************************/
 /* Function fillinbuf() */

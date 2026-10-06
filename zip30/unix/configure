@@ -254,6 +254,43 @@ fi
 rm -f conftest conftest.c conftest.o
 
 
+# libzstd -- ZIP method 93 (and legacy method 20 when reading existing ZIPs).
+echo "Check libzstd support (1.4.0 or newer)"
+cat > conftest.c << _EOF_
+#include <zstd.h>
+#if ZSTD_VERSION_NUMBER < 10400
+# error libzstd 1.4.0 or newer is required
+#endif
+int main()
+{
+  ZSTD_CCtx *cctx = ZSTD_createCCtx();
+  ZSTD_inBuffer in;
+  ZSTD_outBuffer out;
+  char dst[64];
+  size_t r;
+  if (cctx == 0) return 1;
+  r = ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, 0);
+  if (ZSTD_isError(r)) return 1;
+  r = ZSTD_CCtx_setPledgedSrcSize(cctx, 0);
+  if (ZSTD_isError(r)) return 1;
+  in.src = 0; in.size = 0; in.pos = 0;
+  out.dst = dst; out.size = sizeof(dst); out.pos = 0;
+  r = ZSTD_compressStream2(cctx, &out, &in, ZSTD_e_end);
+  ZSTD_freeCCtx(cctx);
+  return ZSTD_isError(r) ? 1 : 0;
+}
+_EOF_
+$CC $CFLAGS -o conftest conftest.c -lzstd > /dev/null 2>/dev/null
+if test $? -eq 0; then
+  echo "-- OS supports libzstd >= 1.4.0 - enabling Zstandard method 93"
+  CFLAGS="${CFLAGS} -DZSTD_SUPPORT"
+  LFLAGS2="${LFLAGS2} -lzstd"
+else
+  echo "-- libzstd 1.4.0+ headers/library not found - no Zstandard support"
+fi
+rm -f conftest conftest.c conftest.o
+
+
 echo Check for the C preprocessor
 # on SVR4, cc -E does not produce correct assembler files. Need /lib/cpp.
 CPP="${CC} -E"

@@ -95,6 +95,17 @@ Installation on Unix (see below for installation on other systems)
      reference archive, the method-95 writer uses XZ Check=None; extraction
      accepts any single XZ stream/check supported by liblzma.
 
+     The Unix generic configure path also detects libzstd 1.4.0 or newer.
+     When found, Zip enables Zstandard compression using current ZIP method 93
+     (-Z zstd) and links with -lzstd.  Deprecated Zstandard method 20 is
+     recognized when copying existing members but is never created.  Generic
+     levels -1 through -9 map directly to native Zstd levels 1 through 9; -11
+     maps to native level 22 (Ultra).  --zstd-level 1..22 can select a native
+     level directly.  Method-93 output is one standard Zstandard frame per ZIP
+     member, uses version-needed-to-extract 2.0 following WinZip practice, and
+     disables the optional Zstd frame checksum because the ZIP member already
+     carries CRC-32.
+
      To add the additional optional "bzip2" compression method, see the file
      bzip2/install.txt.  Note that bzip2 support is provided by
      compiling or linking in the bzip2 library.  See the bzip2 site
@@ -382,6 +393,25 @@ Compiler Flags
 
     For both methods, if the normal size comparison shows that compression is
     not beneficial, the entry is stored instead.
+
+  ZSTD_SUPPORT
+    Enable libzstd-backed Zstandard compression using libzstd 1.4.0 or newer.
+    Unix generic builds define this automatically when configure finds the
+    required header, library, and streaming APIs, and link Zip with -lzstd.
+    Other ports may define ZSTD_SUPPORT and arrange the libzstd link explicitly.
+
+    -Z zstd creates ZIP method 93.  Deprecated method 20 is never created.
+    Levels -1 through -9 map directly to native Zstd levels 1 through 9 and
+    -11 maps to native level 22 (Ultra).  --zstd-level 1 through 22 overrides
+    that generic mapping.  These mappings are Info-ZIP policy and may be tuned
+    in a later release.
+
+    Each member contains exactly one standard Zstandard frame.  Zip explicitly
+    disables the optional Zstd content checksum and uses the normal ZIP CRC-32.
+    When the input size is reliably known it is pledged to libzstd so the frame
+    may record it; streaming/unknown-size input remains fully streaming and
+    does not get buffered merely to learn the size.  The normal small-file
+    STORE fallback is retained.
 
   BZIP2_SUPPORT
     Enable compressing zip entries using the bzip2 library.  You must get

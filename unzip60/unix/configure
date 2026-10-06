@@ -702,9 +702,46 @@ fi
 rm -f conftest conftest.c conftest.o
 
 
-echo CC=\"${CC}\" CF=\"${CFLAGSR} ${D_USE_BZ2} ${D_USE_LZMA}\" CRCA_O=\"${CRC32OA}\" \
+# libzstd -- current ZIP method 93 plus deprecated read-compatible method 20.
+echo "Check libzstd support (1.4.0 or newer)"
+D_USE_ZSTD=""
+L_ZSTD=""
+cat > conftest.c << _EOF_
+#include <zstd.h>
+#if ZSTD_VERSION_NUMBER < 10400
+# error libzstd 1.4.0 or newer is required
+#endif
+int main()
+{
+  ZSTD_DCtx *dctx = ZSTD_createDCtx();
+  ZSTD_inBuffer in;
+  ZSTD_outBuffer out;
+  char src[1], dst[1];
+  size_t r;
+  if (dctx == 0) return 1;
+  in.src = src; in.size = 0; in.pos = 0;
+  out.dst = dst; out.size = sizeof(dst); out.pos = 0;
+  r = ZSTD_decompressStream(dctx, &out, &in);
+  ZSTD_freeDCtx(dctx);
+  (void)r;
+  return 0;
+}
+_EOF_
+$CC $CFLAGS -o conftest conftest.c -lzstd > /dev/null 2>/dev/null
+if test $? -eq 0; then
+  echo "-- OS supports libzstd >= 1.4.0 - enabling Zstandard methods 20 and 93"
+  D_USE_ZSTD="-DUSE_ZSTD"
+  L_ZSTD="-lzstd"
+else
+  echo "-- libzstd 1.4.0+ headers/library not found - no Zstandard support"
+fi
+rm -f conftest conftest.c conftest.o
+
+
+echo CC=\"${CC}\" CF=\"${CFLAGSR} ${D_USE_BZ2} ${D_USE_LZMA} ${D_USE_ZSTD}\" CRCA_O=\"${CRC32OA}\" \
        AS=\"${CC} -c\" LFLAGS1=\"${LFLAGS1}\" LF2=\"${LFLAGS2}\" \
        CC_BZ=\"${CC_BZ}\" CFLAGS_BZ=\"${CFLAGS_BZ}\" \
        IZ_BZIP2=\"${IZ_BZIP2}\" D_USE_BZ2=\"${D_USE_BZ2}\" \
        L_BZ2=\"${L_BZ2}\" LIBBZ2=\"${LIBBZ2}\" \
-       D_USE_LZMA=\"${D_USE_LZMA}\" L_LZMA=\"${L_LZMA}\" > flags
+       D_USE_LZMA=\"${D_USE_LZMA}\" L_LZMA=\"${L_LZMA}\" \
+       D_USE_ZSTD=\"${D_USE_ZSTD}\" L_ZSTD=\"${L_ZSTD}\" > flags

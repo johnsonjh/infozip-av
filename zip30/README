@@ -83,7 +83,9 @@ we might be able to help.
 Compression methods.  In addition to store, deflate, and PKWARE DCL Implode,
 Zip can create LZMA method-14 entries with -Z lzma and XZ/LZMA2 method-95
 entries with -Z xz when liblzma 5.4.0 or newer is available.  Method 95 stores
-one complete XZ stream in each ZIP member.  Zip can also create PPMd Variant I
+one complete XZ stream in each ZIP member.  On Unix, libzstd 1.4.0 or newer
+also enables Zstandard method 93 with -Z zstd; deprecated Zstandard method 20
+is read-compatible only and is not created.  Zip can also create PPMd Variant I
 entries using ZIP method 98 with -Z ppmd.
 
 PPMd is built in on non-16-bit targets and uses public-domain PPMd sources
@@ -175,6 +177,14 @@ Q. What about "compression method 95"?
 A. Compression method 95 is XZ/LZMA2.  Use an unzip built with liblzma/XZ
    support.  This tree enables it automatically on Unix when liblzma 5.4.0 or
    newer is found.
+
+
+Q. What about "compression method 20" or "compression method 93"?
+
+A. Both identify Zstandard compression.  Method 20 is the deprecated method
+   number and is accepted for extraction; new archives use method 93.  Unix
+   builds enable method 93 creation and methods 20/93 extraction when libzstd
+   1.4.0 or newer is available.
 
 
 Q. And "compression method 98"?

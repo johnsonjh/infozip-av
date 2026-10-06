@@ -54,6 +54,9 @@
 #  ifdef USE_XZ
 #    undef USE_XZ
 #  endif
+#  ifdef USE_ZSTD       /* fUnZip does not support libzstd */
+#    undef USE_ZSTD
+#  endif
 #endif
 
 #if (defined(USE_ZLIB) && !defined(HAVE_ZL_INFLAT64) && !defined(NO_DEFLATE64))
@@ -88,6 +91,13 @@
 #  ifdef USE_XZ
 #    undef USE_XZ
 #  endif
+#endif
+
+/* Zstandard methods 20/93 use the external libzstd library.  Keep the
+ * redistributable default SFX stub free of that dependency unless the build
+ * explicitly opts in with ZSTD_SFX. */
+#if (defined(SFX) && !defined(ZSTD_SFX) && defined(USE_ZSTD))
+#  undef USE_ZSTD
 #endif
 
 #if (defined(NO_VMS_TEXT_CONV) || defined(VMS))
@@ -703,6 +713,7 @@
 
 #define UNZIP_BZ2VERS   46
 #define UNZIP_LZMAVERS  63
+#define UNZIP_ZSTDVERS  63  /* accept Python 3.14 method-93 version-needed */
 #define UNZIP_PPMDVERS  63
 #ifdef ZIP64_SUPPORT
 # ifdef USE_BZIP2
@@ -1738,10 +1749,12 @@
 #define LZMAED           14
 #define IBMTERSED        18
 #define IBMLZ77ED        19
+#define ZSTD_OLD         20
+#define ZSTDED           93
 #define XZED             95
 #define WAVPACKED        97
 #define PPMDED           98
-#define NUM_METHODS      18     /* number of known method IDs */
+#define NUM_METHODS      20     /* number of known method IDs */
 /* don't forget to update list.c (list_files()), extract.c and zipinfo.c
  * appropriately if NUM_METHODS changes */
 

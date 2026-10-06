@@ -145,7 +145,8 @@ Compression ratios of 2:1 to 3:1 are common for text files.
 supports deflation, PKWARE DCL Implode, and PPMd Variant I compression,
 and can also store files without compression.  On Unix builds with liblzma
 5.4.0 or newer, \fIzip\fP also supports LZMA (ZIP method 14) and XZ/LZMA2
-(ZIP method 95).  (If
+(ZIP method 95).  Unix builds with libzstd 1.4.0 or newer also support
+Zstandard (ZIP method 93).  (If
 \fBbzip2\fP support is added, \fIzip\fP can also compress using
 \fBbzip2\fP.)  With \fB-11\fP,
 Deflate compression uses the built-in Zopfli optimizer where supported; the
@@ -2400,7 +2401,7 @@ The comment can be taken from a file:
 .B \-\-compression\-method\ \fRcm
 Set the default compression method.  The main methods supported by
 \fIzip\fP are \fBstore\fP, \fBdeflate\fP, \fBdcl-implode\fP,
-\fBlzma\fP, \fBxz\fP, and \fBppmd\fP (with methods requiring external libraries
+\fBlzma\fP, \fBxz\fP, \fBzstd\fP, and \fBppmd\fP (with methods requiring external libraries
 available only when compiled in).
 Compression method can be set to:
 
@@ -2437,6 +2438,16 @@ advertises extraction version 2.0.  The writer currently uses XZ Check=None
 pending validation against a genuine WinZip method-95 archive; extraction
 accepts any single XZ stream/check supported by liblzma and rejects concatenated
 XZ streams.  If compression is not beneficial, the normal store fallback is used.
+
+\fBzstd\fP \- Use Zstandard (ZIP method 93) through libzstd 1.4.0 or newer.
+Each ZIP member contains exactly one standard Zstandard frame.  Levels
+\fB-1\fP through \fB-9\fP map directly to native Zstd levels 1 through 9;
+\fB-11\fP maps to native level 22 (Ultra).  \fB--zstd-level\fP can select
+native levels 1 through 22 directly.  Zip advertises extraction version 2.0,
+following WinZip practice, and disables the optional Zstd frame checksum; the
+ZIP CRC-32 remains the integrity check.  Deprecated Zstandard method 20 is
+accepted by UnZip but is never created by Zip.  If compression is not
+beneficial, the normal store fallback is used.
 
 \fBppmd\fP \- Use PPMd Variant I (ZIP method 98).  PPMd support is built
 in on non-16-bit targets unless disabled at compile time with \fBNO_PPMD\fP.
@@ -2549,6 +2560,18 @@ Force the DCL Implode dictionary size.  Without this option \fIzip\fP selects
 and 4K for larger inputs.  The automatic choice uses the actual input size and
 therefore also works for stdin and other inputs whose size was initially
 unknown.  This option requires \fB\-Z dcl-implode\fP.
+.TP
+.PD 0
+.BI \-\-zstd-level\ n
+.TP
+.PD
+.BI \-\-zstd-level= n
+Override the generic compression-level mapping for \fB-Z zstd\fP and select
+native Zstandard level \fIn\fP, from 1 through 22.  Without this option,
+\fB-1\fP through \fB-9\fP map directly to Zstd levels 1 through 9 and
+\fB-11\fP maps to native level 22 (Ultra).  This mapping is Info-ZIP policy
+and may be adjusted in a future release.  The option is an error if Zstandard
+support is not compiled in or if the selected compression method is not zstd.
 .TP
 .PD 0
 .B \-\-dcl-implode-optimal

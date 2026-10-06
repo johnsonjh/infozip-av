@@ -35,8 +35,9 @@ DESCRIPTION
        allow archives as well as files to exceed the previous 2 GB limit (4 GB
        in some cases).  zip also supports  PPMd compression (ZIP method 98) on
        non-16-bit builds.  On Unix builds with liblzma 5.4.0 or newer  it also
-       supports LZMA (ZIP method 14) and  XZ/LZMA2 (ZIP method 95),  and bzip2
-       compression is available  if the bzip2 library is  included when zip is
+       supports LZMA (ZIP method 14) and  XZ/LZMA2 (ZIP method 95).  Unix builds
+       with libzstd 1.4.0 or newer also support Zstandard (ZIP method 93), and
+       bzip2 compression is available if the bzip2 library is included when zip is
        compiled.  PPMd entries  require a method-98-capable  extractor;  older
        PKUNZIP  and  UnZip  versions  that otherwise  read  Zip  3.0  archives
        cannot decode  method 98.  Note that PKUNZIP 1.10  cannot extract files
@@ -1691,7 +1692,7 @@ OPTIONS
        -Z cm
        --compression-method cm
               Set the default compression method.  The main supported methods
-              are store, deflate, dcl-implode, lzma, xz, and ppmd (with methods
+              are store, deflate, dcl-implode, lzma, xz, zstd, and ppmd (with methods
               that require external libraries available only when compiled in).
               Compression method can be set to:
 
@@ -1728,6 +1729,17 @@ OPTIONS
               XZ stream/check supported by liblzma and rejects concatenated XZ
               streams. If compression is not beneficial, the normal store
               fallback is used.
+
+              zstd - Use Zstandard (ZIP method 93) through libzstd 1.4.0 or
+              newer.  Each ZIP member contains exactly one standard Zstandard
+              frame.  Generic levels -1 through -9 map directly to native Zstd
+              levels 1 through 9; -11 maps to native level 22 (Ultra).  The
+              --zstd-level option can select native levels 1 through 22 directly.
+              Zip writes version-needed-to-extract 2.0, following WinZip
+              practice, and disables the optional Zstd frame checksum; the ZIP
+              CRC-32 remains the integrity check.  Deprecated Zstandard method
+              20 is accepted by UnZip but is never created by Zip.  If
+              compression is not beneficial, the normal store fallback is used.
 
               ppmd - Use PPMd Variant I (ZIP method 98).  PPMd support is
               built in on non-16-bit targets unless disabled at compile time
@@ -1806,6 +1818,16 @@ OPTIONS
               choice uses the actual input size and therefore also works for
               stdin and other inputs whose size was initially unknown.  This
               option requires -Z dcl-implode.
+
+       --zstd-level N
+       --zstd-level=N
+              Override the generic Zip compression-level mapping when -Z zstd
+              is selected and request native Zstandard compression level N,
+              where N is 1 through 22.  Without this option, -1 through -9 map
+              directly to Zstd levels 1 through 9 and -11 maps to level 22
+              (Ultra).  The mapping is an Info-ZIP policy and may be adjusted in
+              a future release.  This option is an error if Zstandard support is
+              not compiled in or if the selected compression method is not zstd.
 
        --dcl-implode-optimal
        --dcl-implode-optimal-

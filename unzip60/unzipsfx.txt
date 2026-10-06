@@ -250,6 +250,11 @@ LIMITATIONS
        NO_PPMD.  PPMd SFX archives can require substantial model memory (up to
        256 MiB).
 
+       Zstandard methods 20 and 93 use external libzstd support and are not
+       enabled in the default Unix unzipsfx build, so redistributed SFX stubs
+       do not acquire a libzstd dependency.  A builder may opt in by defining
+       ZSTD_SFX and linking libzstd; see INSTALL and unix/Makefile.
+
        VMS  users  must know how to set up self-extracting archives as foreign
        commands in order to use any of unzipsfx's options.  This is not neces-
        sary  for  simple  extraction,  but  the command to do so then becomes,

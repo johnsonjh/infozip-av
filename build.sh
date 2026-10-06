@@ -14,6 +14,10 @@ GLDFLAGS="${LTO:-} ${WLB:-}"
 D_USE_LZMA_SFX="-DLZMA_SFX"
 L_LZMA_SFX="-l:liblzma.a -s"
 
+# Enable Zstd-enabled unzipsfx
+D_USE_ZSTD_SFX="-DZSTD_SFX"
+L_ZSTD_SFX="-l:libzstd.a -s"
+
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
 
@@ -33,6 +37,8 @@ mkdir -p "${PREFIX:?}/man1"
       LFLAGS2="${GLDFLAGS:?}" \
       D_USE_LZMA_SFX="${D_USE_LZMA_SFX:-}" \
       L_LZMA_SFX="${L_LZMA_SFX:-}" \
+      D_USE_ZSTD_SFX="${D_USE_ZSTD_SFX:-}" \
+      L_ZSTD_SFX="${L_ZSTD_SFX:-}" \
       PREFIX="${PREFIX:?}"
 )
 

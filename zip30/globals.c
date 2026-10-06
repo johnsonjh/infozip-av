@@ -39,10 +39,11 @@ int filesync = 0;       /* 1=file sync, delete entries not on file system */
 int adjust = 0;         /* 1=adjust offsets for sfx'd file (keep preamble) */
 int fwkcs_md5 = 0;      /* 1=add FWKCS MD5 metadata */
 int level = 6;          /* 0=fastest compression, 9=best compression, 11=Zopfli */
-int zopfli_iterations = 15; /* Zopfli optimization iterations */
+int zopfli_iterations = 15;  /* Zopfli optimization iterations */
 int dcl_implode_mode = 0;    /* 0=binary literals, 1=ASCII literals */
 ulg dcl_implode_dict = 0;    /* 0=automatic, otherwise 1K/2K/4K */
 int dcl_implode_optimal = 0; /* 1=enable optimal DCL parse */
+int zstd_level = 0;     /* native Zstd level override; 0 uses generic mapping */
 int translate_eol = 0;  /* Translate end-of-line LF -> CR LF */
 #ifdef VMS
    int vmsver = 0;      /* 1=append VMS version number to file names */

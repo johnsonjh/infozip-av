@@ -143,7 +143,8 @@ int list_files(__G)    /* return PK-type error code */
     static ZCONST char Far method[NUM_METHODS+1][8] =
         {"Stored", "Shrunk", "Reduce1", "Reduce2", "Reduce3", "Reduce4",
          "Implode", "Token", "Defl:#", "Def64#", "ImplDCL", "BZip2",
-         "LZMA", "Terse", "IBMLZ77", "XZ", "WavPack", "PPMd", "Unk:###"};
+         "LZMA", "Terse", "IBMLZ77", "Zstd", "Zstd", "XZ", "WavPack", "PPMd",
+         "Unk:###"};
 
 
 

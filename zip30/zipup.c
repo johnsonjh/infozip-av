@@ -50,6 +50,9 @@
 #ifdef LZMA_SUPPORT
 #  include "lzma.h"
 #endif
+#ifdef ZSTD_SUPPORT
+#  include "zstd.h"
+#endif
 
 #ifdef BZIP2_SUPPORT
 #  ifdef BZIP2_USEBZIP2DIR
@@ -181,6 +184,10 @@ local zoff_t ppmdfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #ifdef LZMA_SUPPORT
 local zoff_t lzmafilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 local zoff_t xzfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#endif
+#ifdef ZSTD_SUPPORT
+local zoff_t zstdfilecompress OF((struct zlist far *z_entry, int *cmpr_method,
+                                  zoff_t pledged_size));
 #endif
 
 #ifdef BZIP2_SUPPORT
@@ -996,6 +1003,12 @@ struct zlist far *z;    /* zip entry to compress */
   if (method == XZ)
       z->ver = (ush)(m == STORE ? 10 : 20);
 #endif
+#ifdef ZSTD_SUPPORT
+  /* WinZip-created method-93 archives use version-needed 2.0.  Python 3.14
+   * writes 6.3 instead; follow the WinZip interoperability precedent here. */
+  if (method == ZSTD)
+      z->ver = (ush)(m == STORE ? 10 : 20);
+#endif
   z->crc = 0;  /* to be updated later */
   /* Assume first that we will need an extended local header: */
   if (isdir)
@@ -1108,6 +1121,14 @@ struct zlist far *z;    /* zip entry to compress */
       s = xzfilecompress(z, &m);
     }
 #endif /* LZMA_SUPPORT */
+#ifdef ZSTD_SUPPORT
+    else if (m == ZSTD) {
+      /* q is the original input size.  Pledge it only when no EOL
+       * translation can alter the byte count; -1 means unknown/streamed. */
+      s = zstdfilecompress(z, &m,
+                          (q >= 0 && !translate_eol) ? q : (zoff_t)-1);
+    }
+#endif /* ZSTD_SUPPORT */
     else {
       s = filecompress(z, &m);
     }
@@ -1329,6 +1350,10 @@ struct zlist far *z;    /* zip entry to compress */
       case XZ:
         z->ver = 20; break;
 #endif
+#ifdef ZSTD_SUPPORT
+      case ZSTD:
+        z->ver = 20; break;
+#endif
       }
       /*
        * The encryption header needs the crc, but we don't have it
@@ -1410,6 +1435,10 @@ struct zlist far *z;    /* zip entry to compress */
     else if (m == XZ)
       fprintf(mesg, " (XZ compressed %d%%)\n", percent(isize, s));
 #endif
+#ifdef ZSTD_SUPPORT
+    else if (m == ZSTD)
+      fprintf(mesg, " (Zstd compressed %d%%)\n", percent(isize, s));
+#endif
     else
       fprintf(mesg, " (stored 0%%)\n");
     mesg_line_started = 0;
@@ -1435,6 +1464,10 @@ struct zlist far *z;    /* zip entry to compress */
       fprintf(logfile, " (LZMA compressed %d%%)\n", percent(isize, s));
     else if (m == XZ)
       fprintf(logfile, " (XZ compressed %d%%)\n", percent(isize, s));
+#endif
+#ifdef ZSTD_SUPPORT
+    else if (m == ZSTD)
+      fprintf(logfile, " (Zstd compressed %d%%)\n", percent(isize, s));
 #endif
     else
       fprintf(logfile, " (stored 0%%)\n");
@@ -2277,6 +2310,130 @@ local zoff_t xzfilecompress(z_entry, cmpr_method)
 }
 
 #endif /* LZMA_SUPPORT */
+
+#ifdef ZSTD_SUPPORT
+#define ZSTD_ZIP_OUTBUF 16384U
+
+/* ZIP method 93: one standard Zstandard frame per ZIP member.  Deprecated
+ * method 20 is accepted by UnZip but is never created by Zip.
+ *
+ * Interoperability profile: WinZip method-93 examples use version-needed 2.0
+ * and omit the optional Zstd frame checksum.  Python 3.14 currently chooses
+ * version-needed 6.3; this implementation deliberately follows WinZip and
+ * documents that choice in the local-header setup above.  The ZIP member's
+ * CRC-32 remains the outer integrity check.  Revisit these choices if future
+ * interoperability evidence requires it.
+ *
+ * Generic Zip levels map directly: -1..-9 -> Zstd 1..9, while -11 maps to
+ * native Zstd level 22 (Ultra).  --zstd-level 1..22 bypasses this mapping.
+ * The mapping is explicit project policy and may be tuned later. */
+local zoff_t zstdfilecompress(z_entry, cmpr_method, pledged_size)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+    zoff_t pledged_size;
+{
+    ZSTD_CCtx *cctx;
+    ZSTD_inBuffer input;
+    ZSTD_outBuffer output;
+    struct small_store_state store_test;
+    uch *inbuf;
+    uch *outbuf;
+    unsigned got;
+    int lev;
+    int done;
+    size_t zr;
+    zoff_t output_size;
+
+    lev = zstd_level != 0 ? zstd_level :
+          (level == 11 ? 22 :
+           ((level >= 1 && level <= 9) ? level : 6));
+
+    cctx = ZSTD_createCCtx();
+    if (cctx == NULL)
+        ziperr(ZE_MEM, "initializing Zstandard compressor");
+
+    zr = ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, lev);
+    if (ZSTD_isError(zr)) {
+        ZSTD_freeCCtx(cctx);
+        ziperr(ZE_LOGIC, "setting Zstandard compression level");
+    }
+    zr = ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, 0);
+    if (ZSTD_isError(zr)) {
+        ZSTD_freeCCtx(cctx);
+        ziperr(ZE_LOGIC, "disabling Zstandard frame checksum");
+    }
+    if (pledged_size >= 0) {
+        zr = ZSTD_CCtx_setPledgedSrcSize(cctx,
+                                         (unsigned long long)pledged_size);
+        if (ZSTD_isError(zr)) {
+            ZSTD_freeCCtx(cctx);
+            ziperr(ZE_LOGIC, "setting Zstandard input size");
+        }
+    }
+
+    inbuf = (uch *)malloc((size_t)SBSZ);
+    outbuf = (uch *)malloc((size_t)ZSTD_ZIP_OUTBUF);
+    if (inbuf == NULL || outbuf == NULL) {
+        ZSTD_freeCCtx(cctx);
+        free(inbuf);
+        free(outbuf);
+        ziperr(ZE_MEM, "allocating Zstandard compression buffers");
+    }
+
+    small_store_init(&store_test, (size_t)SBSZ);
+    output_size = 0;
+    done = FALSE;
+
+    while (!done) {
+        got = small_store_read(&store_test, (char *)inbuf, SBSZ);
+        if (got == (unsigned)EOF)
+            got = 0;
+        if (got != 0 && file_binary_final == 0 &&
+            !is_text_buf((char *)inbuf, got))
+            file_binary_final = 1;
+
+        input.src = (const void *)inbuf;
+        input.size = (size_t)got;
+        input.pos = 0;
+
+        do {
+            output.dst = (void *)outbuf;
+            output.size = (size_t)ZSTD_ZIP_OUTBUF;
+            output.pos = 0;
+            zr = ZSTD_compressStream2(cctx, &output, &input,
+                                      got == 0 ? ZSTD_e_end : ZSTD_e_continue);
+            if (ZSTD_isError(zr)) {
+                ZSTD_freeCCtx(cctx);
+                small_store_discard(&store_test);
+                free(inbuf);
+                free(outbuf);
+                ziperr(ZE_LOGIC, "libzstd compression failed");
+            }
+            if (output.pos != 0) {
+                if (small_store_write(&store_test, outbuf,
+                                      (unsigned)output.pos) !=
+                    (unsigned)output.pos) {
+                    ZSTD_freeCCtx(cctx);
+                    small_store_discard(&store_test);
+                    free(inbuf);
+                    free(outbuf);
+                    ziperr(ZE_TEMP, "error writing Zstandard data to zipfile");
+                }
+                output_size += (zoff_t)output.pos;
+            }
+        } while (input.pos != input.size || (got == 0 && zr != 0));
+
+        if (got == 0)
+            done = TRUE;
+    }
+
+    ZSTD_freeCCtx(cctx);
+    free(inbuf);
+    free(outbuf);
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    return small_store_finish(&store_test, cmpr_method, output_size);
+}
+#endif /* ZSTD_SUPPORT */
 
 #ifdef USE_ZLIB
 

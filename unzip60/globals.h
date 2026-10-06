@@ -149,6 +149,9 @@
 #if defined(USE_LZMA) || defined(USE_XZ)
 #  include "lzma.h"
 #endif
+#ifdef USE_ZSTD
+#  include "zstd.h"
+#endif
 
 
 /*************/

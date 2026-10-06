@@ -35,13 +35,14 @@ This project adds full
 ([MD5](https://en.wikipedia.org/wiki/MD5)) support to
 [Info‑ZIP](https://infozip.sourceforge.net/).
 
-The ability to both compress and decompress archives using **LZMA**
-(method&nbsp;14), **XZ** (method&nbsp;95), **DCL Implode** (method&nbsp;10),
-and **PPMd** (method&nbsp;98) has been added.  New decompression‑only support
-for **Shrink** (method&nbsp;1), **Reduce** (methods 2 through 5), and
-**ZIP Implode** (method&nbsp;6) has also been added.  The common **Store**
-(method&nbsp;0), **Deflate** (method&nbsp;8), and (decompression‑only)
-**Deflate64** (method&nbsp;9) algorithms remain supported.  Additionally, new
+The ability to both compress and decompress archives using **Zstandard**
+(method&nbsp;20 and 93) **LZMA** (method&nbsp;14), **XZ** (method&nbsp;95),
+**DCL**&nbsp;**Implode** (method&nbsp;10), and **PPMd** (method&nbsp;98) has
+been added.  New decompression‑only support for **Shrink** (method&nbsp;1),
+**Reduce** (methods 2 through 5), and **ZIP**&nbsp;**Implode** (method&nbsp;6)
+has also been added.  The common **Store** (method&nbsp;0), **Deflate**
+(method&nbsp;8), and (decompression‑only) **Deflate64** (method&nbsp;9)
+algorithms remain supported.  Additionally, new
 [Zopfli](https://github.com/google/zopfli)‑enhanced **Deflate** (method&nbsp;8)
 support is available (when compressing using `zip -11`).
 

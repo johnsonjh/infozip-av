@@ -61,6 +61,9 @@
 #ifdef LZMA_SUPPORT
 # include "lzma.h"
 #endif
+#ifdef ZSTD_SUPPORT
+# include "zstd.h"
+#endif
 
 #ifdef BZIP2_SUPPORT
   /* If IZ_BZIP2 is defined as the location of the bzip2 files then
@@ -1512,7 +1515,7 @@ local void help_extended()
 "Compression:",
 "  -0        store files (no compression)",
 "  -1 to -9  compress fastest to compress best (default is 6)",
-"  -11       Zopfli optimized Deflate (other level-aware methods use -9)",
+"  -11       Zopfli Deflate; LZMA/XZ use -9, Zstd uses native level 22",
 "  -Z cm     set compression method to cm:",
 "              store       - store without compression, same as option -0",
 #ifdef BZIP2_SUPPORT
@@ -1523,6 +1526,10 @@ local void help_extended()
 #ifdef LZMA_SUPPORT
 "              lzma        - LZMA (method 14; -1..-9 presets, -11 = -9)",
 "              xz          - XZ LZMA2 (method 95; -1..-9 presets, -11 = -9)",
+#endif
+#ifdef ZSTD_SUPPORT
+"              zstd        - Zstandard (method 93; -1..-9 native, -11 = 22)",
+"  --zstd-level N             Zstd native compression level 1..22",
 #endif
 #ifdef PPMD_SUPPORT
 "              ppmd        - PPMd Variant I (method 98; -1..-9 tune model)",
@@ -1820,6 +1827,9 @@ local void version_info()
 #ifdef LZMA_SUPPORT
     "LZMA_SUPPORT         (ZIP methods 14 and 95; using external liblzma)",
 #endif
+#ifdef ZSTD_SUPPORT
+    "ZSTD_SUPPORT         (ZIP method 93; reads legacy method 20; external libzstd)",
+#endif
 #ifdef PPMD_SUPPORT
     "PPM/PPMd support     (ZIP method 98; public-domain PPMd derived from 7-Zip)",
 #endif
@@ -1901,6 +1911,9 @@ local void version_info()
   /* Fill in bzip2 version.  (32-char limit valid as of bzip 1.0.3.) */
 #ifdef LZMA_SUPPORT
   printf("\tliblzma version %s (LZMA and XZ)\n", lzma_version_string());
+#endif
+#ifdef ZSTD_SUPPORT
+  printf("\tlibzstd version %s (Zstandard ZIP methods 20/93)\n", ZSTD_versionString());
 #endif
 
 #ifdef BZIP2_SUPPORT
@@ -2637,6 +2650,7 @@ int set_filetype(out_path)
 #define o_dcl_mode      0x14e
 #define o_dcl_dict      0x14f
 #define o_dcl_optimal   0x150
+#define o_zstd_level    0x151
 #define o_sp            0x134
 #define o_su            0x135
 #define o_sU            0x136
@@ -2821,6 +2835,7 @@ struct option_struct far options[] = {
     {"",   "dcl-implode-mode", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_mode, "DCL literal mode: ascii or binary"},
     {"",   "dcl-implode-dict", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_dict, "DCL dictionary: 1k, 2k, or 4k"},
     {"",   "dcl-implode-optimal", o_NO_VALUE, o_NEGATABLE, o_dcl_optimal, "DCL optimal parse"},
+    {"",   "zstd-level", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_zstd_level, "Zstd native compression level 1..22"},
 #if defined(MSDOS) || defined(OS2)
     {"$",  "volume-label", o_NO_VALUE,      o_NOT_NEGATABLE, '$',  "store volume label"},
 #endif
@@ -3026,6 +3041,7 @@ char **argv;            /* command line tokens */
   dcl_implode_mode = 0;
   dcl_implode_dict = 0;
   dcl_implode_optimal = 0;
+  zstd_level = 0;
   translate_eol = 0;   /* Translate end-of-line LF -> CR LF */
 #if defined(OS2) || defined(WIN32)
   use_longname_ea = 0; /* 1=use the .LONGNAME EA as the file's name */
@@ -4047,6 +4063,29 @@ char **argv;            /* command line tokens */
           dcl_implode_optimal = negated ? 0 : 1;
           break;
 
+        case o_zstd_level:
+#ifndef ZSTD_SUPPORT
+          free(value);
+          ZIPERR(ZE_COMPERR, "Zstandard support not enabled");
+#else
+          {
+            char *endp;
+            long zl;
+            errno = 0;
+            endp = NULL;
+            zl = strtol(value, &endp, 10);
+            if (errno == ERANGE || endp == value || *endp != '\0' ||
+                zl < 1 || zl > 22) {
+              free(value);
+              ZIPERR(ZE_PARMS,
+                     "--zstd-level must be an integer from 1 to 22");
+            }
+            zstd_level = (int)zl;
+            free(value);
+          }
+#endif
+          break;
+
         case 'Z':   /* Compression method */
           if (strcmp(value, "dcl-implode") == 0) {
             /* PKWARE DCL Implode, ZIP method 10 */
@@ -4070,6 +4109,13 @@ char **argv;            /* command line tokens */
             method = XZ;
 #else
             ZIPERR(ZE_COMPERR, "Compression method xz not enabled");
+#endif
+          } else if (abbrevmatch("zstd", value, 0, 1)) {
+            /* Zstandard, ZIP method 93.  Deprecated method 20 is read-only. */
+#ifdef ZSTD_SUPPORT
+            method = ZSTD;
+#else
+            ZIPERR(ZE_COMPERR, "Compression method zstd not enabled");
 #endif
           } else if (abbrevmatch("bzip2", value, 0, 1)) {
             /* bzip2 */
@@ -4101,10 +4147,16 @@ char **argv;            /* command line tokens */
 #else
 #define PP_STR ""
 #endif
-            zipwarn("valid compression methods include: store, deflate, dcl-implode" BZ_STR LZ_STR PP_STR, "");
+#ifdef ZSTD_SUPPORT
+#define ZS_STR ", zstd"
+#else
+#define ZS_STR ""
+#endif
+            zipwarn("valid compression methods include: store, deflate, dcl-implode" BZ_STR LZ_STR PP_STR ZS_STR, "");
 #undef BZ_STR
 #undef LZ_STR
 #undef PP_STR
+#undef ZS_STR
             zipwarn("unknown compression method found:  ", value);
             free(value);
             ZIPERR(ZE_PARMS, "Option -Z (--compression-method):  unknown method");
@@ -4424,6 +4476,9 @@ char **argv;            /* command line tokens */
       method != DCLIMPLODE) {
     ZIPERR(ZE_PARMS,
            "DCL Implode tuning options require -Z dcl-implode");
+  }
+  if (zstd_level != 0 && method != ZSTD) {
+    ZIPERR(ZE_PARMS, "--zstd-level requires -Z zstd");
   }
 
   /* open log file */

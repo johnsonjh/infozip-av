@@ -75,6 +75,13 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
     to both methods by defining LZMA_SFX and linking liblzma; see unix/Makefile
     for the make variables.
 
+    Unix builds also detect libzstd 1.4.0 or newer.  When present, UnZip accepts
+    both the deprecated Zstandard ZIP method 20 and current method 93.  Each
+    compressed member must contain exactly one standard Zstandard frame; frames
+    with or without the optional Zstd checksum are accepted, while concatenated,
+    skippable, or trailing frames are rejected.  UnZipSFX does not link libzstd
+    by default; an explicit ZSTD_SFX build may opt in.
+
     As of UnZip 5.53, support for the bzip2 compression algorithm has been
     added to UnZip. However, this support requires the original sources of
     the bzip2 compression library which have to be aquired separately;
@@ -373,6 +380,21 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         To opt in to both methods for the Unix SFX build, set:
           D_USE_LZMA_SFX=-DLZMA_SFX L_LZMA_SFX=-llzma
         in addition to enabling USE_LZMA and USE_XZ.
+
+      USE_ZSTD
+        Enable extraction of deprecated Zstandard ZIP method 20 and current
+        method 93 through libzstd 1.4.0 or newer.  The Unix configure target
+        detects the required streaming APIs and supplies USE_ZSTD and -lzstd
+        automatically.  Both checksummed and non-checksummed standard frames
+        are accepted, but each ZIP member must contain exactly one Zstandard
+        frame; concatenated streams, skippable frames, and trailing data are
+        rejected.
+
+        USE_ZSTD is removed automatically from normal UnZipSFX builds so the
+        redistributable stub does not acquire a libzstd dependency.  To opt in
+        on Unix, set:
+          D_USE_ZSTD_SFX=-DZSTD_SFX L_ZSTD_SFX=-lzstd
+        in addition to enabling USE_ZSTD.  fUnZip does not support Zstandard.
 
       USE_BZIP2 (requires additional external code distribution)
        UnZip can optionally support the "bzip2" compression algorithm for
