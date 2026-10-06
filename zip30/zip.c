@@ -1527,19 +1527,21 @@ local void help_extended()
 "              lzma        - LZMA (method 14; -1..-9 presets, -11 = -9)",
 "              xz          - XZ LZMA2 (method 95; -1..-9 presets, -11 = -9)",
 #endif
-#ifdef ZSTD_SUPPORT
-"              zstd        - Zstandard (method 93; -1..-9 native, -11 = 22)",
-"  --zstd-level N             Zstd native compression level 1..22",
-#endif
 #ifdef PPMD_SUPPORT
 "              ppmd        - PPMd Variant I (method 98; -1..-9 tune model)",
+#endif
+#ifdef ZSTD_SUPPORT
+"              zstd        - Zstandard (method 93; -1..-9 native, -11 = 22)",
 #endif
 "",
 "Compression tuning:",
 "  --dcl-implode-mode ascii|binary  DCL-implode mode (default binary)",
 "  --dcl-implode-dict 1k|2k|4k      DCL-implode dict size (default automatic)",
-"  --dcl-implode-optimal[-]         enable/disable DCL-implode optimal parser",
-"  --zopfli-iterations n            Zopfli passes (default 15, 1..10000)",
+"  --dcl-implode-optimal[-]         enable/disable DCL-Implode optimal parser",
+"  --zopfli-iterations n            Zopfli iterations (default 15, 1..10000)",
+#ifdef ZSTD_SUPPORT
+"  --zstd-level n                   Zstandard native compression level (1..22)",
+#endif
 "",
 "Encryption:",
 "  -e        use standard (weak) PKZip 2.0 encryption, prompt for password",
