@@ -48,8 +48,11 @@
 #  ifdef USE_BZIP2      /* fUnZip does not support bzip2 decompression */
 #    undef USE_BZIP2
 #  endif
-#  ifdef USE_LZMA       /* fUnZip does not support LZMA decompression */
+#  ifdef USE_LZMA       /* fUnZip does not support liblzma codecs */
 #    undef USE_LZMA
+#  endif
+#  ifdef USE_XZ
+#    undef USE_XZ
 #  endif
 #endif
 
@@ -75,10 +78,16 @@
 #  undef USE_BZIP2
 #endif
 
-/* LZMA uses an external library!
- * Avoid that dep in the SFX stub unless explicitly requested */
-#if (defined(SFX) && !defined(LZMA_SFX) && defined(USE_LZMA))
-#  undef USE_LZMA
+/* LZMA and XZ use the external liblzma library.
+ * Avoid that dependency in the default SFX stub.  LZMA_SFX is the single
+ * explicit opt-in for both method 14 and method 95. */
+#if (defined(SFX) && !defined(LZMA_SFX))
+#  ifdef USE_LZMA
+#    undef USE_LZMA
+#  endif
+#  ifdef USE_XZ
+#    undef USE_XZ
+#  endif
 #endif
 
 #if (defined(NO_VMS_TEXT_CONV) || defined(VMS))
@@ -1729,9 +1738,10 @@
 #define LZMAED           14
 #define IBMTERSED        18
 #define IBMLZ77ED        19
+#define XZED             95
 #define WAVPACKED        97
 #define PPMDED           98
-#define NUM_METHODS      17     /* number of known method IDs */
+#define NUM_METHODS      18     /* number of known method IDs */
 /* don't forget to update list.c (list_files()), extract.c and zipinfo.c
  * appropriately if NUM_METHODS changes */
 

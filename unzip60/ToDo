@@ -4,11 +4,10 @@ For UnZip 6.1/who knows:
 
    o add extraction support for other compression algorithms used by new
      PKZIP, WinZIP, 7-Zip versions
-     - LZMA, compression type 14 (most important, because of its efficiency)
+     - Zstandard, compression type 93 (legacy method 20)
      - WavPacked, compression type 97 (maybe, less important)
 
-       XZ and LZMA is first-level priority for 6.1; other formats may be taken
-       into consideration
+       Other formats may be taken into consideration.
 
    o add support for reading AES encrypted archives
      - WinZIP format (priority 1)

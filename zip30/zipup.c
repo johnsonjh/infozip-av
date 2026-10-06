@@ -180,6 +180,7 @@ local zoff_t ppmdfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
 #ifdef LZMA_SUPPORT
 local zoff_t lzmafilecompress OF((struct zlist far *z_entry, int *cmpr_method));
+local zoff_t xzfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
 
 #ifdef BZIP2_SUPPORT
@@ -992,6 +993,8 @@ struct zlist far *z;    /* zip entry to compress */
 #ifdef LZMA_SUPPORT
   if (method == LZMA)
       z->ver = (ush)(m == STORE ? 10 : 63);
+  if (method == XZ)
+      z->ver = (ush)(m == STORE ? 10 : 20);
 #endif
   z->crc = 0;  /* to be updated later */
   /* Assume first that we will need an extended local header: */
@@ -1100,6 +1103,9 @@ struct zlist far *z;    /* zip entry to compress */
 #ifdef LZMA_SUPPORT
     else if (m == LZMA) {
       s = lzmafilecompress(z, &m);
+    }
+    else if (m == XZ) {
+      s = xzfilecompress(z, &m);
     }
 #endif /* LZMA_SUPPORT */
     else {
@@ -1320,6 +1326,8 @@ struct zlist far *z;    /* zip entry to compress */
 #ifdef LZMA_SUPPORT
       case LZMA:
         z->ver = 63; break;
+      case XZ:
+        z->ver = 20; break;
 #endif
       }
       /*
@@ -1399,6 +1407,8 @@ struct zlist far *z;    /* zip entry to compress */
 #ifdef LZMA_SUPPORT
     else if (m == LZMA)
       fprintf(mesg, " (LZMA compressed %d%%)\n", percent(isize, s));
+    else if (m == XZ)
+      fprintf(mesg, " (XZ compressed %d%%)\n", percent(isize, s));
 #endif
     else
       fprintf(mesg, " (stored 0%%)\n");
@@ -1423,6 +1433,8 @@ struct zlist far *z;    /* zip entry to compress */
 #ifdef LZMA_SUPPORT
     else if (m == LZMA)
       fprintf(logfile, " (LZMA compressed %d%%)\n", percent(isize, s));
+    else if (m == XZ)
+      fprintf(logfile, " (XZ compressed %d%%)\n", percent(isize, s));
 #endif
     else
       fprintf(logfile, " (stored 0%%)\n");
@@ -2163,6 +2175,107 @@ local zoff_t lzmafilecompress(z_entry, cmpr_method)
     z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
     return small_store_finish(&store_test, cmpr_method, output_size);
 }
+/* ZIP method 95: one complete XZ stream per ZIP member.  XZ itself uses
+ * LZMA2 for compression and supplies its own Stream Header, Block Header,
+ * Index, and Stream Footer; unlike ZIP method 14 there is no ZIP-specific
+ * LZMA properties prefix.
+ *
+ * Creation profile note: the available 7-Zip interoperability sample uses
+ * the XZ CRC32 integrity check.  Pending a genuine WinZip-created method-95
+ * reference archive, Zip deliberately emits LZMA_CHECK_NONE.  The enclosing
+ * ZIP member already carries its normal CRC-32.  Revisit this choice when a
+ * WinZip reference becomes available.  UnZip accepts every XZ check that
+ * liblzma supports. */
+local zoff_t xzfilecompress(z_entry, cmpr_method)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+{
+    lzma_stream strm = LZMA_STREAM_INIT;
+    struct small_store_state store_test;
+    uch *inbuf;
+    uch *outbuf;
+    unsigned lev;
+    unsigned got;
+    unsigned produced;
+    zoff_t output_size;
+    lzma_ret lr;
+    int done;
+
+    lev = (level == 11) ? 9U :
+          ((level >= 1 && level <= 9) ? (unsigned)level : 6U);
+
+    lr = lzma_easy_encoder(&strm, lev, LZMA_CHECK_NONE);
+    if (lr != LZMA_OK) {
+        if (lr == LZMA_MEM_ERROR)
+            ziperr(ZE_MEM, "initializing XZ compressor");
+        ziperr(ZE_LOGIC, "initializing XZ compressor");
+    }
+
+    inbuf = (uch *)malloc((size_t)SBSZ);
+    outbuf = (uch *)malloc((size_t)LZMA_ZIP_OUTBUF);
+    if (inbuf == NULL || outbuf == NULL) {
+        lzma_end(&strm);
+        free(inbuf);
+        free(outbuf);
+        ziperr(ZE_MEM, "allocating XZ compression buffers");
+    }
+
+    small_store_init(&store_test, (size_t)SBSZ);
+    output_size = 0;
+    strm.next_out = (uint8_t *)outbuf;
+    strm.avail_out = (size_t)LZMA_ZIP_OUTBUF;
+    done = FALSE;
+
+    while (!done) {
+        got = small_store_read(&store_test, (char *)inbuf, SBSZ);
+        if (got == (unsigned)EOF)
+            got = 0;
+        if (got != 0 && file_binary_final == 0 &&
+            !is_text_buf((char *)inbuf, got))
+            file_binary_final = 1;
+
+        strm.next_in = (const uint8_t *)inbuf;
+        strm.avail_in = (size_t)got;
+        do {
+            lr = lzma_code(&strm, got == 0 ? LZMA_FINISH : LZMA_RUN);
+            if (lr != LZMA_OK && lr != LZMA_STREAM_END) {
+                lzma_end(&strm);
+                small_store_discard(&store_test);
+                free(inbuf);
+                free(outbuf);
+                if (lr == LZMA_MEM_ERROR)
+                    ziperr(ZE_MEM, "compressing with XZ");
+                ziperr(ZE_LOGIC, "liblzma XZ compression failed");
+            }
+
+            produced = LZMA_ZIP_OUTBUF - (unsigned)strm.avail_out;
+            if (produced != 0 &&
+                (strm.avail_out == 0 || lr == LZMA_STREAM_END)) {
+                if (small_store_write(&store_test, outbuf, produced) != produced) {
+                    lzma_end(&strm);
+                    small_store_discard(&store_test);
+                    free(inbuf);
+                    free(outbuf);
+                    ziperr(ZE_TEMP, "error writing XZ data to zipfile");
+                }
+                output_size += (zoff_t)produced;
+                strm.next_out = (uint8_t *)outbuf;
+                strm.avail_out = (size_t)LZMA_ZIP_OUTBUF;
+            }
+        } while (strm.avail_in != 0 ||
+                 (got == 0 && lr != LZMA_STREAM_END));
+
+        if (got == 0)
+            done = TRUE;
+    }
+
+    lzma_end(&strm);
+    free(inbuf);
+    free(outbuf);
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    return small_store_finish(&store_test, cmpr_method, output_size);
+}
+
 #endif /* LZMA_SUPPORT */
 
 #ifdef USE_ZLIB

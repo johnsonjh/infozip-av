@@ -334,6 +334,7 @@ extern int scanimage;           /* Scan through image files */
 #define DCLIMPLODE 10           /* PKWARE DCL Implode method */
 #define BZIP2 12                /* BZIP2 method */
 #define LZMA 14                 /* LZMA method */
+#define XZ 95                   /* XZ/LZMA2 method */
 #define PPMD 98                 /* PPMd Variant I, ZIP method 98 */
 
 /* PPMd needs a flat space large enough for 1MB! */
@@ -353,7 +354,7 @@ extern int scanimage;           /* Scan through image files */
 /* Compression methods which Zip recognizes while reading existing archives.
  * Keep this explicit: modern method numbers are sparse (14, 93, 95, 98). */
 #define KNOWN_COMPMETHOD(m) \
-    ((m) <= BZIP2 || (m) == LZMA || (m) == PPMD)
+    ((m) <= BZIP2 || (m) == LZMA || (m) == XZ || (m) == PPMD)
 
 extern int method;              /* Restriction on compression method */
 

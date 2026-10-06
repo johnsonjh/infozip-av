@@ -1522,6 +1522,7 @@ local void help_extended()
 "              deflate     - ZIP Deflate, same as -1 to -9 (default)",
 #ifdef LZMA_SUPPORT
 "              lzma        - LZMA (method 14; -1..-9 presets, -11 = -9)",
+"              xz          - XZ LZMA2 (method 95; -1..-9 presets, -11 = -9)",
 #endif
 #ifdef PPMD_SUPPORT
 "              ppmd        - PPMd Variant I (method 98; -1..-9 tune model)",
@@ -1817,7 +1818,7 @@ local void version_info()
     "ZIP64_SUPPORT        (use Zip64 to store large files in archives)",
 #endif
 #ifdef LZMA_SUPPORT
-    "LZMA_SUPPORT         (ZIP method 14; using external liblzma)",
+    "LZMA_SUPPORT         (ZIP methods 14 and 95; using external liblzma)",
 #endif
 #ifdef PPMD_SUPPORT
     "PPM/PPMd support     (ZIP method 98; public-domain PPMd derived from 7-Zip)",
@@ -1899,7 +1900,7 @@ local void version_info()
 
   /* Fill in bzip2 version.  (32-char limit valid as of bzip 1.0.3.) */
 #ifdef LZMA_SUPPORT
-  printf("\tLZMA library version %s\n", lzma_version_string());
+  printf("\tliblzma version %s (LZMA and XZ)\n", lzma_version_string());
 #endif
 
 #ifdef BZIP2_SUPPORT
@@ -4063,6 +4064,13 @@ char **argv;            /* command line tokens */
 #else
             ZIPERR(ZE_COMPERR, "Compression method lzma not enabled");
 #endif
+          } else if (abbrevmatch("xz", value, 0, 1)) {
+            /* XZ/LZMA2, ZIP method 95 */
+#ifdef LZMA_SUPPORT
+            method = XZ;
+#else
+            ZIPERR(ZE_COMPERR, "Compression method xz not enabled");
+#endif
           } else if (abbrevmatch("bzip2", value, 0, 1)) {
             /* bzip2 */
 #ifdef BZIP2_SUPPORT
@@ -4084,7 +4092,7 @@ char **argv;            /* command line tokens */
 #define BZ_STR ""
 #endif
 #ifdef LZMA_SUPPORT
-#define LZ_STR ", lzma"
+#define LZ_STR ", lzma, xz"
 #else
 #define LZ_STR ""
 #endif

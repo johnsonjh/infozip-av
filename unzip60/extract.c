@@ -345,6 +345,113 @@ static int uz_lzma_decompress(__G)
 }
 #endif /* USE_LZMA */
 
+#ifdef USE_XZ
+/* Decode ZIP method 95.  Each ZIP member contains exactly one complete XZ
+ * stream.  The XZ stream uses LZMA2 and carries its own stream/block framing.
+ * Accept any single XZ stream and integrity-check type supported by liblzma
+ * (None, CRC32, CRC64, SHA-256, etc.).  Do not enable LZMA_CONCATENATED:
+ * the method-95 interoperability model is one ZIP member -> one XZ stream.
+ * The final compressed-segment check below also rejects trailing/concatenated
+ * streams.
+ *
+ * Writer-profile note: the available 7-Zip method-95 sample uses XZ CRC32.
+ * Our Zip writer currently emits Check=None by explicit project policy pending
+ * a genuine WinZip reference archive; revisit that creation choice when one is
+ * available. */
+static int uz_xz_decompress(__G)
+    __GDEF
+{
+    lzma_stream strm = LZMA_STREAM_INIT;
+    unsigned produced;
+    unsigned outsize;
+    zusz_t expected_size;
+    int r;
+    lzma_ret lr;
+
+    lr = lzma_stream_decoder(&strm, UINT64_MAX, 0);
+    if (lr != LZMA_OK)
+        return lr == LZMA_MEM_ERROR ? PK_MEM3 : PK_ERR;
+
+#if (defined(DLL) && !defined(NO_SLIDE_REDIR))
+    if (G.redirect_slide) {
+        outsize = G.redirect_size;
+        redirSlide = G.redirect_buffer;
+    } else {
+        outsize = WSIZE;
+        redirSlide = slide;
+    }
+#else
+    outsize = WSIZE;
+#endif
+
+    strm.next_in = NULL;
+    strm.avail_in = 0;
+    strm.next_out = (uint8_t *)redirSlide;
+    strm.avail_out = (size_t)outsize;
+    expected_size = G.lrec.ucsize;
+    r = PK_COOL;
+
+    for (;;) {
+        if (strm.avail_in == 0) {
+            if (G.incnt <= 0 && G.csize > 0 && fillinbuf(__G) == 0) {
+                r = PK_ERR;
+                break;
+            }
+            if (G.incnt > 0) {
+                strm.next_in = (const uint8_t *)G.inptr;
+                strm.avail_in = (size_t)G.incnt;
+            }
+        }
+
+        {
+            const uint8_t *before_in;
+            size_t before_avail;
+            before_in = strm.next_in;
+            before_avail = strm.avail_in;
+            lr = lzma_code(&strm, LZMA_RUN);
+            if (before_avail != 0) {
+                unsigned consumed;
+                consumed = (unsigned)(strm.next_in - before_in);
+                G.inptr += consumed;
+                G.incnt -= (int)consumed;
+            }
+        }
+
+        produced = outsize - (unsigned)strm.avail_out;
+        if (produced != 0 && (strm.avail_out == 0 || lr == LZMA_STREAM_END)) {
+            r = FLUSH(produced);
+            if (r != PK_COOL)
+                break;
+            strm.next_out = (uint8_t *)redirSlide;
+            strm.avail_out = (size_t)outsize;
+        }
+
+        if (lr == LZMA_STREAM_END)
+            break;
+        if (lr == LZMA_MEM_ERROR) {
+            r = PK_MEM3;
+            break;
+        }
+        if (lr != LZMA_OK) {
+            r = PK_ERR;
+            break;
+        }
+        if (strm.avail_in == 0 && G.incnt <= 0 && G.csize <= 0) {
+            r = PK_ERR;
+            break;
+        }
+    }
+
+    if (r == PK_COOL &&
+        ((zusz_t)strm.total_out != expected_size ||
+         G.csize + (zoff_t)G.incnt != 0))
+        r = PK_ERR;
+
+    lzma_end(&strm);
+    return r;
+}
+#endif /* USE_XZ */
+
 #define GRRDUMP(buf,len) { \
     int i, j; \
  \
@@ -1054,6 +1161,7 @@ static ZCONST char Far ComprMsgNum[] =
    static ZCONST char Far CmprDCLImplode[] = "DCL implode";
    static ZCONST char Far CmprBzip[]       = "bzip2";
    static ZCONST char Far CmprLZMA[]       = "LZMA";
+   static ZCONST char Far CmprXZ[]         = "XZ";
    static ZCONST char Far CmprIBMTerse[]   = "IBM/Terse";
    static ZCONST char Far CmprIBMLZ77[]    = "IBM LZ77";
    static ZCONST char Far CmprWavPack[]    = "WavPack";
@@ -1061,12 +1169,13 @@ static ZCONST char Far ComprMsgNum[] =
    static ZCONST char Far *ComprNames[NUM_METHODS] = {
      CmprNone, CmprShrink, CmprReduce, CmprReduce, CmprReduce, CmprReduce,
      CmprImplode, CmprTokenize, CmprDeflate, CmprDeflat64, CmprDCLImplode,
-     CmprBzip, CmprLZMA, CmprIBMTerse, CmprIBMLZ77, CmprWavPack, CmprPPMd
+     CmprBzip, CmprLZMA, CmprIBMTerse, CmprIBMLZ77, CmprXZ, CmprWavPack,
+     CmprPPMd
    };
    static ZCONST unsigned ComprIDs[NUM_METHODS] = {
      STORED, SHRUNK, REDUCED1, REDUCED2, REDUCED3, REDUCED4,
      IMPLODED, TOKENIZED, DEFLATED, ENHDEFLATED, DCLIMPLODED,
-     BZIPPED, LZMAED, IBMTERSED, IBMLZ77ED, WAVPACKED, PPMDED
+     BZIPPED, LZMAED, IBMTERSED, IBMLZ77ED, XZED, WAVPACKED, PPMDED
    };
 #endif /* !SFX */
 static ZCONST char Far FilNamMsg[] =
@@ -1953,6 +2062,12 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #  define UNKN_LZMA TRUE      /* LZMA unknown */
 #endif
 
+#ifdef USE_XZ
+#  define UNKN_XZ (G.crec.compression_method!=XZED)
+#else
+#  define UNKN_XZ TRUE        /* XZ unknown */
+#endif
+
 #ifdef USE_WAVP
 #  define UNKN_WAVP (G.crec.compression_method!=WAVPACKED)
 #else
@@ -1970,11 +2085,11 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method<DEFLATED \
       && G.crec.compression_method>ENHDEFLATED \
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_WAVP && UNKN_PPMD)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WAVP && UNKN_PPMD)
 #  else
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method!=DEFLATED\
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_WAVP && UNKN_PPMD)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WAVP && UNKN_PPMD)
 #  endif
 #else
 #  ifdef USE_OLDUNZIP
@@ -1989,13 +2104,13 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>ENHDEFLATED && \
-      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA \
+      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ \
       && UNKN_WAVP && UNKN_PPMD))
 #  else
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>DEFLATED && \
-      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA \
+      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ \
       && UNKN_WAVP && UNKN_PPMD))
 #  endif
 #endif
@@ -3105,6 +3220,35 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             }
             break;
 #endif /* USE_LZMA */
+
+#ifdef USE_XZ
+        case XZED:
+            if (!uO.tflag && QCOND2) {
+                Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
+                  "decod", FnFilter1(G.filename), avmark, avsep,
+                  (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
+                  uO.cflag ? NEWLINE : ""));
+            }
+            r = uz_xz_decompress(__G);
+            if (r != PK_COOL) {
+                if (r < PK_DISK) {
+                    if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipFile),
+                          r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
+                          LoadFarString(InvalidComprData),
+                          "XZ", FnFilter1(G.filename)));
+                    else
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipNoFile),
+                          r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
+                          LoadFarString(InvalidComprData), "XZ"));
+                    error = (r == PK_MEM3) ? PK_MEM3 : PK_ERR;
+                } else
+                    error = r;
+            }
+            break;
+#endif /* USE_XZ */
 
 #ifdef USE_PPMD
         case PPMDED:

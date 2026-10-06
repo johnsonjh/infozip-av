@@ -81,7 +81,11 @@ otherwise does not work well on a particular OS, send in the details and
 we might be able to help.
 
 Compression methods.  In addition to store, deflate, and PKWARE DCL Implode,
-Zip can create PPMd Variant I entries using ZIP method 98 with -Z ppmd.
+Zip can create LZMA method-14 entries with -Z lzma and XZ/LZMA2 method-95
+entries with -Z xz when liblzma 5.4.0 or newer is available.  Method 95 stores
+one complete XZ stream in each ZIP member.  Zip can also create PPMd Variant I
+entries using ZIP method 98 with -Z ppmd.
+
 PPMd is built in on non-16-bit targets and uses public-domain PPMd sources
 derived from 7-Zip 26.03 commit 0766b73, adapted to strict ANSI C89.  The
 normal -1 through -9 compression levels tune the PPMd model from order 6 /
@@ -95,8 +99,9 @@ method-8 Deflate, so no special extractor support is required.  It processes
 input in fixed 1,000,000-byte parts while retaining the full 32 KiB Deflate
 history, so stdin and very large files do not require whole-file buffering.
 --zopfli-iterations sets the optimization iteration count (default 15, range
-1 through 10000).  For PPMd and bzip2, -11 maps exactly to -9.  Zopfli can be
-omitted with NO_ZOPFLI and is not enabled for 16-bit or Windows DLL builds.
+1 through 10000).  For LZMA, XZ, PPMd, and bzip2, -11 maps exactly to -9.
+Zopfli can be omitted with NO_ZOPFLI and is not enabled for 16-bit or Windows
+DLL builds.
 
 Installation.  Please read the file INSTALL for information on how to compile
 and install zip, zipsplit, zipcloak, and zipnote and please read the manual
@@ -163,6 +168,13 @@ Q. How about "compression method 12"?
 
 A. Compression method 12 is bzip2 and requires a relatively modern unzip.
    Please get the latest version of unzip.
+
+
+Q. What about "compression method 95"?
+
+A. Compression method 95 is XZ/LZMA2.  Use an unzip built with liblzma/XZ
+   support.  This tree enables it automatically on Unix when liblzma 5.4.0 or
+   newer is found.
 
 
 Q. And "compression method 98"?

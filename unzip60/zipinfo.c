@@ -208,6 +208,7 @@ static ZCONST char Far MthdBZip2[] = "bzipped";
 static ZCONST char Far MthdLZMA[] = "LZMA-ed";
 static ZCONST char Far MthdTerse[] = "tersed (IBM)";
 static ZCONST char Far MthdLZ77[] = "LZ77-compressed (IBM)";
+static ZCONST char Far MthdXZ[] = "XZ-compressed";
 static ZCONST char Far MthdWavPack[] = "WavPacked";
 static ZCONST char Far MthdPPMd[] = "PPMd-ed";
 
@@ -1075,7 +1076,8 @@ static int zi_long(__G__ pEndprev, error_in_archive)
     static ZCONST char Far *method[NUM_METHODS] = {
         MthdNone, MthdShrunk, MthdRedF1, MthdRedF2, MthdRedF3, MthdRedF4,
         MthdImplode, MthdToken, MthdDeflate, MthdDeflat64, MthdDCLImplode,
-        MthdBZip2, MthdLZMA, MthdTerse, MthdLZ77, MthdWavPack, MthdPPMd
+        MthdBZip2, MthdLZMA, MthdTerse, MthdLZ77, MthdXZ, MthdWavPack,
+        MthdPPMd
     };
     static ZCONST char Far *dtypelng[4] = {
         DeflNorm, DeflMax, DeflFast, DeflSFast
@@ -1972,8 +1974,8 @@ static int zi_short(__G)   /* return PK-type error code */
 #endif
     static ZCONST char Far method[NUM_METHODS+1][5] = {
         "stor", "shrk", "re:1", "re:2", "re:3", "re:4", "i#:#", "tokn",
-        "def#", "d64#", "dcli", "bzp2", "lzma", "ters", "lz77", "wavp",
-        "ppmd", "u###"
+        "def#", "d64#", "dcli", "bzp2", "lzma", "ters", "lz77", "xz  ",
+        "wavp", "ppmd", "u###"
     };
 
 

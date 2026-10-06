@@ -94,9 +94,10 @@ IZ_BZIP2 = $(IZ_OUR_BZIP2_DIR)
 #D_USE_BZ2 = -DUSE_BZIP2
 #L_BZ2 = -lbz2
 #LIBBZ2 = $(IZ_BZIP2)/libbz2.a
-#D_USE_LZMA = -DUSE_LZMA
+
+#D_USE_LZMA = -DUSE_LZMA -DUSE_XZ
 #L_LZMA = -llzma
-# For SFX build w/method-14 support, additionally set both of these:
+# For SFX build w/method-14 and method-95 support, additionally set both:
 #D_USE_LZMA_SFX = -DLZMA_SFX
 #L_LZMA_SFX = -llzma
 

@@ -68,10 +68,12 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
     Define NO_PPMD to omit this decoder.  Method-98 streams may request up to
     256 MiB of model memory.
 
-    Unix builds detect a liblzma from XZ-Utils (5.4.0 or newer) and if
-    present, enables ZIP method 14 (LZMA) in UnZip.  UnZipSFX doesn't enable
-    this dependency by default.  A Unix SFX build can opt in by defining
-    LZMA_SFX and linking liblzma; see unix/Makefile for the make variables.
+    Unix builds detect liblzma from XZ-Utils (5.4.0 or newer) and, if
+    present, enable both ZIP method 14 (LZMA) and method 95 (XZ/LZMA2) in
+    UnZip.  Method 95 is one complete XZ stream per ZIP member.  UnZipSFX
+    does not enable this dependency by default.  A Unix SFX build can opt in
+    to both methods by defining LZMA_SFX and linking liblzma; see unix/Makefile
+    for the make variables.
 
     As of UnZip 5.53, support for the bzip2 compression algorithm has been
     added to UnZip. However, this support requires the original sources of
@@ -357,16 +359,20 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         memory as requested by the archive, so it is disabled automatically for
         16-bit targets.  Define NO_PPMD to omit the decoder explicitly.
 
-      USE_LZMA
-        Enable extraction of LZMA ZIP method 14 through using liblzma from
-        XZ-Utils (5.4.0 or newer).  The Unix configure target detects the
-        required header and API and sets USE_LZMA (plus -llzma) automatically.
-        Method-14 streams with or without the optional EOS marker are accepted.
-        USE_LZMA is removed automatically from normal UnZipSFX builds so the
-        redistributable stub does not automatically get a liblzma dependency.
-        To opt for lzma in the Unix SFX build, set:
+      USE_LZMA / USE_XZ
+        Enable extraction of LZMA ZIP method 14 and XZ/LZMA2 ZIP method 95
+        through liblzma from XZ-Utils (5.4.0 or newer).  The Unix configure
+        target detects the required APIs and sets both USE_LZMA and USE_XZ
+        (plus -llzma) automatically.  Method-14 streams with or without the
+        optional EOS marker are accepted.  Method-95 entries must contain one
+        complete XZ stream; all integrity-check types supported by liblzma are
+        accepted, while concatenated XZ streams in one ZIP member are rejected.
+
+        USE_LZMA and USE_XZ are removed automatically from normal UnZipSFX
+        builds so the redistributable stub does not acquire a liblzma dependency.
+        To opt in to both methods for the Unix SFX build, set:
           D_USE_LZMA_SFX=-DLZMA_SFX L_LZMA_SFX=-llzma
-        in addition to enabling USE_LZMA.
+        in addition to enabling USE_LZMA and USE_XZ.
 
       USE_BZIP2 (requires additional external code distribution)
        UnZip can optionally support the "bzip2" compression algorithm for

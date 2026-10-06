@@ -662,7 +662,7 @@ _EOF_
 fi
 
 
-# liblzma (XZ Utils) -- ZIP method 14.
+# liblzma (XZ Utils) -- ZIP methods 14 (LZMA) and 95 (XZ/LZMA2).
 echo "Check liblzma support (5.4.0 or newer)"
 D_USE_LZMA=""
 L_LZMA=""
@@ -674,6 +674,7 @@ cat > conftest.c << _EOF_
 int main()
 {
   lzma_stream strm = LZMA_STREAM_INIT;
+  lzma_stream strm2 = LZMA_STREAM_INIT;
   lzma_options_lzma opt;
   lzma_filter filters[2];
   if (lzma_lzma_preset(&opt, 6)) return 1;
@@ -685,16 +686,18 @@ int main()
   filters[1].options = 0;
   if (lzma_raw_decoder(&strm, filters) != LZMA_OK) return 1;
   lzma_end(&strm);
+  if (lzma_stream_decoder(&strm2, UINT64_MAX, 0) != LZMA_OK) return 1;
+  lzma_end(&strm2);
   return 0;
 }
 _EOF_
 $CC $CFLAGS -o conftest conftest.c -llzma > /dev/null 2>/dev/null
 if test $? -eq 0; then
-  echo "-- OS supports liblzma >= 5.4.0 - enabling LZMA method 14"
-  D_USE_LZMA="-DUSE_LZMA"
+  echo "-- OS supports liblzma >= 5.4.0 - enabling LZMA method 14 and XZ method 95"
+  D_USE_LZMA="-DUSE_LZMA -DUSE_XZ"
   L_LZMA="-llzma"
 else
-  echo "-- liblzma 5.4.0+ headers/library not found - no LZMA support"
+  echo "-- liblzma 5.4.0+ headers/library not found - no LZMA/XZ support"
 fi
 rm -f conftest conftest.c conftest.o
 
