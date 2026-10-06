@@ -1513,19 +1513,25 @@ local void help_extended()
 "  -0        store files (no compression)",
 "  -1 to -9  compress fastest to compress best (default is 6)",
 "  -11       Zopfli optimized Deflate (other level-aware methods use -9)",
-"  --zopfli-iterations n  Zopfli optimization passes (default 15, 1..10000)",
 "  -Z cm     set compression method to cm:",
-"              store   - store without compression, same as option -0",
-"              deflate - original zip deflate, same as -1 to -9 (default)",
+"              store       - store without compression, same as option -0",
+#ifdef BZIP2_SUPPORT
+"              bzip2       - use bzip2 compression (needs modern unzip)",
+#endif
 "              dcl-implode - PKWARE DCL Implode (method 10)",
+"              deflate     - ZIP Deflate, same as -1 to -9 (default)",
 #ifdef LZMA_SUPPORT
-"              lzma    - LZMA (method 14; -1..-9 presets, -11 = -9)",
+"              lzma        - LZMA (method 14; -1..-9 presets, -11 = -9)",
 #endif
 #ifdef PPMD_SUPPORT
-"              ppmd    - PPMd Variant I (method 98; -1..-9 tune model)",
+"              ppmd        - PPMd Variant I (method 98; -1..-9 tune model)",
 #endif
-"            if bzip2 is enabled:",
-"              bzip2 - use bzip2 compression (need modern unzip)",
+"",
+"Compression tuning:",
+"  --dcl-implode-mode ascii|binary  DCL-implode mode (default binary)",
+"  --dcl-implode-dict 1k|2k|4k      DCL-implode dict size (default automatic)",
+"  --dcl-implode-optimal[-]         enable/disable DCL-implode optimal parser",
+"  --zopfli-iterations n            Zopfli passes (default 15, 1..10000)",
 "",
 "Encryption:",
 "  -e        use standard (weak) PKZip 2.0 encryption, prompt for password",
@@ -2627,6 +2633,9 @@ int set_filetype(out_path)
 #define o_fwkcs_md5     0x14b
 #define o_11            0x14c
 #define o_zopfli_iter   0x14d
+#define o_dcl_mode      0x14e
+#define o_dcl_dict      0x14f
+#define o_dcl_optimal   0x150
 #define o_sp            0x134
 #define o_su            0x135
 #define o_sU            0x136
@@ -2808,6 +2817,9 @@ struct option_struct far options[] = {
     {"z",  "archive-comment", o_NO_VALUE,   o_NOT_NEGATABLE, 'z',  "ask for archive comment"},
     {"Z",  "compression-method", o_REQUIRED_VALUE, o_NOT_NEGATABLE, 'Z', "compression method"},
     {"",   "zopfli-iterations", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_zopfli_iter, "Zopfli optimization iterations"},
+    {"",   "dcl-implode-mode", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_mode, "DCL literal mode: ascii or binary"},
+    {"",   "dcl-implode-dict", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_dict, "DCL dictionary: 1k, 2k, or 4k"},
+    {"",   "dcl-implode-optimal", o_NO_VALUE, o_NEGATABLE, o_dcl_optimal, "DCL optimal parse"},
 #if defined(MSDOS) || defined(OS2)
     {"$",  "volume-label", o_NO_VALUE,      o_NOT_NEGATABLE, '$',  "store volume label"},
 #endif
@@ -2893,6 +2905,8 @@ char **argv;            /* command line tokens */
   int key_needed = 0;   /* prompt for encryption key */
   int have_out = 0;     /* if set in_path and out_path different archive */
   int zopfli_iterations_set = 0; /* --zopfli-iterations was specified */
+  int dcl_mode_set = 0;          /* --dcl-implode-mode was specified */
+  int dcl_dict_set = 0;          /* --dcl-implode-dict was specified */
 #ifdef UNICODE_TEST
   int create_files = 0;
 #endif
@@ -3008,6 +3022,9 @@ char **argv;            /* command line tokens */
   fwkcs_md5 = 0;       /* 1=add FWKCS MD5 metadata */
   level = 6;           /* 0=store, 1..9=normal, 11=Zopfli for Deflate */
   zopfli_iterations = 15;
+  dcl_implode_mode = 0;
+  dcl_implode_dict = 0;
+  dcl_implode_optimal = 0;
   translate_eol = 0;   /* Translate end-of-line LF -> CR LF */
 #if defined(OS2) || defined(WIN32)
   use_longname_ea = 0; /* 1=use the .LONGNAME EA as the file's name */
@@ -3992,6 +4009,43 @@ char **argv;            /* command line tokens */
           }
           break;
 
+        case o_dcl_mode:
+          if (strcmp(value, "binary") == 0) {
+            dcl_implode_mode = 0;
+          } else if (strcmp(value, "ascii") == 0) {
+            dcl_implode_mode = 1;
+          } else {
+            free(value);
+            ZIPERR(ZE_PARMS,
+                   "--dcl-implode-mode must be either ascii or binary");
+          }
+          dcl_mode_set = 1;
+          free(value);
+          break;
+
+        case o_dcl_dict:
+          if (strcmp(value, "1k") == 0 || strcmp(value, "1K") == 0 ||
+              strcmp(value, "1024") == 0) {
+            dcl_implode_dict = 1024UL;
+          } else if (strcmp(value, "2k") == 0 || strcmp(value, "2K") == 0 ||
+                     strcmp(value, "2048") == 0) {
+            dcl_implode_dict = 2048UL;
+          } else if (strcmp(value, "4k") == 0 || strcmp(value, "4K") == 0 ||
+                     strcmp(value, "4096") == 0) {
+            dcl_implode_dict = 4096UL;
+          } else {
+            free(value);
+            ZIPERR(ZE_PARMS,
+                   "--dcl-implode-dict must be 1k, 2k, 4k, 1024, 2048, or 4096");
+          }
+          dcl_dict_set = 1;
+          free(value);
+          break;
+
+        case o_dcl_optimal:
+          dcl_implode_optimal = negated ? 0 : 1;
+          break;
+
         case 'Z':   /* Compression method */
           if (strcmp(value, "dcl-implode") == 0) {
             /* PKWARE DCL Implode, ZIP method 10 */
@@ -4357,6 +4411,11 @@ char **argv;            /* command line tokens */
       !(level == 11 && (method == BEST || method == DEFLATE))) {
     ZIPERR(ZE_PARMS,
            "--zopfli-iterations requires -11 with Deflate compression");
+  }
+  if ((dcl_mode_set || dcl_dict_set || dcl_implode_optimal) &&
+      method != DCLIMPLODE) {
+    ZIPERR(ZE_PARMS,
+           "DCL Implode tuning options require -Z dcl-implode");
   }
 
   /* open log file */

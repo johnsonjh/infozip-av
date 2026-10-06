@@ -1706,9 +1706,11 @@ OPTIONS
               Deflate.  If Zopfli is not enabled, -11 with Deflate is an error
               rather than silently falling back to -9.
 
-              dcl-implode - Use PKWARE DCL Implode (ZIP method 10).  Zip uses
-              binary literal coding, a 4K dictionary, and the compatible extra
-              parsing mode.
+              dcl-implode - Use PKWARE DCL Implode (ZIP method 10).  The
+              default uses binary literal coding and automatically selects a
+              1K dictionary for inputs up to 1K, 2K for inputs over 1K through
+              2K, and 4K for larger inputs.  The DCL-specific options below can
+              override literal mode and dictionary size or enable optimal parse.
 
               lzma - Use LZMA (ZIP method 14) through liblzma.  Unix generic
               builds enable this method with XZ Utils/liblzma 5.4.0 or newer.
@@ -1778,6 +1780,33 @@ OPTIONS
               Deflate.  Larger values can take substantially more CPU time for
               progressively smaller gains.  Input is processed in fixed-size
               parts while retaining the full 32 KiB Deflate history.
+
+       --dcl-implode-mode ascii|binary
+              Select DCL Implode literal coding.  binary is the default and is
+              appropriate for binary or unknown data.  ascii selects PKWARE's
+              ASCII literal code and can improve compression of text.  This
+              option requires -Z dcl-implode.
+
+       --dcl-implode-dict 1k|2k|4k
+       --dcl-implode-dict 1K|2K|4K
+       --dcl-implode-dict 1024|2048|4096
+              Force the DCL Implode dictionary size.  Without this option Zip
+              selects 1K for inputs up to 1024 bytes, 2K for inputs from 1025
+              through 2048 bytes, and 4K for larger inputs.  The automatic
+              choice uses the actual input size and therefore also works for
+              stdin and other inputs whose size was initially unknown.  This
+              option requires -Z dcl-implode.
+
+       --dcl-implode-optimal
+       --dcl-implode-optimal-
+              Enable or disable the DCL optimal parser.  The default is off.
+              When enabled, Zip compares the optimal result with both the
+              compatible EXTRA parser and the legacy-compatible candidate and
+              keeps the smallest stream, so enabling optimal parsing cannot
+              enlarge the DCL candidate.  Optimal parsing can use substantially
+              more time and memory.  This option requires -Z dcl-implode when
+              enabled; the negated form can cancel a setting inherited through
+              ZIPOPT.
 
        -!
        --use-privileges

@@ -1826,8 +1826,9 @@ static void dcl_zip_write(unsigned char *buffer, unsigned short *size,
 }
 
 /*
- * PKWARE DCL Implode compression for ZIP method 10.  ZIP deliberately uses
- * binary literal coding, a 4K dictionary, and the compatible EXTRA parser.
+ * PKWARE DCL Implode compression for ZIP method 10.  Binary literal coding
+ * and automatic 1K/2K/4K dictionary selection are the defaults.  The command
+ * line can select ASCII literals, a fixed dictionary, and the optimal parser.
  */
 local zoff_t dclfilecompress(z_entry, cmpr_method)
     struct zlist far *z_entry;
@@ -1843,8 +1844,11 @@ local zoff_t dclfilecompress(z_entry, cmpr_method)
     s.store_test = &store_test;
 
     r = pkdcl_implode_ex(dcl_zip_read, dcl_zip_write, &s,
-                         PKDCL_CMP_BINARY, PKDCL_DICT_4K,
-                         PKDCL_FLAG_EXTRA);
+                         dcl_implode_mode ? PKDCL_CMP_ASCII : PKDCL_CMP_BINARY,
+                         dcl_implode_dict == 0 ? PKDCL_DICT_AUTO
+                                               : (unsigned long)dcl_implode_dict,
+                         PKDCL_FLAG_EXTRA |
+                           (dcl_implode_optimal ? PKDCL_FLAG_OPTIMAL : 0U));
 
     if (s.write_error) {
         small_store_discard(&store_test);

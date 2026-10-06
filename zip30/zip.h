@@ -371,6 +371,9 @@ extern int adjust;              /* Adjust the unzipsfx'd zip file */
 extern int fwkcs_md5;           /* Add FWKCS MD5 central extra field */
 extern int level;               /* Compression level */
 extern int zopfli_iterations;   /* Zopfli optimization iterations */
+extern int dcl_implode_mode;    /* DCL literal mode: 0=binary, 1=ASCII */
+extern ulg dcl_implode_dict;    /* DCL dictionary bytes: 0=automatic */
+extern int dcl_implode_optimal; /* DCL optimal parse enabled */
 extern int translate_eol;       /* Translate end-of-line LF -> CR LF */
 #ifdef VMS
    extern int vmsver;           /* Append VMS version number to file names */

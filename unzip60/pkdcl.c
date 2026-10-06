@@ -1,5 +1,5 @@
 /*
- * PKDCLX 1.1
+ * PKDCLX 1.1.1
  * Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>
  * SPDX-License-Identifier: MIT-0
  */
@@ -2303,7 +2303,8 @@ pkdcl_implode_ex (pkdcl_read_func read_func, pkdcl_write_func write_func,
       return PKDCL_CMP_INVALID_MODE;
     }
 
-  if (dictionary_size != 1024UL && dictionary_size != 2048UL
+  if (dictionary_size != PKDCL_DICT_AUTO
+      && dictionary_size != 1024UL && dictionary_size != 2048UL
       && dictionary_size != 4096UL && dictionary_size != 8192UL
       && dictionary_size != 16384UL && dictionary_size != 32768UL)
     {
@@ -2313,6 +2314,16 @@ pkdcl_implode_ex (pkdcl_read_func read_func, pkdcl_write_func write_func,
   if (!xb_read_all (read_func, opaque, &in))
     {
       return PKDCL_CMP_ABORT;
+    }
+
+  if (dictionary_size == PKDCL_DICT_AUTO)
+    {
+      if (in.n <= PKDCL_DICT_1K)
+        dictionary_size = PKDCL_DICT_1K;
+      else if (in.n <= PKDCL_DICT_2K)
+        dictionary_size = PKDCL_DICT_2K;
+      else
+        dictionary_size = PKDCL_DICT_4K;
     }
 
   (void)memset (&a, 0, sizeof (a));
@@ -2327,9 +2338,16 @@ pkdcl_implode_ex (pkdcl_read_func read_func, pkdcl_write_func write_func,
       return PKDCL_CMP_ABORT;
     }
 
-  if ((flags & PKDCL_FLAG_OPTIMAL) != 0U)
+  if ((flags & PKDCL_FLAG_EXTRA) != 0U)
     {
-      ok = x_optimal_encode (in.p, in.n, type, dictionary_size, &b);
+      if (dictionary_size <= 4096UL)
+        {
+          ok = x_legacy_encode (in.p, in.n, type, dictionary_size, &b);
+        }
+      else
+        {
+          ok = x_encode (in.p, in.n, type, dictionary_size, 0, &b);
+        }
 
       if (!ok)
         {
@@ -2348,21 +2366,18 @@ pkdcl_implode_ex (pkdcl_read_func read_func, pkdcl_write_func write_func,
         {
           free (b.p);
         }
+
+      (void)memset (&b, 0, sizeof (b));
     }
-  else if ((flags & PKDCL_FLAG_EXTRA) != 0U)
+
+  if ((flags & PKDCL_FLAG_OPTIMAL) != 0U)
     {
-      if (dictionary_size <= 4096UL)
-        {
-          ok = x_legacy_encode (in.p, in.n, type, dictionary_size, &b);
-        }
-      else
-        {
-          ok = x_encode (in.p, in.n, type, dictionary_size, 0, &b);
-        }
+      ok = x_optimal_encode (in.p, in.n, type, dictionary_size, &b);
 
       if (!ok)
         {
           free (in.p);
+	  /* cppcheck-suppress doubleFree */
           free (a.p);
 
           return PKDCL_CMP_ABORT;
