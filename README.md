@@ -40,10 +40,9 @@ The ability to both compress and decompress archives using **DCL Implode**
 support for **Shrink** (method 1), **Reduce** (methods 2 through 5), and
 **ZIP Implode** (method 6) has also been added.  The common **Store** (method
 0), **Deflate** (method 8), and (decompression‑only) **Deflate64** (method 9)
-algorithms remain supported.
-
-New [Zopfli](https://github.com/google/zopfli)‑enhanced **Deflate** support is
-also available (when compressing using `zip -11`).
+algorithms remain supported.  Additionally, new
+[Zopfli](https://github.com/google/zopfli)‑enhanced **Deflate** (method 8)
+support is available (when compressing using `zip -11`).
 
 These changes are built using Fedora's current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
