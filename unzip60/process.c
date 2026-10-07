@@ -218,8 +218,10 @@ static ZCONST char Far ZipfileCommTrunc1[] =
      "\n  The zipfile comment is truncated.\n";
 #endif /* !NO_ZIPINFO */
 #ifdef UNICODE_SUPPORT
+   static ZCONST char Far UnicodeLengthError[] =
+     "\nwarning:  Unicode Path extra field is too short\n";
    static ZCONST char Far UnicodeVersionError[] =
-     "\nwarning:  Unicode Path version > 1\n";
+     "\nwarning:  Unicode Path version is not 1\n";
    static ZCONST char Far UnicodeMismatchError[] =
      "\nwarning:  Unicode Path checksum invalid\n";
    static ZCONST char Far UFilenameTooLongTrunc[] =
@@ -1949,10 +1951,11 @@ int getZip64Data(__G__ ef_buf, ef_len)
         if (eb_id == EF_PKSZ64)
         {
           unsigned offset = EB_HEADSIZE;
+          unsigned block_end = EB_HEADSIZE + eb_len;
 
           if ((G.crec.ucsize == Z64FLGL) || (G.lrec.ucsize == Z64FLGL))
           {
-            if (offset+ 8 > ef_len)
+            if (offset+ 8 > block_end)
               return PK_ERR;
 
             G.crec.ucsize = G.lrec.ucsize = makeint64(offset + ef_buf);
@@ -1961,7 +1964,7 @@ int getZip64Data(__G__ ef_buf, ef_len)
 
           if ((G.crec.csize == Z64FLGL) || (G.lrec.csize == Z64FLGL))
           {
-            if (offset+ 8 > ef_len)
+            if (offset+ 8 > block_end)
               return PK_ERR;
 
             G.csize = G.crec.csize = G.lrec.csize = makeint64(offset + ef_buf);
@@ -1970,7 +1973,7 @@ int getZip64Data(__G__ ef_buf, ef_len)
 
           if (G.crec.relative_offset_local_header == Z64FLGL)
           {
-            if (offset+ 8 > ef_len)
+            if (offset+ 8 > block_end)
               return PK_ERR;
 
             G.crec.relative_offset_local_header = makeint64(offset + ef_buf);
@@ -1979,7 +1982,7 @@ int getZip64Data(__G__ ef_buf, ef_len)
 
           if (G.crec.disk_number_start == Z64FLGS)
           {
-            if (offset+ 4 > ef_len)
+            if (offset+ 4 > block_end)
               return PK_ERR;
 
             G.crec.disk_number_start = (zuvl_t)makelong(offset + ef_buf);
@@ -2048,13 +2051,24 @@ int getUnicodeData(__G__ ef_buf, ef_len)
         if (eb_id == EF_UNIPATH) {
 
           unsigned offset = EB_HEADSIZE;
-          ush ULen = eb_len - 5;
+          ush ULen;
           ulg chksum = CRCVAL_INITIAL;
+
+          /* The version byte, CRC-32, and UTF-8 path require at least
+           * six bytes of field data.  Validate this before subtracting
+           * five from the unsigned length or reading field contents.
+           */
+          if (eb_len < 6) {
+            Info(slide, 0x401, ((char *)slide,
+              LoadFarString(UnicodeLengthError)));
+            return PK_ERR;
+          }
+          ULen = (ush)(eb_len - 5);
 
           /* version */
           G.unipath_version = (uch) *(offset + ef_buf);
           offset += 1;
-          if (G.unipath_version > 1) {
+          if (G.unipath_version != 1) {
             /* can do only version 1 */
             Info(slide, 0x401, ((char *)slide,
               LoadFarString(UnicodeVersionError)));

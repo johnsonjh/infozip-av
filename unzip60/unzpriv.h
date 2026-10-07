@@ -2082,6 +2082,7 @@ typedef struct min_info {
     zusz_t compr_size;       /* compressed size (needed if extended header) */
     zusz_t uncompr_size;     /* uncompressed size (needed if extended header) */
     ulg crc;                 /* crc (needed if extended header) */
+    ush compression_method;  /* central-header compression method */
 #ifdef PKAV_SUPPORT
     ulg pkav_dos_datetime;   /* central-header DOS date/time */
     uch pkav_dos_attr;       /* low byte of original external attributes */

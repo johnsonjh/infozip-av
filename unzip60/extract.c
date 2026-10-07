@@ -1420,6 +1420,8 @@ static ZCONST char Far ComprMsgNum[] =
 #endif /* !SFX */
 static ZCONST char Far FilNamMsg[] =
   "%s:  bad filename length (%s)\n";
+static ZCONST char Far EmptyFilNamMsg[] =
+  "error:  empty filename in central directory\n";
 #ifndef SFX
    static ZCONST char Far WarnNoMemCFName[] =
      "%s:  warning, no memory for comparison with local header\n";
@@ -1436,6 +1438,10 @@ static ZCONST char Far FilNamMsg[] =
 static ZCONST char Far WrnStorUCSizCSizDiff[] =
   "%s:  ucsize %s <> csize %s for STORED entry\n\
          continuing with \"compressed\" size value\n";
+static ZCONST char Far LvsCMethodMsg[] =
+  "%s:  local compression method %u does not match central method %u\n";
+static ZCONST char Far LvsCDataMsg[] =
+  "%s:  local CRC or size fields do not match central directory\n";
 static ZCONST char Far ExtFieldMsg[] =
   "%s:  bad extra field length (%s)\n";
 static ZCONST char Far OffsetMsg[] =
@@ -1931,6 +1937,14 @@ int extract_or_test_files(__G)    /* return PK-type error code */
                     break;
                 }
             }
+            if (G.crec.filename_length == 0) {
+                Info(slide, 0x401, ((char *)slide,
+                  LoadFarString(EmptyFilNamMsg)));
+                if (error_in_archive < PK_ERR)
+                    error_in_archive = PK_ERR;
+                reached_end = TRUE;
+                break;
+            }
             G.pInfo->zip64 = FALSE;
             if ((error = do_string(__G__ G.crec.extra_field_length,
                 EXTRA_FIELD)) != 0)
@@ -2418,6 +2432,7 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
     G.pInfo->ExtLocHdr = (G.crec.general_purpose_bit_flag & 8) == 8;  /* bit */
     G.pInfo->textfile = G.crec.internal_file_attributes & 1;    /* bit field */
     G.pInfo->crc = G.crec.crc32;
+    G.pInfo->compression_method = G.crec.compression_method;
     G.pInfo->compr_size = G.crec.csize;
     G.pInfo->uncompr_size = G.crec.ucsize;
 #ifdef PKAV_SUPPORT
@@ -2830,6 +2845,36 @@ static int extract_or_test_entrylist(__G__ numchunk,
             error_in_archive=PK_ERR;continue;
         }
 #endif
+        /* The compression method is redundant between the local and central
+         * headers and must describe the same data.  For AES entries both
+         * values have been translated from method 99 to the real method by
+         * this point.
+         */
+        if (G.lrec.compression_method != G.pInfo->compression_method) {
+            Info(slide, 0x401, ((char *)slide,
+              LoadFarString(LvsCMethodMsg), FnFilter1(G.filename),
+              (unsigned)G.lrec.compression_method,
+              (unsigned)G.pInfo->compression_method));
+            if (error_in_archive < PK_ERR)
+                error_in_archive = PK_ERR;
+            continue;
+        }
+
+        /* If bit 3 is clear, the CRC and sizes in the local header are not
+         * placeholders for a following data descriptor and must agree with
+         * the central directory.  Zip64 values have already been expanded.
+         */
+        if ((G.lrec.general_purpose_bit_flag & 8) == 0 &&
+            (G.lrec.crc32 != G.pInfo->crc ||
+             G.lrec.csize != G.pInfo->compr_size ||
+             G.lrec.ucsize != G.pInfo->uncompr_size)) {
+            Info(slide, 0x401, ((char *)slide,
+              LoadFarString(LvsCDataMsg), FnFilter1(G.filename)));
+            if (error_in_archive < PK_ERR)
+                error_in_archive = PK_ERR;
+            continue;
+        }
+
         /* Size consistency checks must come after reading in the local extra
          * field, so that any Zip64 extension local e.f. block has already
          * been processed.
