@@ -418,6 +418,8 @@ int list_files(__G)    /* return PK-type error code */
 
             methnum = find_compr_idx(G.crec.compression_method);
             zfstrcpy(methbuf, method[methnum]);
+            if (G.crec.compression_method == 99)
+                strcpy(methbuf, "AES");
             if (G.crec.compression_method == DEFLATED ||
                 G.crec.compression_method == ENHDEFLATED) {
                 methbuf[5] = dtype[(G.crec.general_purpose_bit_flag>>1) & 3];

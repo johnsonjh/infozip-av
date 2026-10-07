@@ -1,4 +1,4 @@
-# PKAV and FWKCS for Info‑ZIP
+# Xtro‑ZIP: Enhanced Info‑ZIP
 
 <!-- toc -->
 
@@ -28,12 +28,12 @@
 
 ## Overview
 
-This project adds full
+This project adds new algorithm support, full
 [PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification)
-(create *and* verify for PKAV 2.x, verification‑only for PKAV 1.x) and
+(create *and* verify for PKAV 2.x, verification‑only for PKAV 1.x),
 [FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
-([MD5](https://en.wikipedia.org/wiki/MD5)) support to
-[Info‑ZIP](https://infozip.sourceforge.net/).
+([MD5](https://en.wikipedia.org/wiki/MD5)), and AES cryptography (AE‑1 and
+AE‑2) to [Info‑ZIP](https://infozip.sourceforge.net/).
 
 The ability to both compress and decompress archives using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**

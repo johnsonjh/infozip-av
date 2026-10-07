@@ -2089,6 +2089,11 @@ typedef struct min_info {
     uch hostver;
     uch hostnum;
     unsigned file_attr;      /* local flavor, as used by creat(), chmod()... */
+#ifndef NO_AES
+    unsigned aes_strength;
+    unsigned aes_version;
+    unsigned aes_method;
+#endif
     unsigned encrypted : 1;  /* file encrypted: decrypt before uncompressing */
     unsigned ExtLocHdr : 1;  /* use time instead of CRC for decrypt check */
     unsigned textfile : 1;   /* file is text (according to zip) */

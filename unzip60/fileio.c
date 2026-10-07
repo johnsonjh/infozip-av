@@ -336,7 +336,7 @@ static ZCONST char Far ExtraFieldCorrupt[] =
      "--- Press `Q' to quit, or any other key to continue ---";
    static ZCONST char Far HidePrompt[] = /* "\r                       \r"; */
      "\r                                                         \r";
-#  if CRYPT
+#  if CRYPT || !defined(NO_AES)
 #    ifdef MACOS
        /* SPC: are names on MacOS REALLY so much longer than elsewhere ??? */
        static ZCONST char Far PasswPrompt[] = "[%s]\n %s password: ";
@@ -784,6 +784,12 @@ int readbyte(__G)   /* refill inbuf and return a byte if available, else EOF */
         G.cur_zipfile_bufstart += INBUFSIZ; /* always starts on block bndry */
         G.inptr = G.inbuf;
         defer_leftover_input(__G);           /* decrements G.csize */
+#ifndef NO_AES
+        /* Decrypt each newly loaded input span exactly once.  In particular,
+         * do not decrypt the remaining buffer on every readbyte() call. */
+        if (G.aes_active)
+            iz_aes_decrypt(&G.aes_ctx, G.inptr, (size_t)G.incnt);
+#endif
     }
 
 #if CRYPT
@@ -809,7 +815,7 @@ int readbyte(__G)   /* refill inbuf and return a byte if available, else EOF */
 
 
 
-#if defined(USE_ZLIB) || defined(USE_BZIP2) || defined(USE_LZMA) || defined(USE_XZ) || defined(USE_ZSTD)
+#if defined(USE_ZLIB) || defined(USE_BZIP2) || defined(USE_LZMA) || defined(USE_XZ) || defined(USE_ZSTD) || (!defined(NO_AES) && !defined(FUNZIP))
 
 /************************/
 /* Function fillinbuf() */
@@ -825,6 +831,10 @@ int fillinbuf(__G) /* like readbyte() except returns number of bytes in inbuf */
     G.inptr = G.inbuf;
     defer_leftover_input(__G);           /* decrements G.csize */
 
+#ifndef NO_AES
+    if (G.aes_active)
+        iz_aes_decrypt(&G.aes_ctx, G.inptr, (size_t)G.incnt);
+#endif
 #if CRYPT
     if (G.pInfo->encrypted) {
         uch *p;
@@ -1725,7 +1735,7 @@ int UZ_EXP UzpPassword (pG, rcnt, pwbuf, size, zfn, efn)
     ZCONST char *zfn;  /* name of zip archive */
     ZCONST char *efn;  /* name of archive entry being processed */
 {
-#if CRYPT
+#if CRYPT || !defined(NO_AES)
     int r = IZ_PW_ENTERED;
     char *m;
     char *prompt;

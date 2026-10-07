@@ -210,7 +210,7 @@
 #  endif
 #endif /* UNZIP && !FUNZIP */
 
-#if (CRYPT && !defined(WINDLL))
+#if ((CRYPT || (!defined(NO_AES) && !defined(FUNZIP))) && !defined(WINDLL))
    char *getp OF((__GPRO__ ZCONST char *m, char *p, int n));
 #endif
 

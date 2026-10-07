@@ -661,3 +661,8 @@ local int testkey(__G__ h, key)
 int zcr_dummy;
 
 #endif /* ?CRYPT */
+
+#if !defined(NO_AES) && !defined(FUNZIP)
+/* Compile the AES core */
+#include "wzaes.c"
+#endif

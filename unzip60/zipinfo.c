@@ -1157,7 +1157,9 @@ static int zi_long(__G__ pEndprev, error_in_archive)
     Info(slide, 0, ((char *)slide, LoadFarString(MinSWVerReq), extver/10,
       extver%10));
 
-    if (methnum >= NUM_METHODS) {
+    if (methid == 99) {
+        varmsg_str = "WinZip AES encrypted (method 99)";
+    } else if (methnum >= NUM_METHODS) {
         sprintf(unkn, LoadFarString(UnknownNo), G.crec.compression_method);
         varmsg_str = unkn;
     } else {
@@ -1994,7 +1996,9 @@ static int zi_short(__G)   /* return PK-type error code */
  */
 
     zfstrcpy(methbuf, method[methnum]);
-    if (methid == IMPLODED) {
+    if (methid == 99) {
+        strcpy(methbuf, "aes ");
+    } else if (methid == IMPLODED) {
         methbuf[1] = (char)((G.crec.general_purpose_bit_flag & 2)? '8' : '4');
         methbuf[3] = (char)((G.crec.general_purpose_bit_flag & 4)? '3' : '2');
     } else if (methid == DEFLATED || methid == ENHDEFLATED) {

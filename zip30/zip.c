@@ -1546,6 +1546,9 @@ local void help_extended()
 "Encryption:",
 "  -e        use standard (weak) PKZip 2.0 encryption, prompt for password",
 "  -P pswd   use standard encryption, password is pswd",
+"  -eS       use WinZip AES encryption, prompt for password",
+"  -eP pswd  use WinZip AES encryption, password on command line",
+"  --aes-strength 128|192|256  AES key size (default 256)",
 "",
 "Splits (archives created as a set of split files):",
 "  -s ssize  create split archive with splits of size ssize, where ssize nm",
@@ -1744,12 +1747,19 @@ local void version_info()
   extent i;             /* counter in text arrays */
   char *envptr;
 
-  /* Bzip2 option string storage (with version). */
+  /* Library-backed option string storage (with version). */
 
 #ifdef BZIP2_SUPPORT
   static char bz_opt_ver[81];
   static char bz_opt_ver2[81];
   static char bz_opt_ver3[81];
+#endif
+#ifdef LZMA_SUPPORT
+  static char lzma_opt_ver[128];
+  static char xz_opt_ver[128];
+#endif
+#ifdef ZSTD_SUPPORT
+  static char zstd_opt_ver[128];
 #endif
 
   /* Options info array */
@@ -1827,13 +1837,14 @@ local void version_info()
     "ZIP64_SUPPORT        (use Zip64 to store large files in archives)",
 #endif
 #ifdef LZMA_SUPPORT
-    "LZMA_SUPPORT         (ZIP methods 14 and 95; using external liblzma)",
+    lzma_opt_ver,
+    xz_opt_ver,
 #endif
 #ifdef ZSTD_SUPPORT
-    "ZSTD_SUPPORT         (ZIP method 93; reads legacy method 20; external libzstd)",
+    zstd_opt_ver,
 #endif
 #ifdef PPMD_SUPPORT
-    "PPM/PPMd support     (ZIP method 98; public-domain PPMd derived from 7-Zip)",
+    "PPM/PPMd support     (ZIP method 98; using public-domain PPMd sources)",
 #endif
 #ifdef ZOPFLI_SUPPORT
     "ZOPFLI_SUPPORT       (Zopfli 1.0.3 optimized DEFLATE algorithm)",
@@ -1910,12 +1921,19 @@ local void version_info()
   printf("\tWSIZE=%u\n", WSIZE);
 #endif
 
-  /* Fill in bzip2 version.  (32-char limit valid as of bzip 1.0.3.) */
+  /* Fill in library-backed option strings with runtime versions. */
 #ifdef LZMA_SUPPORT
-  printf("\tliblzma version %s (LZMA and XZ)\n", lzma_version_string());
+  sprintf(lzma_opt_ver,
+    "USE_LZMA             (ZIP method 14; using liblzma v%.32s)",
+    lzma_version_string());
+  sprintf(xz_opt_ver,
+    "USE_XZ               (ZIP method 95; using liblzma v%.32s)",
+    lzma_version_string());
 #endif
 #ifdef ZSTD_SUPPORT
-  printf("\tlibzstd version %s (Zstandard ZIP methods 20/93)\n", ZSTD_versionString());
+  sprintf(zstd_opt_ver,
+    "USE_ZSTD             (ZIP method 93 and 20; using libzstd v%.32s)",
+    ZSTD_versionString());
 #endif
 
 #ifdef BZIP2_SUPPORT
@@ -2500,7 +2518,7 @@ local int BlankRunningStats()
   return 0;
 }
 
-#if CRYPT
+#if CRYPT || !defined(NO_AES)
 #ifndef WINDLL
 int encr_passwd(modeflag, pwbuf, size, zfn)
 int modeflag;
@@ -2534,7 +2552,7 @@ ZCONST char *zfn;
 
     return ZE_LOGIC;    /* This function should never be called! */
 }
-#endif /* CRYPT */
+#endif /* CRYPT || AES */
 
 
 /* rename a split
@@ -2653,6 +2671,9 @@ int set_filetype(out_path)
 #define o_dcl_dict      0x14f
 #define o_dcl_optimal   0x150
 #define o_zstd_level    0x151
+#define o_aes_prompt    0x152
+#define o_aes_pass      0x153
+#define o_aes_strength  0x154
 #define o_sp            0x134
 #define o_su            0x135
 #define o_sU            0x136
@@ -2673,6 +2694,10 @@ int set_filetype(out_path)
 #define o_sC            0x146
 #endif
 
+
+static int iz_aes_selected = 0;
+static int iz_zipcrypto_selected = 0;
+static int iz_aes_strength_selected = 0;
 
 /* the below is mainly from the old main command line
    switch with a few changes */
@@ -2723,6 +2748,9 @@ struct option_struct far options[] = {
 #endif /* MACOS */
     {"D",  "no-dir-entries", o_NO_VALUE,    o_NOT_NEGATABLE, 'D',  "no entries for dirs themselves (-x */)"},
     {"DF", "difference-archive",o_NO_VALUE, o_NOT_NEGATABLE, o_DF, "create diff archive with changed/new files"},
+    {"eS", "aes-encrypt", o_NO_VALUE, o_NOT_NEGATABLE, o_aes_prompt, "WinZip AES password prompt"},
+    {"eP", "aes-password", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_aes_pass, "WinZip AES command-line password"},
+    {"", "aes-strength", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_aes_strength, "AES key strength 128, 192, 256"},
     {"e",  "encrypt",     o_NO_VALUE,       o_NOT_NEGATABLE, 'e',  "encrypt entries, ask for password"},
 #ifdef OS2
     {"E",  "longnames",   o_NO_VALUE,       o_NOT_NEGATABLE, 'E',  "use OS2 longnames"},
@@ -3044,6 +3072,11 @@ char **argv;            /* command line tokens */
   dcl_implode_dict = 0;
   dcl_implode_optimal = 0;
   zstd_level = 0;
+  iz_aes_mode = 0;
+  iz_aes_strength = 256;
+  iz_aes_selected = 0;
+  iz_zipcrypto_selected = 0;
+  iz_aes_strength_selected = 0;
   translate_eol = 0;   /* Translate end-of-line LF -> CR LF */
 #if defined(OS2) || defined(WIN32)
   use_longname_ea = 0; /* 1=use the .LONGNAME EA as the file's name */
@@ -3540,7 +3573,41 @@ char **argv;            /* command line tokens */
           diff_mode = 1;
           allow_empty_archive = 1;
           break;
+        case o_aes_prompt:
+#ifndef NO_AES
+          iz_aes_selected = 1;
+          iz_aes_mode = 1;
+          if (key != NULL) { free(key); key = NULL; }
+          key_needed = 1;
+#else
+          ZIPERR(ZE_PARMS, "AES support disabled at build time");
+#endif
+          break;
+        case o_aes_pass:
+#ifndef NO_AES
+          iz_aes_selected = 1;
+          iz_aes_mode = 1;
+          if (key != NULL) free(key);
+          key = value;
+          key_needed = 0;
+#else
+          ZIPERR(ZE_PARMS, "AES support disabled at build time");
+#endif
+          break;
+        case o_aes_strength:
+#ifndef NO_AES
+          iz_aes_strength_selected = 1;
+          if (strcmp(value, "128") && strcmp(value, "192") &&
+              strcmp(value, "256"))
+            ZIPERR(ZE_PARMS, "--aes-strength must be 128, 192, or 256");
+          iz_aes_strength = atoi(value);
+          free(value);
+#else
+          ZIPERR(ZE_PARMS, "AES support disabled at build time");
+#endif
+          break;
         case 'e':   /* Encrypt */
+          iz_zipcrypto_selected = 1;
 #if !CRYPT
           ZIPERR(ZE_PARMS, "encryption not supported");
 #else /* CRYPT */
@@ -3673,6 +3740,7 @@ char **argv;            /* command line tokens */
         case 'p':   /* Store path with name */
           break;            /* (do nothing as annoyance avoidance) */
         case 'P':   /* password for encryption */
+          iz_zipcrypto_selected = 1;
           if (key != NULL) {
             free(key);
           }
@@ -4363,6 +4431,10 @@ char **argv;            /* command line tokens */
 
   /* do processing of command line and one-time tasks */
 
+  if (iz_aes_selected && iz_zipcrypto_selected)
+    ZIPERR(ZE_PARMS, "cannot combine WinZip AES and traditional ZipCrypto options");
+  if (iz_aes_strength_selected && !iz_aes_selected)
+    ZIPERR(ZE_PARMS, "--aes-strength requires -eS or -eP");
   pkav_validate_options();
 
   /* Key not yet specified.  If needed, get/verify it now. */

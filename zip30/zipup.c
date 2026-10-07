@@ -19,6 +19,11 @@
    different sizes and needless to say leads to segmentation faults.  Putting
    zip.h first seems to fix this.  8/14/04 EG */
 #include "zip.h"
+#ifndef NO_AES
+#include "wzaes.h"
+extern iz_wzaes iz_zip_aes_ctx;
+extern int iz_zip_aes_active;
+#endif
 #include <ctype.h>
 #include <errno.h>
 
@@ -395,6 +400,91 @@ local int fwkcs_add_extra(z, digest)
 }
 
 
+#ifndef NO_AES
+/* Record the AE-1/AE-2 vendor extension in both header extra areas.
+ * The actual compressor method is carried within this field (not method 99).
+ * WinZip 11+ uses AE-2 for input <20 bytes and BZIP2, AE-1 otherwise.
+ * For inputs of unknown size (pipes), AE-1 is used unless BZIP2; the
+ * decision cannot be changed in a nonseekable local ZIP header later.
+ */
+local int iz_aes_append_extra(z, version, strength, method)
+    struct zlist far *z;
+    int version, strength, method;
+{
+    unsigned l = z->ext, c = z->cext;
+    char *lp, *cp;
+    unsigned char ef[11];
+    if (l > EF_SIZE_MAX - 11 || c > EF_SIZE_MAX - 11) return ZE_BIG;
+    ef[0]=1; ef[1]=0x99; ef[2]=7; ef[3]=0;
+    ef[4]=(unsigned char)version; ef[5]=0;
+    ef[6]='A'; ef[7]='E';
+    ef[8]=(unsigned char)(strength==128?1:strength==192?2:3);
+    ef[9]=(unsigned char)method; ef[10]=(unsigned char)(method>>8);
+    lp=(char *)malloc(l+11);if(!lp)return ZE_MEM;
+    cp=(char *)malloc(c+11);if(!cp){free(lp);return ZE_MEM;}
+    if(l)memcpy(lp,z->extra,l);
+    if(c)memcpy(cp,z->cextra,c);
+    memcpy(lp+l,ef,11);memcpy(cp+c,ef,11);
+    if(z->extra!=z->cextra) {free(z->extra);free(z->cextra);}
+    else free(z->extra);
+    z->extra=lp;z->ext=(ush)(l+11);
+    z->cextra=cp;z->cext=(ush)(c+11);
+    return ZE_OK;
+}
+local void iz_aes_change_method(z, method)
+    struct zlist far *z;
+    unsigned method;
+{
+    unsigned i;
+    char *ef[2];ush sz[2];int j;
+    ef[0]=z->extra;ef[1]=z->cextra;
+    sz[0]=z->ext;sz[1]=z->cext;
+    for(j=0;j<2;j++)
+      for(i=0;i+11<=sz[j];) {
+        unsigned n=(unsigned)(unsigned char)ef[j][i+2]|
+                   ((unsigned)(unsigned char)ef[j][i+3]<<8);
+        if(n>(unsigned)sz[j]-i-4)break;
+        if(ef[j][i]==1 && (unsigned char)ef[j][i+1]==0x99 && n>=7) {
+            ef[j][i+9]=(char)method;
+            ef[j][i+10]=(char)(method>>8);
+            break;
+        }
+        i+=n+4;
+      }
+}
+local int iz_aes_write_initial(strength, password)
+    int strength;
+    const char *password;
+{
+    unsigned char salt[16],ver[2];
+    unsigned n=iz_aes_salt_size((unsigned)strength);
+    if(!iz_aes_entropy(salt,n))return ZE_TEMP;
+    if(!iz_aes_init(&iz_zip_aes_ctx,password,salt,(unsigned)strength,ver)) {
+       iz_aes_wipe(salt,sizeof(salt));return ZE_TEMP;
+    }
+    if (bfwrite(salt,1,(extent)n,BFWRITE_DATA)!=n ||
+        bfwrite(ver,1,2,BFWRITE_DATA)!=2) {
+       iz_aes_wipe(salt,sizeof(salt));
+       iz_aes_wipe(&iz_zip_aes_ctx,sizeof(iz_zip_aes_ctx));
+       return ZE_TEMP;
+    }
+    iz_aes_wipe(salt,sizeof(salt));
+    iz_zip_aes_active=1;
+    return ZE_OK;
+}
+local int iz_aes_write_final()
+{
+    unsigned char auth[10];
+    unsigned n;
+    iz_zip_aes_active=0;
+    iz_aes_auth(&iz_zip_aes_ctx,auth);
+    n=bfwrite(auth,1,10,BFWRITE_DATA);
+    iz_aes_wipe(auth,sizeof(auth));
+    iz_aes_wipe(&iz_zip_aes_ctx,sizeof(iz_zip_aes_ctx));
+    return n==10?ZE_OK:ZE_TEMP;
+}
+#endif
+
 /* Local data */
 local fwkcs_md5_ctx fwkcs_ctx;
 local ush pkav_sum16 = 0;       /* PKAV sum of uncompressed stored bytes */
@@ -625,6 +715,11 @@ struct zlist far *z;    /* zip entry to compress */
   extent k = 0;         /* result of zread */
   int l = 0;            /* true if this file is a symbolic link */
   int m;                /* method for this entry */
+#ifndef NO_AES
+  int iz_aes_entry = 0;
+  int iz_aes_version = 0;
+  unsigned iz_aes_overhead = 0;
+#endif
 
   zoff_t o = 0, p;      /* offsets in zip file */
   zoff_t q = (zoff_t) -3; /* size returned by filetime */
@@ -1021,7 +1116,7 @@ struct zlist far *z;    /* zip entry to compress */
   if (m == LZMA)
     z->flg |= 2;
 #endif
-#if CRYPT
+#if CRYPT || !defined(NO_AES)
   if (!isdir && key != NULL) {
     z->flg |= 1;
     /* Since we do not yet know the crc here, we pretend that the crc
@@ -1030,11 +1125,28 @@ struct zlist far *z;    /* zip entry to compress */
     z->crc = z->tim << 16;
     /* More than pretend.  File is encrypted using crypt header with that. */
   }
-#endif /* CRYPT */
+#endif /* CRYPT || AES */
   z->lflg = z->flg;
   z->how = (ush)m;                              /* may be changed later  */
   z->siz = (zoff_t)(m == STORE && q >= 0 ? q : 0); /* will be changed later */
   z->len = (zoff_t)(q != -1L ? q : 0);          /* may be changed later  */
+#ifndef NO_AES
+  iz_zip_aes_active = 0;
+  if (!isdir && iz_aes_mode && key != NULL) {
+      iz_aes_entry = 1;
+      iz_aes_version = ((q >= 0 && q < 20) || m == BZIP2) ? 2 : 1;
+      iz_aes_overhead = iz_aes_salt_size((unsigned)iz_aes_strength) + 12;
+      if ((r=iz_aes_append_extra(z,iz_aes_version,iz_aes_strength,m))!=ZE_OK)
+          return r;
+      z->how = 99;
+      /* AE-2 CRC is zero in BOTH headers, even on nonseekable output where
+       * the local header can never be rewritten and a descriptor follows. */
+      if (iz_aes_version == 2)
+          z->crc = 0;
+      /* The method-99 outer header is deliberately versioned according to
+       * the actual compressor, not a fictitious AES version requirement. */
+  }
+#endif
   if (z->att == (ush)UNKNOWN) {
       z->att = BINARY;                    /* set sensible value in header */
       set_type = 1;
@@ -1063,13 +1175,25 @@ struct zlist far *z;    /* zip entry to compress */
   tempzn += 4 + LOCHEAD + z->nam + z->ext;
 
 
-#if CRYPT
+#if CRYPT || !defined(NO_AES)
   if (!isdir && key != NULL) {
-    crypthead(key, z->crc);
-    z->siz += RAND_HEAD_LEN;  /* to be updated later */
-    tempzn += RAND_HEAD_LEN;
+#ifndef NO_AES
+    if (iz_aes_entry) {
+      if ((r=iz_aes_write_initial(iz_aes_strength,key))!=ZE_OK)
+        return r;
+      z->siz += iz_aes_overhead;
+      tempzn += iz_aes_salt_size((unsigned)iz_aes_strength) + 2;
+    } else
+#endif
+    {
+#if CRYPT
+      crypthead(key, z->crc);
+      z->siz += RAND_HEAD_LEN;  /* to be updated later */
+      tempzn += RAND_HEAD_LEN;
+#endif
+    }
   }
-#endif /* CRYPT */
+#endif /* CRYPT || AES */
   if (ferror(y)) {
     if (ifile != fbad)
       zclose(ifile);
@@ -1226,6 +1350,13 @@ struct zlist far *z;    /* zip entry to compress */
   }
 #endif /*MMAP */
 
+#ifndef NO_AES
+  if (iz_aes_entry) {
+      if ((r=iz_aes_write_final())!=ZE_OK) return r;
+      iz_aes_change_method(z,(unsigned)m);
+      tempzn += 10;
+  }
+#endif
   tempzn += s;
   p = tempzn; /* save for future fseek() */
 
@@ -1266,18 +1397,39 @@ struct zlist far *z;    /* zip entry to compress */
   else
   {
     /* Try to rewrite the local header with correct information */
+#ifndef NO_AES
+    z->crc = (iz_aes_entry && iz_aes_version==2) ? 0 : crc;
+#else
     z->crc = crc;
+#endif
     z->siz = s;
+#if CRYPT || !defined(NO_AES)
+    if (!isdir && key != NULL) {
+#ifndef NO_AES
+      if (iz_aes_entry) z->siz += iz_aes_overhead;
 #if CRYPT
-    if (!isdir && key != NULL)
-      z->siz += RAND_HEAD_LEN;
-#endif /* CRYPT */
+      else
+#endif
+#endif
+#if CRYPT
+        z->siz += RAND_HEAD_LEN;
+#endif
+    }
+#endif /* CRYPT || AES */
     z->len = isize;
 #ifdef LZMA_SUPPORT
     /* small_store_finish() may have changed method 14 to STORE.  GPBF bit 1
      * has LZMA-specific EOS semantics, so it must not survive the fallback. */
     if (z->how == LZMA && m == STORE)
       z->flg &= ~2;
+#endif
+#ifndef NO_AES
+    /* STORE carries no LZMA EOS information.  In AES members the outer
+     * method is 99, so the normal method-14 check above cannot detect it. */
+    if (iz_aes_entry && m == STORE) {
+      z->flg &= ~2;
+      z->lflg &= ~2;
+    }
 #endif
     if (pkav_enabled) {
       z->att |= 0x0004;
@@ -1296,7 +1448,11 @@ struct zlist far *z;    /* zip entry to compress */
     if (use_descriptors || zfseeko(y, z->off, SEEK_SET))
 #endif
     {
-      if (z->how != (ush) m)
+#ifndef NO_AES
+      if (!iz_aes_entry && z->how != (ush)m)
+#else
+      if (z->how != (ush)m)
+#endif
          error("can't rewrite method");
       if (m == STORE && q < 0)
          ZIPERR(ZE_PARMS, "zip -0 not supported for I/O on pipes or devices");
@@ -1311,7 +1467,12 @@ struct zlist far *z;    /* zip entry to compress */
       z->flg = z->lflg; /* if z->flg modified by deflate */
     } else {
       /* ftell() not as useful across splits */
+#ifndef NO_AES
+      if (bytes_this_entry != (uzoff_t)(s +
+             (iz_aes_entry ? iz_aes_overhead : (key ? 12 : 0)))) {
+#else
       if (bytes_this_entry != (uzoff_t)(key ? s + 12 : s)) {
+#endif
         fprintf(mesg, " s=%s, actual=%s ",
                 zip_fzofft(s, NULL, NULL), zip_fzofft(bytes_this_entry, NULL, NULL));
         error("incorrect compressed size");
@@ -1326,7 +1487,11 @@ struct zlist far *z;    /* zip entry to compress */
       }
 # endif /* !VMS && !CMS_MVS */
 #endif /* 0 */
+#ifndef NO_AES
+      z->how = iz_aes_entry ? 99 : (ush)m;
+#else
       z->how = (ush)m;
+#endif
       switch (m)
       {
       case STORE:

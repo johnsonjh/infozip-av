@@ -45,6 +45,161 @@
 #include "crc32.h"
 #include "crypt.h"
 
+#ifndef NO_AES
+/* WinZip AES vendor field ID 0x9901.
+ * Distinguish from PKWARE's unrelated strong-encryption extensions.
+ * Return 1 on one valid field, 0 if absent, 1 if malformed.
+ * The actual ZIP method is inside the AES extra field. */
+static int iz_aes_find_extra(const uch *buf, unsigned len,
+                             unsigned *version, unsigned *strength,
+                             unsigned *method)
+{
+    unsigned off=0,n,tag,seen=0;
+    while(off<len) {
+        if(len-off<4)return -1;
+        tag=(unsigned)buf[off]|((unsigned)buf[off+1]<<8);
+        n=(unsigned)buf[off+2]|((unsigned)buf[off+3]<<8);
+        if(n>len-off-4)return -1;
+        if(tag==0x9901U) {
+            unsigned v,sz,m;
+            if(seen || n<7)return -1;
+            v=(unsigned)buf[off+4]|((unsigned)buf[off+5]<<8);
+            sz=(unsigned)buf[off+8];
+            m=(unsigned)buf[off+9]|((unsigned)buf[off+10]<<8);
+            if((v!=1 && v!=2) || buf[off+6]!='A' ||
+               buf[off+7]!='E' || sz<1 || sz>3 || m==99)return -1;
+            *version=v;*strength=sz==1?128:sz==2?192:256;
+            *method=m;
+            seen=1;
+        }
+        off+=n+4;
+    }
+    return seen?1:0;
+}
+
+/* The whole ciphertext is authenticated before the decompressor sees any
+ * plaintext.  Pre-auth uses the existing seekable ZIP input and rewinds to
+ * the first ciphertext byte only after verifying HMAC.  A password-verifier
+ * match alone is NOT authentication.  CRC is also checked for AE-1. */
+static int iz_aes_authenticate(__G)
+    __GDEF
+{
+    unsigned char salt[16],check[2],ver[2],tag[10],actual[10];
+    unsigned sl,i;
+    zoff_t start,encrypted_start,cipher_len,remaining;
+    iz_wzaes mac_ctx;
+    const char *pw=NULL;
+    int n=0,r,j,attempts;
+    unsigned char diff;
+
+    G.aes_active=0;
+    iz_aes_wipe(&G.aes_ctx,sizeof(G.aes_ctx));
+    sl=iz_aes_salt_size(G.pInfo->aes_strength);
+    if(sl==0 || G.csize<(zoff_t)(sl+12U))return PK_ERR;
+    start=G.cur_zipfile_bufstart+(G.inptr-G.inbuf);
+    encrypted_start=start+(zoff_t)sl+2;
+    cipher_len=G.csize-(zoff_t)(sl+12U);
+    /* Suspend ZipCrypto: AES uses an entirely different key schedule. */
+    G.pInfo->encrypted=FALSE;
+    defer_leftover_input(__G);
+    for(i=0;i<sl;i++) {
+        j=NEXTBYTE;if(j==EOF){undefer_input(__G);return PK_ERR;}
+        salt[i]=(unsigned char)j;
+    }
+    for(i=0;i<2;i++) {
+        j=NEXTBYTE;if(j==EOF){undefer_input(__G);return PK_ERR;}
+        check[i]=(unsigned char)j;
+    }
+
+    /* Reuse the ZipCrypto callback/password cache so `unzip -P` and the
+     * normal interactive password UI have identical user-visible behavior. */
+    if(uO.pwdarg)pw=uO.pwdarg;
+    else if(G.key && *G.key)pw=G.key;
+    for(attempts=0;attempts<3;attempts++) {
+        if(!pw) {
+            if(G.nopwd)break;
+            if(!G.key && (G.key=(char *)malloc(81))==NULL) {
+                undefer_input(__G);return PK_MEM2;
+            }
+            r=(*G.decr_passwd)((zvoid *)&G,&n,G.key,81,
+                                G.zipfn,G.filename);
+            if(r!=IZ_PW_ENTERED){
+                if(r==IZ_PW_CANCELALL)G.nopwd=TRUE;
+                break;
+            }
+            pw=G.key;
+        }
+        if(!iz_aes_init(&mac_ctx,pw,salt,G.pInfo->aes_strength,ver)) {
+            undefer_input(__G);return PK_ERR;
+        }
+        diff=(unsigned char)((ver[0]^check[0])|(ver[1]^check[1]));
+        iz_aes_wipe(&mac_ctx,sizeof(mac_ctx));
+        if(!diff)break;
+        if(uO.pwdarg || G.nopwd)break;
+        pw=NULL;
+    }
+    if(attempts>=3 || !pw || diff) {
+        undefer_input(__G);iz_aes_wipe(salt,sizeof(salt));return PK_WARN;
+    }
+    if(!iz_aes_init(&mac_ctx,pw,salt,G.pInfo->aes_strength,ver)) {
+        undefer_input(__G);return PK_ERR;
+    }
+    remaining=cipher_len;
+    while(remaining>0) {
+        unsigned chunk;
+        if(G.incnt<=0) {
+            if(G.csize<=0 || fillinbuf(__G)==0) {
+                undefer_input(__G);
+                iz_aes_wipe(&mac_ctx,sizeof(mac_ctx));
+                iz_aes_wipe(salt,sizeof(salt));
+                return PK_ERR;
+            }
+        }
+        chunk=(unsigned)((zoff_t)G.incnt<remaining?G.incnt:remaining);
+        iz_aes_mac_update(&mac_ctx,G.inptr,chunk);
+        G.inptr+=chunk;G.incnt-=(int)chunk;remaining-=(zoff_t)chunk;
+    }
+    for(i=0;i<10;i++) {
+        j=NEXTBYTE;
+        if(j==EOF){
+            undefer_input(__G);
+            iz_aes_wipe(&mac_ctx,sizeof(mac_ctx));
+            iz_aes_wipe(salt,sizeof(salt));
+            return PK_ERR;
+        }
+        tag[i]=(unsigned char)j;
+    }
+    iz_aes_auth(&mac_ctx,actual);
+    iz_aes_wipe(&mac_ctx,sizeof(mac_ctx));
+    diff=0;
+    for(i=0;i<10;i++)diff|=(unsigned char)(tag[i]^actual[i]);
+    iz_aes_wipe(tag,sizeof(tag));iz_aes_wipe(actual,sizeof(actual));
+    if(diff) {
+        undefer_input(__G);iz_aes_wipe(salt,sizeof(salt));
+        Info(slide,0x401,((char *)slide,"AES authentication failed: %s\n", FnFilter1(G.filename)));
+        return PK_ERR;
+    }
+    undefer_input(__G);
+    /* seek_zipf takes the logical (unadjusted) position. */
+    r=seek_zipf(__G__ encrypted_start-G.extra_bytes);
+    if(r!=PK_OK){iz_aes_wipe(salt,sizeof(salt));return r;}
+    G.csize=cipher_len;
+    if(!iz_aes_init(&G.aes_ctx,pw,salt,G.pInfo->aes_strength,ver)) {
+        iz_aes_wipe(salt,sizeof(salt));return PK_ERR;
+    }
+    iz_aes_wipe(salt,sizeof(salt));
+    G.aes_active=1;
+    /* seek_zipf preloads the first encrypted block.  The normal input
+     * refill decrypts only newly read blocks, so decrypt that span now,
+     * without touching any bytes following the compressed ciphertext. */
+    defer_leftover_input(__G);
+    if(G.incnt>0)
+        iz_aes_decrypt(&G.aes_ctx,G.inptr,(size_t)G.incnt);
+    undefer_input(__G);
+    return PK_COOL;
+}
+#endif /* !NO_AES */
+
 #ifdef USE_PPMD
 #  include "ppmd8.c"
 #  include "ppmd8dec.c"
@@ -1386,7 +1541,7 @@ static ZCONST char Far ZeroFilesTested[] =
      "\n%s:  stored in VMS format.  Extract anyway? (y/n) ";
 #endif
 
-#if CRYPT
+#if CRYPT || !defined(NO_AES)
    static ZCONST char Far SkipCannotGetPasswd[] =
      "   skipping: %-22s  unable to get password\n";
    static ZCONST char Far SkipIncorrectPasswd[] =
@@ -1395,7 +1550,8 @@ static ZCONST char Far ZeroFilesTested[] =
      "%lu file%s skipped because of incorrect password.\n";
    static ZCONST char Far MaybeBadPasswd[] =
      "    (may instead be incorrect password)\n";
-#else
+#endif
+#if !CRYPT
    static ZCONST char Far SkipEncrypted[] =
      "   skipping: %-22s  encrypted (not supported)\n";
 #endif
@@ -2120,7 +2276,7 @@ int extract_or_test_files(__G)    /* return PK-type error code */
             if (num_skipped > 0L)
                 Info(slide, 0, ((char *)slide, LoadFarString(FilesSkipped),
                   num_skipped, (num_skipped==1L)? "":"s"));
-#if CRYPT
+#if CRYPT || !defined(NO_AES)
             if (num_bad_pwd > 0L)
                 Info(slide, 0, ((char *)slide, LoadFarString(FilesSkipBadPasswd)
                   , num_bad_pwd, (num_bad_pwd==1L)? "":"s"));
@@ -2137,13 +2293,13 @@ int extract_or_test_files(__G)    /* return PK-type error code */
         else
             error_in_archive = PK_FIND;  /* no files found at all */
     }
-#if CRYPT
+#if CRYPT || !defined(NO_AES)
     else if ((filnum == num_bad_pwd) && error_in_archive <= PK_WARN)
         error_in_archive = IZ_BADPWD;    /* bad passwd => all files skipped */
 #endif
     else if ((num_skipped > 0L) && error_in_archive <= PK_WARN)
         error_in_archive = IZ_UNSUP;     /* was PK_WARN; Jean-loup complained */
-#if CRYPT
+#if CRYPT || !defined(NO_AES)
     else if ((num_bad_pwd > 0L) && !error_in_archive)
         error_in_archive = PK_WARN;
 #endif
@@ -2239,7 +2395,32 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #endif
 
     int unzvers_support = UNZIP_VERSION;
+#ifndef NO_AES
+    if (G.crec.compression_method==99) {
+        unsigned v=0,strength=0,m=0;
+        int r=iz_aes_find_extra(G.extra_field,
+                G.crec.extra_field_length,&v,&strength,&m);
+        if(r!=1 || !(G.crec.general_purpose_bit_flag&1) ||
+           (G.crec.general_purpose_bit_flag&0x2040))return 0;
+        G.pInfo->aes_strength=strength;
+        G.pInfo->aes_version=v;
+        G.pInfo->aes_method=m;
+        G.crec.compression_method=(ush)m;
+    } else {
+        G.pInfo->aes_strength=0;
+        G.pInfo->aes_version=0;
+        G.pInfo->aes_method=0;
+    }
+#endif
 #define UNZVERS_SUPPORT unzvers_support
+
+#ifndef NO_AES
+    /* WinZip normally inherits the version-needed value from the real
+     * compression method, but other AES writers may use 5.1 for method 99.
+     * Accept that on input without changing our WinZip-compatible writer. */
+    if (G.pInfo->aes_strength && unzvers_support < 51)
+        unzvers_support = 51;
+#endif
 
 #ifdef USE_BZIP2
     if (!UNKN_BZ2 && unzvers_support < UNZIP_BZ2VERS)
@@ -2340,7 +2521,11 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
         return 0;
     }
 #if (!CRYPT)
-    if (G.pInfo->encrypted) {
+    if (G.pInfo->encrypted
+#ifndef NO_AES
+        && !G.pInfo->aes_strength
+#endif
+       ) {
         if (!((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2)))
             Info(slide, 0x401, ((char *)slide, LoadFarString(SkipEncrypted),
               FnFilter1(G.filename)));
@@ -2653,6 +2838,29 @@ static int extract_or_test_entrylist(__G__ numchunk,
             G.pInfo->cfilname = (char Far *)NULL;
         }
 #endif /* !SFX */
+#ifndef NO_AES
+        G.aes_active=0;
+        if (G.pInfo->aes_strength) {
+            unsigned v=0,strength=0,m=0;
+            int ar=iz_aes_find_extra(G.extra_field,
+                    G.lrec.extra_field_length,&v,&strength,&m);
+            /* AE-2 requires CRC32=0, but libzip 1.11.3 writes a real
+             * CRC32 while tagging entries AE-2.  Accept on read, and
+             * verify any nonzero CRC after authenticated extraction.
+             * Our AE-2 writer continues to emit the required zero. */
+            if(ar!=1 || G.lrec.compression_method!=99 ||
+               v!=G.pInfo->aes_version ||
+               strength!=G.pInfo->aes_strength || m!=G.pInfo->aes_method ||
+               !(G.lrec.general_purpose_bit_flag&1)) {
+                Info(slide,0x401,((char *)slide,
+                    "malformed WinZip AES metadata: %s\n",FnFilter1(G.filename)));
+                error_in_archive=PK_ERR;continue;
+            }
+            G.lrec.compression_method=(ush)m;
+        } else if (G.lrec.compression_method==99) {
+            error_in_archive=PK_ERR;continue;
+        }
+#endif
         /* Size consistency checks must come after reading in the local extra
          * field, so that any Zip64 extension local e.f. block has already
          * been processed.
@@ -2661,6 +2869,16 @@ static int extract_or_test_entrylist(__G__ numchunk,
             zusz_t csiz_decrypted = G.lrec.csize;
 
             if (G.pInfo->encrypted) {
+#ifndef NO_AES
+                if(G.pInfo->aes_strength) {
+                    zusz_t overhead = (zusz_t)iz_aes_salt_size(
+                                          G.pInfo->aes_strength)+12;
+                    if(csiz_decrypted < overhead){
+                        error_in_archive=PK_ERR;continue;
+                    }
+                    csiz_decrypted-=overhead;
+                } else
+#endif
                 if (csiz_decrypted < 12) {
                     /* handle the error now to prevent unsigned overflow */
                     Info(slide, 0x401, ((char *)slide,
@@ -2669,7 +2887,10 @@ static int extract_or_test_entrylist(__G__ numchunk,
                       LoadFarStringSmall2(Inflate)));
                     return PK_ERR;
                 }
-                csiz_decrypted -= 12;
+#ifndef NO_AES
+                if(!G.pInfo->aes_strength)
+#endif
+                    csiz_decrypted -= 12;
             }
             if (G.lrec.ucsize != csiz_decrypted) {
                 Info(slide, 0x401, ((char *)slide,
@@ -2683,9 +2904,19 @@ static int extract_or_test_entrylist(__G__ numchunk,
             }
         }
 
+#if CRYPT || !defined(NO_AES)
+#ifndef NO_AES
+        if (G.pInfo->aes_strength) {
+            error=iz_aes_authenticate(__G);
+        } else
+#endif
 #if CRYPT
-        if (G.pInfo->encrypted &&
-            (error = decrypt(__G__ uO.pwdarg)) != PK_COOL) {
+        if (G.pInfo->encrypted) {
+            error=decrypt(__G__ uO.pwdarg);
+        } else
+#endif
+        error=PK_COOL;
+        if(error != PK_COOL) {
             if (error == PK_WARN) {
                 if (!((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2)))
                     Info(slide, 0x401, ((char *)slide,
@@ -2695,13 +2926,16 @@ static int extract_or_test_entrylist(__G__ numchunk,
             } else {  /* (error > PK_WARN) */
                 if (error > error_in_archive)
                     error_in_archive = error;
-                Info(slide, 0x401, ((char *)slide,
-                  LoadFarString(SkipCannotGetPasswd),
-                  FnFilter1(G.filename)));
+#ifndef NO_AES
+                if (!G.pInfo->aes_strength)
+#endif
+                    Info(slide, 0x401, ((char *)slide,
+                      LoadFarString(SkipCannotGetPasswd),
+                      FnFilter1(G.filename)));
             }
             continue;   /* go on to next file */
         }
-#endif /* CRYPT */
+#endif /* CRYPT || AES */
 
         /*
          * just about to extract file:  if extracting to disk, check if
@@ -3586,6 +3820,17 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
         fwkcs_error = PK_WARN;
     }
     G.fwkcs_active = FALSE;
+#ifndef NO_AES
+    G.aes_active=0;
+    iz_aes_wipe(&G.aes_ctx,sizeof(G.aes_ctx));
+    /* AE-2 normally has CRC32=0 and relies on its verified HMAC.
+     * Some third-party AE-2 writers include a real CRC; verify it when
+     * present instead of silently ignoring it. */
+    if(G.pInfo->aes_strength && G.pInfo->aes_version==2 &&
+       G.lrec.crc32==0)
+        crc_bad=FALSE;
+    else
+#endif
     crc_bad = (G.crc32val != G.lrec.crc32);
     if (crc_bad) {
         /* if quiet enough, we haven't output the filename yet:  do it */
@@ -3645,6 +3890,15 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
     }
 
     undefer_input(__G);
+#ifndef NO_AES
+    /* The already verified 10-byte authentication code is outside the
+     * encrypted compressed stream and precedes the ZIP data descriptor. */
+    if (G.pInfo->aes_strength) {
+        uch auth_after_data[10];
+        if (readbuf(__G__ (char *)auth_after_data, 10) != 10)
+            error = PK_ERR;
+    }
+#endif
     if (uO.zipbomb == TRUE) {
       if ((G.lrec.general_purpose_bit_flag & 8) != 0) {
         // Skip over the data descriptor. We need to correctly position the

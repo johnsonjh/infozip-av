@@ -651,6 +651,36 @@ OPTIONS
               with  an  error).   The  password prompt is repeated to save the
               user from typing errors.
 
+       -eS
+       --aes-encrypt
+              Prompt twice for a password and use WinZip-compatible AES
+              encryption.  This is independent of -e/--encrypt, which retains
+              traditional PKZIP encryption.  AES-256 is the default.  WinZip's
+              AE-2 is used for input smaller than 20 bytes and for BZip2;
+              AE-1 is used otherwise, retaining a ZIP CRC32 as well as AES
+              authentication.  See --aes-strength.  -eS cannot be combined
+              with -e or -P.
+
+       -eP password
+       --aes-password password
+              Select WinZip AES with a command-line password instead of a
+              prompt.  WARNING: command-line passwords can be visible to
+              other users and in process logs.  Prefer -eS.  Cannot be
+              combined with traditional -e or -P encryption.
+
+       --aes-strength 128|192|256
+              AES key strength for -eS or -eP (default 256).  This option
+              requires AES encryption to be selected.  The WinZip AES extra
+              field 0x9901 records the key strength and the underlying
+              compression method (ZIP method 99 identifies AES entries).
+              AES code is built in by default, including on non-Unix builds;
+              define NO_AES to omit it.  Secure salt comes from /dev/urandom
+              then /dev/random on Unix, or Windows cryptographic APIs.  If
+              neither is available, AES encryption fails, never using rand().
+              Encryption does not protect ZIP filenames or central-directory
+              metadata.  PKWARE Strong Encryption is a distinct format and
+              is not implemented by this option.  zipcloak is unchanged.
+
        -E
        --longnames
               [OS/2] Use the .LONGNAME Extended Attribute (if found) as  file-

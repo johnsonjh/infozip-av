@@ -453,8 +453,22 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         as small as possible. For other binaries of the UnZip distribution,
         decryption support is enabled by default.
 
+      NO_AES
+        Omit the built-in WinZip compatible AES (AE-1 and AE-2) implementation.
+	By default the main UnZip and UnZipSFX include AES support for methods
+	encoded as ZIP method 99 with extra field 0x9901.  Unlike legacy
+	PKZIP encryption, AES works in default UnZipSFX without USE_CRYPT.
+	The AES password is prompted for before any authenticated entry data
+	is released.  NO_AES does not alter support for the older weak PKZIP
+	encryption.  fUnZip remains without WinZip AES support. AES supports
+	128, 192, and 256 bit keys and requires no third-party cryptographic
+	libraries; PKWARE's separate Strong Encryption and central-directory
+	encryption are not supported.
+
       NO_CRYPT
-        Disable decryption support for all binaries.
+        Disable traditional PKZIP encryption support.  WinZip AES remains
+        available unless NO_AES is also defined; the two implementations
+        are compiled independently.
 
       PASSWD_FROM_STDIN   (with full crypt sources only; Unix, VMS only)
         Used to allow the password on encrypted files to be read from stdin

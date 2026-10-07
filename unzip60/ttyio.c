@@ -510,14 +510,16 @@ int zgetch(__G__ f)
 #endif /* !HAVE_WORKING_GETCH */
 
 
-#if CRYPT                       /* getp() is only used with full encryption */
+#if CRYPT || (!defined(NO_AES) && !defined(FUNZIP))  /* AES in default SFX */
 
 /*
  * Simple compile-time check for source compatibility between
  * zcrypt and ttyio:
  */
+#if CRYPT
 #if (!defined(CR_MAJORVER) || (CR_MAJORVER < 2) || (CR_MINORVER < 7))
    error:  This Info-ZIP tool requires zcrypt 2.7 or later.
+#endif
 #endif
 
 /*

@@ -1,3 +1,6 @@
+#ifndef NO_AES
+#include "wzaes.h"
+#endif
 /*
   Copyright (c) 1990-2009 Info-ZIP.  All rights reserved.
 
@@ -306,6 +309,10 @@ typedef struct Globals {
     int      mem_mode;
     uch      *outbufptr;           /* extract.c static */
     ulg      outsize;              /* extract.c static */
+#ifndef NO_AES
+    iz_wzaes aes_ctx;
+    int aes_active;
+#endif
     int      reported_backslash;   /* extract.c static */
     int      disk_full;
     int      newfile;

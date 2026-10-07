@@ -43,7 +43,9 @@ int zopfli_iterations = 15;  /* Zopfli optimization iterations */
 int dcl_implode_mode = 0;    /* 0=binary literals, 1=ASCII literals */
 ulg dcl_implode_dict = 0;    /* 0=automatic, otherwise 1K/2K/4K */
 int dcl_implode_optimal = 0; /* 1=enable optimal DCL parse */
-int zstd_level = 0;     /* native Zstd level override; 0 uses generic mapping */
+int zstd_level = 0;
+int iz_aes_mode = 0;     /* zero=ZipCrypto/off, one=WinZip AES */
+int iz_aes_strength = 256; /* AES key size in bits */
 int translate_eol = 0;  /* Translate end-of-line LF -> CR LF */
 #ifdef VMS
    int vmsver = 0;      /* 1=append VMS version number to file names */

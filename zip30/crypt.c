@@ -33,6 +33,13 @@
 #include "zip.h"
 #include "crypt.h"
 #include "ttyio.h"
+#ifndef NO_AES
+#include "wzaes.h"
+#if defined(ZIP) && !defined(UTIL)
+extern iz_wzaes iz_zip_aes_ctx;
+extern int iz_zip_aes_active;
+#endif
+#endif
 
 #if CRYPT
 
@@ -462,6 +469,13 @@ unsigned zfwrite(buf, item_size, nb)
 {
     int t;                      /* temporary */
 
+#ifndef NO_AES
+    if (iz_zip_aes_active) {
+        iz_aes_encrypt(&iz_zip_aes_ctx, (unsigned char *)buf,
+                       (size_t)item_size * (size_t)nb);
+        return bfwrite(buf, item_size, nb, BFWRITE_DATA);
+    }
+#endif
     if (key != (char *)NULL) {  /* key is the global password pointer */
         ulg size;               /* buffer size */
         char *p = (char *)buf;  /* steps through buffer */
@@ -687,4 +701,25 @@ local int testkey(__G__ h, key)
 /* something "externally visible" to shut up compiler/linker warnings */
 int zcr_dummy;
 
+#if defined(ZIP) && !defined(UTIL) && !defined(NO_AES)
+/* When ZipCrypto is compiled out, still encrypt all AES codec output. */
+unsigned iz_aes_zfwrite(buf, item_size, nb)
+    zvoid *buf;
+    extent item_size;
+    extent nb;
+{
+    if (iz_zip_aes_active)
+        iz_aes_encrypt(&iz_zip_aes_ctx, (unsigned char *)buf,
+                       (size_t)item_size * (size_t)nb);
+    return bfwrite(buf, item_size, nb, BFWRITE_DATA);
+}
+#endif
+
 #endif /* ?CRYPT */
+
+#if defined(ZIP) && !defined(UTIL) && !defined(NO_AES)
+/* Compile shared, strictly C89 AES primitives without build-system changes. */
+#include "wzaes.c"
+iz_wzaes iz_zip_aes_ctx;
+int iz_zip_aes_active = 0;
+#endif

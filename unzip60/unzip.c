@@ -531,17 +531,21 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
      static ZCONST char Far UseBZip2[] =
      "USE_BZIP2 (PKZIP 4.6+, using bzip2 lib version %s)";
 #  endif
-#  if defined(USE_LZMA) || defined(USE_XZ)
+#  ifdef USE_LZMA
      static ZCONST char Far UseLZMA[] =
-     "liblzma codecs (ZIP LZMA method 14 and XZ method 95; version %s)";
+     "USE_LZMA (ZIP method 14; using liblzma v%s)";
+#  endif
+#  ifdef USE_XZ
+     static ZCONST char Far UseXZ[] =
+     "USE_XZ (ZIP method 95; using liblzma v%s)";
 #  endif
 #  ifdef USE_ZSTD
      static ZCONST char Far UseZstd[] =
-     "libzstd codec (ZIP Zstandard methods 20/93; version %s)";
+     "USE_ZSTD (ZIP method 93 and 20; using libzstd v%s)";
 #  endif
 #  ifdef USE_PPMD
      static ZCONST char Far UsePPMd[] =
-     "PPM/PPMd support (ZIP method 98; public-domain PPMd derived from 7-Zip)";
+     "PPM/PPMd support (ZIP method 98; using public-domain PPMd sources)";
 #  endif
 #  ifdef VMS_TEXT_CONV
      static ZCONST char Far VmsTextConv[] = "VMS_TEXT_CONV";
@@ -2682,8 +2686,15 @@ static void show_version_info(__G)
           (char *)(slide+256)));
         ++numopts;
 #endif
-#if defined(USE_LZMA) || defined(USE_XZ)
+#ifdef USE_LZMA
         sprintf((char *)(slide+256), LoadFarStringSmall(UseLZMA),
+          lzma_version_string());
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+          (char *)(slide+256)));
+        ++numopts;
+#endif
+#ifdef USE_XZ
+        sprintf((char *)(slide+256), LoadFarStringSmall(UseXZ),
           lzma_version_string());
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
           (char *)(slide+256)));

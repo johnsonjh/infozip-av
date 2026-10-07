@@ -931,6 +931,40 @@ The password prompt is repeated to save the user from typing errors.
 
 .TP
 .PD 0
+.B \-eS
+.TP
+.PD
+.B \--aes-encrypt
+Select WinZip AES encryption and prompt twice for a password.  The default
+key size is AES-256.  This is separate from the traditional weak PKZIP
+\-e and \-P encryption options and may not be combined with them.
+WinZip AE-2 is written for inputs smaller than 20 bytes and BZip2 entries;
+AE-1 is used otherwise.  Encryption uses method 99 with extra field 0x9901.
+.TP
+.PD 0
+.B \-eP\ \fRpassword
+.TP
+.PD
+.B \--aes-password\ \fRpassword
+Select WinZip AES encryption with a command-line password.  Passwords given
+on the command line can be visible in process listings; prefer \-eS.
+Do not combine this with traditional encryption options.
+.TP
+.PD 0
+.B \--aes-strength\ \fR128|192|256
+.TP
+.PD
+Select AES key strength, default 256.  Requires \-eS or \-eP.
+The built-in ANSI C89 AES implementation is enabled unless built with
+NO_AES.  Secure random salt is obtained from /dev/urandom, then
+/dev/random on Unix, or a native Windows cryptographic random source.
+Encryption fails if no secure source is available.  This format encrypts
+file data but does not hide filenames or central-directory metadata.
+PKWARE Strong Encryption and central-directory encryption are not implemented;
+zipcloak does not add AES support.
+
+.TP
+.PD 0
 .B \-E
 .TP
 .PD
