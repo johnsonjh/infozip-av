@@ -171,7 +171,7 @@ static ZCONST char Far MissingBytes[] =
 static ZCONST char Far NullCentDirOffset[] =
   "error [%s]:  NULL central directory offset\n\
   (attempting to process anyway)\n";
-static ZCONST char Far ZipfileEmpty[] = "warning [%s]:  zipfile is empty\n";
+static ZCONST char Far ZipfileEmpty[] = "[%s]:  zipfile is empty\n";
 static ZCONST char Far CentDirStartNotFound[] =
   "error [%s]:  start of central directory not found;\n\
   zipfile corrupt.\n%s";
@@ -904,7 +904,7 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
                 Info(slide, 0x401, ((char *)slide, LoadFarString(ZipfileEmpty),
                                     G.zipfn));
             CLOSE_INFILE();
-            return (error_in_archive > PK_WARN)? error_in_archive : PK_WARN;
+            return error_in_archive;
         }
 
     /*-----------------------------------------------------------------------

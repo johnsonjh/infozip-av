@@ -3913,11 +3913,10 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             error = PK_ERR;
     }
 #endif
-    if (uO.zipbomb == TRUE) {
-      if ((G.lrec.general_purpose_bit_flag & 8) != 0) {
-        // Skip over the data descriptor. We need to correctly position the
-        // read pointer after the data descriptor for the proper detection of
-        // overlapped zip file components.
+    if ((G.lrec.general_purpose_bit_flag & 8) != 0) {
+        // Read and verify the data descriptor.  Keeping the read pointer just
+        // after the descriptor also lets the component-overlap check include
+        // the descriptor when zip-bomb detection is enabled.
         //
         // We need to resolve an ambiguity over four possible data descriptor
         // formats. We check for all four, and pick the longest match. The data
@@ -4039,7 +4038,6 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             G.incnt += back;
             G.inptr -= back;
         }
-      }
     }
     return error;
 

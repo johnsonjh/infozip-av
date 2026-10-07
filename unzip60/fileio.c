@@ -316,6 +316,8 @@ static ZCONST char Far ExtraFieldTooLong[] =
   "warning:  extra field too long (%d).  Ignoring...\n";
 static ZCONST char Far ExtraFieldCorrupt[] =
   "warning:  extra field (type: 0x%04x) corrupt.  Continuing...\n";
+static ZCONST char Far ExtraFieldMalformed[] =
+  "error:  malformed extra field structure\n";
 
 #ifdef WINDLL
    static ZCONST char Far DiskFullQuery[] =
@@ -2158,6 +2160,38 @@ int check_for_newer(__G__ filename)  /* return 1 if existing file is newer */
 
 
 
+/*******************************/
+/* Function validate_extra_field() */
+/*******************************/
+
+static int validate_extra_field(ef, ef_len)
+    ZCONST uch *ef;
+    unsigned ef_len;
+{
+    unsigned eb_len;
+
+    /* Every complete extra-field block consists of a four-byte header
+     * followed by exactly the declared amount of data.  A final one to
+     * three bytes are permitted as padding only when every byte is zero.
+     */
+    while (ef_len >= EB_HEADSIZE) {
+        eb_len = (unsigned)makeword(ef + EB_LEN);
+        if (eb_len > ef_len - EB_HEADSIZE)
+            return PK_ERR;
+        ef += EB_HEADSIZE + eb_len;
+        ef_len -= EB_HEADSIZE + eb_len;
+    }
+
+    while (ef_len != 0) {
+        if (*ef++ != 0)
+            return PK_ERR;
+        --ef_len;
+    }
+
+    return PK_COOL;
+}
+
+
 /************************/
 /* Function do_string() */
 /************************/
@@ -2462,6 +2496,11 @@ int do_string(__G__ length, option)   /* return PK-type error code */
             if(length2 < length) {
               memset ((char *)G.extra_field+length2, 0 , length-length2);
               length = length2;
+            }
+            if (validate_extra_field(G.extra_field, length) != PK_COOL) {
+                Info(slide, 0x401, ((char *)slide,
+                  LoadFarString(ExtraFieldMalformed)));
+                return PK_ERR;
             }
             /* Looks like here is where extra fields are read */
             if (getZip64Data(__G__ G.extra_field, length) != PK_COOL)
