@@ -63,7 +63,7 @@ with GCC).
 ### PKAV
 
 PKAV today is cryptographically useless, but supporting it is *important for
-historical preservation and authenticity*, and it unlocks the encrypted AVEXTRA
+historical preservation and research*, and it unlocks the encrypted AVEXTRA
 data present in many original PKZIP archives that would otherwise be completely
 inaccessible (or *only* accessible using official PKWARE software).
 
@@ -350,13 +350,13 @@ archive is a great example of an important historical file that uses PKAV 2.x
 and includes encrypted AVEXTRA text which needs a complete PKAV implementation
 to correctly decode and display.
 
-The actual decoded PKAV AVEXTRA text from this archive was quoted verbatim and used (amongst
-other data points) in a USPTO final decision to
+The decoded PKAV AVEXTRA text from this particular archive was quoted verbatim
+and used (amongst other data points) in a USPTO final decision to
 [invalidate a software patent](https://dn721608.ca.archive.org/0/items/539FinalDecision73/539%20-%20final%20decision-73.pdf)
 (PDF pg. 11) in 2014.
-In this case, [Jason Scott](https://en.wikipedia.org/wiki/Jason_Scott)
-used the historical PKWARE PKUNZIP software in a DOS emulator to decode and
-display the PKAV AVEXTRA text.
+In that case, [Jason Scott](https://en.wikipedia.org/wiki/Jason_Scott)
+used the PKWARE PKUNZIP software in a DOS emulator to decode and display the
+PKAV AVEXTRA text.
 
 ```
 $ unzip -t fwkcs122.zip
