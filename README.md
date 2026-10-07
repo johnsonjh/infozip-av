@@ -435,16 +435,18 @@ No errors detected in compressed data of pkz110.exe.
 
 ## Licenses
 
-* The PKAV additions to Info‑ZIP are provided under the [MIT‑0](LICENSE)
-  license, or, at your option, the [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
+* The **Deflate64** compression implementation and the **PKAV** and **FWKCS**
+  additions to Info‑ZIP are provided under the [MIT‑0](LICENSE) license, or,
+  at your option, the [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
   [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
 
 * The **Shrink**, **Reduce**, and **ZIP Implode** decompression
   implementations are based on MIT licensed code from
   [Jason Summers](https://github.com/jsummers/oldunzip).
 
-* The **DCL Implode** compression and decompression implementations use the
-  MIT‑0 licensed [PKDCLX](https://github.com/johnsonjh/pkdclx) routines.
+* The **DCL**&nbsp;**Implode** compression and decompression implementations
+  use the [MIT‑0](LICENSE) licensed
+  [PKDCLX](https://github.com/johnsonjh/pkdclx) routines.
 
 * The **PPMd** compression and decompression implementations are derived from
   the public‑domain [7‑Zip PPMd](https://www.7-zip.org/sdk.html) routines.
