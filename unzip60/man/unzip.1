@@ -188,10 +188,12 @@ As an option it has two purposes:  when a zipfile is specified with no
 other options, \fB\-v\fP lists archive files verbosely, adding to the
 basic \fB\-l\fP info the compression method, compressed size,
 compression ratio and 32-bit CRC.  In contrast to most of the competing
-utilities, \fIunzip\fP removes the 12 additional header bytes of
-encrypted entries from the compressed size numbers.  Therefore,
-compressed size and compression ratio figures are independent of the entry's
-encryption status and show the correct compression performance.  (The complete
+utilities, \fIunzip\fP removes encryption overhead from the compressed
+size numbers:  12 bytes for traditional ZipCrypto, or the WinZip AES salt,
+2-byte password verifier, and 10-byte authentication code (20, 24, or 28
+bytes total for AES-128, AES-192, or AES-256).  Therefore, compressed size
+and compression ratio figures are independent of the entry's encryption
+status and show the correct compression performance.  (The complete
 size of the encrypted compressed data stream for zipfile entries is reported
 by the more verbose \fIzipinfo\fP(1L) reports, see the separate manual.)
 When no zipfile is specified (that is, the complete command is simply

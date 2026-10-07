@@ -247,6 +247,8 @@ static ZCONST char Far ShannonFanoTrees[] =
   "  number of Shannon-Fano trees (implosion):       %c\n";
 static ZCONST char Far CompressSubtype[] =
   "  compression sub-type (deflation):               %s\n";
+static ZCONST char Far WinZipAESInfo[] =
+  "  WinZip AES encryption:                          AE-%u, AES-%u\n";
 static ZCONST char Far FileSecurity[] =
   "  file security status:                           %sencrypted\n";
 static ZCONST char Far ExtendedLocalHdr[] =
@@ -314,6 +316,7 @@ static ZCONST char Far ExtraFieldType[] = "\n\
   - A subfield with ID 0x%04x (%s) and %u data bytes";
 static ZCONST char Far efPKSZ64[] = "PKWARE 64-bit sizes";
 static ZCONST char Far efAV[] = "PKWARE AV";
+static ZCONST char Far efWZAES[] = "WinZip AES";
 static ZCONST char Far efOS2[] = "OS/2";
 static ZCONST char Far efPKVMS[] = "PKWARE VMS";
 static ZCONST char Far efPKWin32[] = "PKWARE Win32";
@@ -405,6 +408,8 @@ static ZCONST char Far Tandemdata[] = ".\n\
     The file was originally a Tandem %s file, with file code %u";
 static ZCONST char Far MD5data[] = ".\n\
     The 128-bit MD5 signature is %s";
+static ZCONST char Far WZAESdata[] = ".\n\
+    AE-%u, vendor \"%c%c\", AES-%u, compression method %u (%s)";
 #ifdef CMS_MVS
    static ZCONST char Far VmMvsExtraField[] = ".\n\
     The stored file open mode (FLDATA TYPE) is \"%s\"";
@@ -777,6 +782,9 @@ int zipinfo(__G)   /* return PK-type error code */
     int *fn_matched=NULL, *xn_matched=NULL;
     ulg j, members=0L;
     zusz_t tot_csize=0L, tot_ucsize=0L;
+    int aes_total_status;
+    unsigned aes_total_version, aes_total_strength, aes_total_method;
+    unsigned aes_total_ovh;
     zusz_t endprev;   /* buffers end of previous entry for zi_long()'s check
                        *  of extra bytes */
 
@@ -946,8 +954,23 @@ int zipinfo(__G)   /* return PK-type error code */
 
             tot_csize += G.crec.csize;
             tot_ucsize += G.crec.ucsize;
-            if (G.crec.general_purpose_bit_flag & 1)
-                tot_csize -= 12;   /* don't count encryption header */
+            if (G.crec.general_purpose_bit_flag & 1) {
+                if (G.crec.compression_method == 99 && G.extra_field != NULL) {
+                    aes_total_version = aes_total_strength =
+                      aes_total_method = 0;
+                    aes_total_status = ef_scan_for_wzaes(G.extra_field,
+                      G.crec.extra_field_length, &aes_total_version,
+                      &aes_total_strength, &aes_total_method);
+                    if (aes_total_status == 1) {
+                        aes_total_ovh = wzaes_overhead(aes_total_strength);
+                        if ((zusz_t)aes_total_ovh <= G.crec.csize)
+                            tot_csize -= aes_total_ovh;
+                    }
+                } else if (G.crec.compression_method != 99 &&
+                           G.crec.csize >= 12) {
+                    tot_csize -= 12;  /* traditional ZipCrypto header */
+                }
+            }
             ++members;
 
 #ifdef DLL
@@ -1062,8 +1085,9 @@ static int zi_long(__G__ pEndprev, error_in_archive)
 #ifdef USE_EF_UT_TIME
     iztimes z_utime;
 #endif
-    int  error;
+    int  error, aes_status;
     unsigned  hostnum, hostver, extnum, extver, methid, methnum, xattr;
+    unsigned  aes_version, aes_strength, aes_method, display_methid;
     char workspace[12], attribs[22];
     ZCONST char *varmsg_str;
     char unkn[16];
@@ -1121,7 +1145,13 @@ static int zi_long(__G__ pEndprev, error_in_archive)
     extnum = (unsigned)MIN(G.crec.version_needed_to_extract[1], NUM_HOSTS);
     extver = (unsigned)G.crec.version_needed_to_extract[0];
     methid = (unsigned)G.crec.compression_method;
-    methnum = find_compr_idx(G.crec.compression_method);
+    aes_version = aes_strength = aes_method = 0;
+    aes_status = 0;
+    if (methid == 99 && G.extra_field != NULL)
+        aes_status = ef_scan_for_wzaes(G.extra_field,
+          G.crec.extra_field_length, &aes_version, &aes_strength, &aes_method);
+    display_methid = (methid == 99 && aes_status == 1) ? aes_method : methid;
+    methnum = find_compr_idx(display_methid);
 
     (*G.message)((zvoid *)&G, (uch *)"  ", 2L, 0);  fnprint(__G);
 
@@ -1157,26 +1187,29 @@ static int zi_long(__G__ pEndprev, error_in_archive)
     Info(slide, 0, ((char *)slide, LoadFarString(MinSWVerReq), extver/10,
       extver%10));
 
-    if (methid == 99) {
-        varmsg_str = "WinZip AES encrypted (method 99)";
+    if (methid == 99 && aes_status != 1) {
+        varmsg_str = "WinZip AES encrypted (malformed or missing 0x9901)";
     } else if (methnum >= NUM_METHODS) {
-        sprintf(unkn, LoadFarString(UnknownNo), G.crec.compression_method);
+        sprintf(unkn, LoadFarString(UnknownNo), display_methid);
         varmsg_str = unkn;
     } else {
         varmsg_str = LoadFarStringSmall(method[methnum]);
     }
     Info(slide, 0, ((char *)slide, LoadFarString(CompressMethod), varmsg_str));
-    if (methid == IMPLODED) {
+    if (display_methid == IMPLODED) {
         Info(slide, 0, ((char *)slide, LoadFarString(SlideWindowSizeImplode),
           (G.crec.general_purpose_bit_flag & 2)? '8' : '4'));
         Info(slide, 0, ((char *)slide, LoadFarString(ShannonFanoTrees),
           (G.crec.general_purpose_bit_flag & 4)? '3' : '2'));
-    } else if (methid == DEFLATED || methid == ENHDEFLATED) {
+    } else if (display_methid == DEFLATED || display_methid == ENHDEFLATED) {
         ush  dnum=(ush)((G.crec.general_purpose_bit_flag>>1) & 3);
 
         Info(slide, 0, ((char *)slide, LoadFarString(CompressSubtype),
           LoadFarStringSmall(dtypelng[dnum])));
     }
+    if (methid == 99 && aes_status == 1)
+        Info(slide, 0, ((char *)slide, LoadFarString(WinZipAESInfo),
+          aes_version, aes_strength));
 
     Info(slide, 0, ((char *)slide, LoadFarString(FileSecurity),
       (G.crec.general_purpose_bit_flag & 1) ? nullStr : "not "));
@@ -1459,18 +1492,25 @@ static int zi_long(__G__ pEndprev, error_in_archive)
                 case EF_PKSZ64:
                     ef_fieldname = efPKSZ64;
                     if ((G.crec.relative_offset_local_header
-                         & (~(zusz_t)0xFFFFFFFFL)) != 0) {
+                         & (~(zusz_t)0xFFFFFFFFL)) != 0 && *pEndprev > 0L) {
+                        zusz_t z64_adjust = (eb_datalen == 8 ? 12 : 8);
                         /* Subtract the size of the 64bit local offset from
                            the local e.f. size, local Z64 e.f. block has no
                            offset; when only local offset present, the entire
                            local PKSZ64 block is missing. */
-                        *pEndprev -= (eb_datalen == 8 ? 12 : 8);
+                        if (*pEndprev >= z64_adjust)
+                            *pEndprev -= z64_adjust;
+                        else
+                            *pEndprev = 0L;
                     }
                     break;
                 case EF_AV:
                     ef_fieldname = efAV;
                     if (*pEndprev > 0L)
                         *pEndprev -= EB_HEADSIZE + eb_datalen;
+                    break;
+                case EF_WZAES:
+                    ef_fieldname = efWZAES;
                     break;
                 case EF_OS2:
                     ef_fieldname = efOS2;
@@ -1869,6 +1909,27 @@ static int zi_long(__G__ pEndprev, error_in_archive)
                         goto ef_default_display;
                     }
                     break;
+                case EF_WZAES:
+                    if (aes_status == 1 && eb_datalen >= 7) {
+                        unsigned emeth, estrength, eidx;
+                        ZCONST char *ename;
+
+                        emeth = makeword(ef_ptr + 5);
+                        estrength = (ef_ptr[4] == 1 ? 128 :
+                          (ef_ptr[4] == 2 ? 192 : 256));
+                        eidx = find_compr_idx(emeth);
+                        if (eidx >= NUM_METHODS) {
+                            sprintf(unkn, LoadFarString(UnknownNo), emeth);
+                            ename = unkn;
+                        } else {
+                            ename = LoadFarStringSmall(method[eidx]);
+                        }
+                        Info(slide, 0, ((char *)slide,
+                          LoadFarString(WZAESdata), makeword(ef_ptr),
+                          ef_ptr[2], ef_ptr[3], estrength, emeth, ename));
+                        break;
+                    }
+                    goto ef_default_display;
                 case EF_MD5:
                     if (eb_datalen == 19 && ef_ptr[0] == 'M' &&
                         ef_ptr[1] == 'D' && ef_ptr[2] == '5') {
@@ -1928,6 +1989,13 @@ ef_default_display:
               efIZnouid));
     }
 
+    /* A data descriptor follows the compressed member when GPBF bit 3 is
+     * set.  Its physical length cannot be derived reliably from central-
+     * directory metadata alone (signature and Zip64 forms vary), so the
+     * endpoint estimate must not be used for the next inter-entry gap check. */
+    if (G.crec.general_purpose_bit_flag & 8)
+        *pEndprev = 0L;
+
     if (!G.crec.file_comment_length)
         Info(slide, 0, ((char *)slide, LoadFarString(NoFileComment)));
     else {
@@ -1961,10 +2029,11 @@ static int zi_short(__G)   /* return PK-type error code */
     iztimes     z_utime;
     time_t      *z_modtim;
 #endif
-    int         k, error, error_in_archive=PK_COOL;
+    int         k, error, error_in_archive=PK_COOL, aes_status;
     unsigned    hostnum, hostver, methid, methnum, xattr;
+    unsigned    aes_version, aes_strength, aes_method, aes_ovh;
     char        *p, workspace[12], attribs[17];
-    char        methbuf[5];
+    char        methbuf[9], aesbase[5];
     static ZCONST char dtype[5]="NXFS"; /* normal, maximum, fast, superfast */
     static ZCONST char Far os[NUM_HOSTS+1][4] = {
         "fat", "ami", "vms", "unx", "cms", "atr", "hpf", "mac", "zzz",
@@ -1987,6 +2056,11 @@ static int zi_short(__G)   /* return PK-type error code */
   ---------------------------------------------------------------------------*/
 
     methid = (unsigned)(G.crec.compression_method);
+    aes_version = aes_strength = aes_method = 0;
+    aes_status = 0;
+    if (methid == 99 && G.extra_field != NULL)
+        aes_status = ef_scan_for_wzaes(G.extra_field,
+          G.crec.extra_field_length, &aes_version, &aes_strength, &aes_method);
     methnum = find_compr_idx(G.crec.compression_method);
     hostnum = (unsigned)(G.pInfo->hostnum);
     hostver = (unsigned)(G.pInfo->hostver);
@@ -1997,7 +2071,32 @@ static int zi_short(__G)   /* return PK-type error code */
 
     zfstrcpy(methbuf, method[methnum]);
     if (methid == 99) {
-        strcpy(methbuf, "aes ");
+        if (aes_status == 1) {
+            methnum = find_compr_idx(aes_method);
+            zfstrcpy(aesbase, method[methnum]);
+            if (aes_method == IMPLODED) {
+                aesbase[1] = (char)((G.crec.general_purpose_bit_flag & 2)?
+                  '8' : '4');
+                aesbase[3] = (char)((G.crec.general_purpose_bit_flag & 4)?
+                  '3' : '2');
+            } else if (aes_method == DEFLATED || aes_method == ENHDEFLATED) {
+                ush dnum=(ush)((G.crec.general_purpose_bit_flag>>1) & 3);
+                aesbase[3] = dtype[dnum];
+            } else if (methnum >= NUM_METHODS) {
+                if (aes_method <= 999)
+                    sprintf(&aesbase[1], "%03u", aes_method);
+                else
+                    sprintf(&aesbase[0], "%04X", aes_method);
+            }
+            {
+                int ai;
+                for (ai = 3; ai >= 0 && aesbase[ai] == ' '; --ai)
+                    aesbase[ai] = '\0';
+            }
+            sprintf(methbuf, "%s/AE%u", aesbase, aes_version);
+        } else {
+            strcpy(methbuf, "aes?/bad");
+        }
     } else if (methid == IMPLODED) {
         methbuf[1] = (char)((G.crec.general_purpose_bit_flag & 2)? '8' : '4');
         methbuf[3] = (char)((G.crec.general_purpose_bit_flag & 4)? '3' : '2');
@@ -2243,8 +2342,15 @@ static int zi_short(__G)   /* return PK-type error code */
     if (uO.lflag == 4) {
         zusz_t csiz = G.crec.csize;
 
-        if (G.crec.general_purpose_bit_flag & 1)
-            csiz -= 12;    /* if encrypted, don't count encryption header */
+        if (G.crec.general_purpose_bit_flag & 1) {
+            if (methid == 99 && aes_status == 1) {
+                aes_ovh = wzaes_overhead(aes_strength);
+                if ((zusz_t)aes_ovh <= csiz)
+                    csiz -= aes_ovh;
+            } else if (methid != 99 && csiz >= 12) {
+                csiz -= 12;    /* traditional ZipCrypto header */
+            }
+        }
         Info(slide, 0, ((char *)slide, "%3d%%",
           (ratio(G.crec.ucsize,csiz)+5)/10));
     } else if (uO.lflag == 5)
@@ -2270,7 +2376,7 @@ static int zi_short(__G)   /* return PK-type error code */
 #else
 #   define z_modtim NULL
 #endif
-    Info(slide, 0, ((char *)slide, " %s %s ", methbuf,
+    Info(slide, 0, ((char *)slide, " %-8s %s ", methbuf,
       zi_time(__G__ &G.crec.last_mod_dos_datetime, z_modtim, d_t_buf)));
     fnprint(__G);
 

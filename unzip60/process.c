@@ -2755,6 +2755,69 @@ static int read_ux3_value(dbuf, uidgid_sz, p_uidgid)
 #endif /* IZ_HAVE_UXUIDGID */
 
 
+/********************************/
+/* Function ef_scan_for_wzaes() */
+/********************************/
+
+/* Scan an extra field for the WinZip AES vendor field (0x9901).
+ * This is archive metadata parsing, not cryptography, so it is available
+ * even in NO_AES builds for listing and diagnostics.
+ * Return 1 for exactly one valid field, 0 if absent, and -1 if malformed.
+ * The actual compression method is stored inside the AES extra field. */
+int ef_scan_for_wzaes(ef_buf, ef_len, version, strength, method)
+    ZCONST uch *ef_buf;
+    unsigned ef_len;
+    unsigned *version;
+    unsigned *strength;
+    unsigned *method;
+{
+    unsigned off = 0;
+    unsigned n, tag, seen = 0;
+
+    while (off < ef_len) {
+        unsigned v, sz, m;
+
+        if (ef_len - off < EB_HEADSIZE)
+            return -1;
+        tag = (unsigned)ef_buf[off] | ((unsigned)ef_buf[off+1] << 8);
+        n = (unsigned)ef_buf[off+2] | ((unsigned)ef_buf[off+3] << 8);
+        if (n > ef_len - off - EB_HEADSIZE)
+            return -1;
+        if (tag == EF_WZAES) {
+            if (seen || n < 7)
+                return -1;
+            v = (unsigned)ef_buf[off+4] | ((unsigned)ef_buf[off+5] << 8);
+            sz = (unsigned)ef_buf[off+8];
+            m = (unsigned)ef_buf[off+9] | ((unsigned)ef_buf[off+10] << 8);
+            if ((v != 1 && v != 2) || ef_buf[off+6] != 'A' ||
+                ef_buf[off+7] != 'E' || sz < 1 || sz > 3 || m == 99)
+                return -1;
+            if (version != NULL)
+                *version = v;
+            if (strength != NULL)
+                *strength = (sz == 1 ? 128 : (sz == 2 ? 192 : 256));
+            if (method != NULL)
+                *method = m;
+            seen = 1;
+        }
+        off += n + EB_HEADSIZE;
+    }
+    return seen ? 1 : 0;
+}
+
+/* Bytes included in ZIP compressed size but outside the encrypted
+ * compressed payload: salt + 2-byte password verifier + 10-byte auth tag. */
+unsigned wzaes_overhead(strength)
+    unsigned strength;
+{
+    switch (strength) {
+        case 128: return 20;
+        case 192: return 24;
+        case 256: return 28;
+        default:  return 0;
+    }
+}
+
 /*******************************/
 /* Function ef_scan_for_izux() */
 /*******************************/

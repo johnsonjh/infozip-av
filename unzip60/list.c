@@ -52,9 +52,9 @@
 #endif
 
    static ZCONST char Far HeadersL[]  =
-     " Length   Method    Size  Cmpr    Date    Time   CRC-32   Name";
+     " Length   Method          Size  Cmpr    Date    Time   CRC-32   Name";
    static ZCONST char Far HeadersL1[] =
-     "--------  ------  ------- ---- ---------- ----- --------  ----";
+     "--------  -----------  ------- ---- ---------- ----- --------  ----";
 #ifdef OS2_EAS
    static ZCONST char Far HeadersSMD5[] =
      "  Length     EAs   ACLs     Date    Time    FWKCS MD5                         Name";
@@ -67,9 +67,9 @@
      "---------  ---------- -----   --------------------------------  ----";
 #endif
    static ZCONST char Far HeadersLMD5[] =
-     " Length   Method    Size  Cmpr    Date    Time   CRC-32   FWKCS MD5                         Name";
+     " Length   Method          Size  Cmpr    Date    Time   CRC-32   FWKCS MD5                         Name";
    static ZCONST char Far HeadersL1MD5[] =
-     "--------  ------  ------- ---- ---------- ----- --------  --------------------------------  ----";
+     "--------  -----------  ------- ---- ---------- ----- --------  --------------------------------  ----";
    static ZCONST char Far *Headers[][2] =
      { {HeadersS, HeadersS1}, {HeadersL, HeadersL1} };
    static ZCONST char Far *HeadersMD5[][2] =
@@ -78,10 +78,10 @@
    static ZCONST char Far CaseConversion[] =
      "%s (\"^\" ==> case\n%s   conversion)\n";
    static ZCONST char Far LongHdrStats[] =
-     "%s  %-7s%s %4s %02u%c%02u%c%02u %02u:%02u %08lx %c";
+     "%s  %-11s%s %4s %02u%c%02u%c%02u %02u:%02u %08lx %c";
    static ZCONST char Far LongFileTrailer[] =
-     "--------          -------  ---                       \
-     -------\n%s         %s %4s                            %lu file%s\n";
+     "--------  -----------  -------  ---                       \
+     -------\n%s             %s %4s                            %lu file%s\n";
 #ifdef OS2_EAS
    static ZCONST char Far ShortHdrStats[] =
      "%s %6lu %6lu  %02u%c%02u%c%02u %02u:%02u  %c";
@@ -138,7 +138,9 @@ int list_files(__G)    /* return PK-type error code */
     ulg acl_size, tot_aclsize=0L, tot_aclfiles=0L;
 #endif
     min_info info;
-    char methbuf[8];
+    char methbuf[12], aesbase[8];
+    int aes_status;
+    unsigned aes_version, aes_strength, aes_method, aes_ovh;
     static ZCONST char dtype[]="NXFS";  /* see zi_short() */
     static ZCONST char Far method[NUM_METHODS+1][8] =
         {"Stored", "Shrunk", "Reduce1", "Reduce2", "Reduce3", "Reduce4",
@@ -401,9 +403,23 @@ int list_files(__G)    /* return PK-type error code */
                     mo = dy; dy = methnum;
             }
 
+            aes_status = 0;
+            aes_version = aes_strength = aes_method = 0;
+            if (G.crec.compression_method == 99 && G.extra_field != NULL)
+                aes_status = ef_scan_for_wzaes(G.extra_field,
+                  G.crec.extra_field_length, &aes_version, &aes_strength,
+                  &aes_method);
+
             csiz = G.crec.csize;
-            if (G.crec.general_purpose_bit_flag & 1)
-                csiz -= 12;   /* if encrypted, don't count encryption header */
+            if (G.crec.general_purpose_bit_flag & 1) {
+                if (G.crec.compression_method == 99 && aes_status == 1) {
+                    aes_ovh = wzaes_overhead(aes_strength);
+                    if ((zusz_t)aes_ovh <= csiz)
+                        csiz -= aes_ovh;
+                } else if (G.crec.compression_method != 99 && csiz >= 12) {
+                    csiz -= 12;  /* traditional ZipCrypto header */
+                }
+            }
             if ((cfactor = ratio(G.crec.ucsize, csiz)) < 0) {
 #ifndef WINDLL
                 sgn = '-';
@@ -418,9 +434,24 @@ int list_files(__G)    /* return PK-type error code */
 
             methnum = find_compr_idx(G.crec.compression_method);
             zfstrcpy(methbuf, method[methnum]);
-            if (G.crec.compression_method == 99)
-                strcpy(methbuf, "AES");
-            if (G.crec.compression_method == DEFLATED ||
+            if (G.crec.compression_method == 99) {
+                if (aes_status == 1) {
+                    methnum = find_compr_idx(aes_method);
+                    zfstrcpy(aesbase, method[methnum]);
+                    if (aes_method == DEFLATED || aes_method == ENHDEFLATED)
+                        aesbase[5] =
+                          dtype[(G.crec.general_purpose_bit_flag>>1) & 3];
+                    else if (methnum >= NUM_METHODS) {
+                        if (aes_method <= 999)
+                            sprintf(&aesbase[4], "%03u", aes_method);
+                        else
+                            sprintf(&aesbase[3], "%04X", aes_method);
+                    }
+                    sprintf(methbuf, "%s/AE%u", aesbase, aes_version);
+                } else {
+                    strcpy(methbuf, "AES-invalid");
+                }
+            } else if (G.crec.compression_method == DEFLATED ||
                 G.crec.compression_method == ENHDEFLATED) {
                 methbuf[5] = dtype[(G.crec.general_purpose_bit_flag>>1) & 3];
             } else if (methnum >= NUM_METHODS) {

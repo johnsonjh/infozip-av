@@ -46,37 +46,6 @@
 #include "crypt.h"
 
 #ifndef NO_AES
-/* WinZip AES vendor field ID 0x9901.
- * Distinguish from PKWARE's unrelated strong-encryption extensions.
- * Return 1 on one valid field, 0 if absent, 1 if malformed.
- * The actual ZIP method is inside the AES extra field. */
-static int iz_aes_find_extra(const uch *buf, unsigned len,
-                             unsigned *version, unsigned *strength,
-                             unsigned *method)
-{
-    unsigned off=0,n,tag,seen=0;
-    while(off<len) {
-        if(len-off<4)return -1;
-        tag=(unsigned)buf[off]|((unsigned)buf[off+1]<<8);
-        n=(unsigned)buf[off+2]|((unsigned)buf[off+3]<<8);
-        if(n>len-off-4)return -1;
-        if(tag==0x9901U) {
-            unsigned v,sz,m;
-            if(seen || n<7)return -1;
-            v=(unsigned)buf[off+4]|((unsigned)buf[off+5]<<8);
-            sz=(unsigned)buf[off+8];
-            m=(unsigned)buf[off+9]|((unsigned)buf[off+10]<<8);
-            if((v!=1 && v!=2) || buf[off+6]!='A' ||
-               buf[off+7]!='E' || sz<1 || sz>3 || m==99)return -1;
-            *version=v;*strength=sz==1?128:sz==2?192:256;
-            *method=m;
-            seen=1;
-        }
-        off+=n+4;
-    }
-    return seen?1:0;
-}
-
 /* The whole ciphertext is authenticated before the decompressor sees any
  * plaintext.  Pre-auth uses the existing seekable ZIP input and rewinds to
  * the first ciphertext byte only after verifying HMAC.  A password-verifier
@@ -2398,7 +2367,7 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #ifndef NO_AES
     if (G.crec.compression_method==99) {
         unsigned v=0,strength=0,m=0;
-        int r=iz_aes_find_extra(G.extra_field,
+        int r=ef_scan_for_wzaes(G.extra_field,
                 G.crec.extra_field_length,&v,&strength,&m);
         if(r!=1 || !(G.crec.general_purpose_bit_flag&1) ||
            (G.crec.general_purpose_bit_flag&0x2040))return 0;
@@ -2842,7 +2811,7 @@ static int extract_or_test_entrylist(__G__ numchunk,
         G.aes_active=0;
         if (G.pInfo->aes_strength) {
             unsigned v=0,strength=0,m=0;
-            int ar=iz_aes_find_extra(G.extra_field,
+            int ar=ef_scan_for_wzaes(G.extra_field,
                     G.lrec.extra_field_length,&v,&strength,&m);
             /* AE-2 requires CRC32=0, but libzip 1.11.3 writes a real
              * CRC32 while tagging entries AE-2.  Accept on read, and

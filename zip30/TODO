@@ -6,7 +6,7 @@ Features for next official version:
 - Win32 ACL rewrite to use backup api to create new and more useful extra
   field (need unzip support) (Kai).
 - Allow -d@ to read in a list of names to delete (11/17/2005).
-- AES encryption (3/19/05).
+- PKWARE Strong Encryption (WinZip AES AE-1/AE-2 is implemented).
 
 Features that may make the next release:
 

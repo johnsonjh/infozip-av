@@ -1770,6 +1770,7 @@
 /* extra-field ID values, all little-endian: */
 #define EF_PKSZ64    0x0001    /* PKWARE's 64-bit filesize extensions */
 #define EF_AV        0x0007    /* PKWARE's authenticity verification */
+#define EF_WZAES     0x9901    /* WinZip AES (AE-1/AE-2) */
 
 /*---------------------------------------------------------------------------
     PKWARE Authenticity Verification support.
@@ -2357,6 +2358,10 @@ int      getZip64Data            OF((__GPRO__ ZCONST uch *ef_buf,
 unsigned ef_scan_for_izux        OF((ZCONST uch *ef_buf, unsigned ef_len,
                                      int ef_is_c, ulg dos_mdatetime,
                                      iztimes *z_utim, ulg *z_uidgid));
+int      ef_scan_for_wzaes       OF((ZCONST uch *ef_buf, unsigned ef_len,
+                                     unsigned *version, unsigned *strength,
+                                     unsigned *method));
+unsigned wzaes_overhead          OF((unsigned strength));
 #if (defined(RISCOS) || defined(ACORN_FTYPE_NFS))
    zvoid *getRISCOSexfield       OF((ZCONST uch *ef_buf, unsigned ef_len));
 #endif
