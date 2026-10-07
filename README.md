@@ -459,6 +459,7 @@ No errors detected in compressed data of pkz110.exe.
 
 ## External links
 
+* [Common ZIP](https://commonzip.org/) ‑ Open‑source specification for the ZIP file format
 * [`johnsonjh/pkstuff`](https://github.com/johnsonjh/pkstuff) ‑ PKZIP/PKUNZIP/PKSFX/PKLITE utilities
-* [PKDCLX](https://github.com/johnsonjh/pkdclx) ‑ PKWARE DCL-compatible Extended DCL-Implode and DCL-Explode
+* [PKDCLX](https://github.com/johnsonjh/pkdclx) ‑ PKWARE DCL‑compatible Extended DCL‑Implode and DCL‑Explode
 * [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT) ‑ Current ZIP file format specification
