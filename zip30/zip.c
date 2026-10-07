@@ -1247,7 +1247,11 @@ local void help()
 "  -F   fix zipfile (-FF try harder) -D   do not add directory entries",
 "  -T   test zipfile integrity       -X   eXclude eXtra file attributes",
 #  if CRYPT
-"  -e   encrypt                      -n   don't compress these suffixes"
+#    ifndef NO_AES
+"  -e   weak encrypt (-eS for AES)   -n   don't compress these suffixes"
+#    else
+"  -e   weak encrypt                 -n   don't compress these suffixes"
+#    endif
 #  else
 "  -h   show this help               -n   don't compress these suffixes"
 #  endif
@@ -1290,7 +1294,6 @@ local void help()
 "  -F   fix zipfile (-FF try harder) -D   do not add directory entries",
 "  -A   adjust self-extracting exe   -J   junk zipfile prefix (unzipsfx)",
 "  -T   test zipfile integrity       -X   eXclude eXtra file attributes",
-"  --fwkcs-md5 add FWKCS MD5 metadata",
 #ifdef VMS
 "  -C   preserve case of file names  -C-  down-case all file names",
 "  -C2  preserve case of ODS2 names  -C2- down-case ODS2 file names* (*=default)",
@@ -1316,14 +1319,22 @@ local void help()
 #endif
 #ifdef AMIGA
 #  if CRYPT
+#     ifndef NO_AES
+"  -N   store filenotes as comments  -e   encrypt (-eS for AES)",
+#     else
 "  -N   store filenotes as comments  -e   encrypt",
+#     endif
 "  -h   show this help               -n   don't compress these suffixes"
 #  else
 "  -N   store filenotes as comments  -n   don't compress these suffixes"
 #  endif
 #else /* !AMIGA */
 #  if CRYPT
+#    ifndef NO_AES
+"  -e   encrypt (-eS for AES)        -n   don't compress these suffixes"
+#    else
 "  -e   encrypt                      -n   don't compress these suffixes"
+#    endif
 #  else
 "  -h   show this help               -n   don't compress these suffixes"
 #  endif
@@ -1404,6 +1415,7 @@ local void help_extended()
 "            append AVEXTRA text read from file (PKAV-mode only)",
 "  -@        read names to zip from stdin (one path per line)",
 "  -o        make zipfile as old as latest entry",
+"  --fwkcs-md5  enable FWKCS MD5 metadata",
 "",
 "",
 "Syntax:",
@@ -1546,9 +1558,11 @@ local void help_extended()
 "Encryption:",
 "  -e        use standard (weak) PKZip 2.0 encryption, prompt for password",
 "  -P pswd   use standard encryption, password is pswd",
+#ifndef NO_AES
 "  -eS       use WinZip AES encryption, prompt for password",
 "  -eP pswd  use WinZip AES encryption, password on command line",
 "  --aes-strength 128|192|256  AES key size (default 256)",
+#endif
 "",
 "Splits (archives created as a set of split files):",
 "  -s ssize  create split archive with splits of size ssize, where ssize nm",
