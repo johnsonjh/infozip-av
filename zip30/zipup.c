@@ -48,6 +48,12 @@ extern int iz_zip_aes_active;
 # include "zopfli.c"
 #endif
 
+/* Deflate64 encoder */
+#ifdef DEFLATE64_SUPPORT
+# include "deflate64.h"
+# include "deflate64.c"
+#endif
+
 #ifdef USE_ZLIB
 #  include "zlib.h"
 #endif
@@ -181,6 +187,9 @@ local unsigned file_read OF((char *buf, unsigned size));
 local zoff_t filecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #ifdef ZOPFLI_SUPPORT
 local zoff_t zopflifilecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#endif
+#ifdef DEFLATE64_SUPPORT
+local zoff_t deflate64filecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
 local zoff_t dclfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #ifdef PPMD_SUPPORT
@@ -1086,6 +1095,10 @@ struct zlist far *z;    /* zip entry to compress */
     z->dosflag = 1;
   }
   z->ver = (ush)(m == STORE ? 10 : 20); /* Need PKUNZIP 2.0 except for store */
+#ifdef DEFLATE64_SUPPORT
+  if (method == DEFLATE64)
+      z->ver = (ush)(m == STORE ? 10 : 21);
+#endif
 #ifdef BZIP2_SUPPORT
   if (method == BZIP2)
       z->ver = (ush)(m == STORE ? 10 : 46);
@@ -1229,6 +1242,11 @@ struct zlist far *z;    /* zip entry to compress */
     if (m == DCLIMPLODE) {
       s = dclfilecompress(z, &m);
     }
+#ifdef DEFLATE64_SUPPORT
+    else if (m == DEFLATE64) {
+      s = deflate64filecompress(z, &m);
+    }
+#endif
 #ifdef PPMD_SUPPORT
     else if (m == PPMD) {
       s = ppmdfilecompress(z, &m);
@@ -1508,6 +1526,10 @@ struct zlist far *z;    /* zip entry to compress */
       /* Need PKUNZIP 2.0 for DEFLATE */
       case DEFLATE:
         z->ver = 20; break;
+#ifdef DEFLATE64_SUPPORT
+      case DEFLATE64:
+        z->ver = 21; break;
+#endif
       case DCLIMPLODE:
         z->ver = 20; break;
 #ifdef BZIP2_SUPPORT
@@ -1592,11 +1614,15 @@ struct zlist far *z;    /* zip entry to compress */
     }
 #ifdef BZIP2_SUPPORT
     if (m == BZIP2)
-      fprintf(mesg, " (bzipped %d%%)\n", percent(isize, s));
+      fprintf(mesg, " (bzip2ed %d%%)\n", percent(isize, s));
     else
 #endif
     if (m == DEFLATE)
       fprintf(mesg, " (deflated %d%%)\n", percent(isize, s));
+#ifdef DEFLATE64_SUPPORT
+    else if (m == DEFLATE64)
+      fprintf(mesg, " (deflate64 %d%%)\n", percent(isize, s));
+#endif
     else if (m == DCLIMPLODE)
       fprintf(mesg, " (DCL imploded %d%%)\n", percent(isize, s));
 #ifdef PPMD_SUPPORT
@@ -1622,11 +1648,15 @@ struct zlist far *z;    /* zip entry to compress */
   {
 #ifdef BZIP2_SUPPORT
     if (m == BZIP2)
-      fprintf(logfile, " (bzipped %d%%)\n", percent(isize, s));
+      fprintf(logfile, " (bzip2ed %d%%)\n", percent(isize, s));
     else
 #endif
     if (m == DEFLATE)
       fprintf(logfile, " (deflated %d%%)\n", percent(isize, s));
+#ifdef DEFLATE64_SUPPORT
+    else if (m == DEFLATE64)
+      fprintf(logfile, " (deflate64 %d%%)\n", percent(isize, s));
+#endif
     else if (m == DCLIMPLODE)
       fprintf(logfile, " (DCL imploded %d%%)\n", percent(isize, s));
 #ifdef PPMD_SUPPORT
@@ -2945,6 +2975,91 @@ local zoff_t zopflifilecompress(z_entry, cmpr_method)
     return small_store_finish(&store_test, cmpr_method, total_out);
 }
 #endif /* ZOPFLI_SUPPORT */
+
+#ifdef DEFLATE64_SUPPORT
+struct d64_zip_state {
+    struct small_store_state *store_test;
+    zoff_t output_size;
+    int write_error;
+};
+
+static unsigned d64_zip_read(void *opaque, unsigned char *buf, unsigned size)
+{
+    struct d64_zip_state *s;
+    unsigned got;
+
+    s = (struct d64_zip_state *)opaque;
+    got = small_store_read(s->store_test, (char *)buf, size);
+    if (got == (unsigned)EOF)
+        return 0U;
+    if (got != 0U && file_binary_final == 0 &&
+        !is_text_buf((char *)buf, got))
+        file_binary_final = 1;
+    return got;
+}
+
+static int d64_zip_write(void *opaque, const unsigned char *buf, unsigned size)
+{
+    struct d64_zip_state *s;
+
+    s = (struct d64_zip_state *)opaque;
+    if (s->write_error)
+        return 1;
+    if (size != 0U && small_store_write(s->store_test, (zvoid *)buf, size) != size) {
+        s->write_error = 1;
+        return 1;
+    }
+    s->output_size += (zoff_t)size;
+    return 0;
+}
+
+local zoff_t deflate64filecompress(z_entry, cmpr_method)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+{
+    struct small_store_state store_test;
+    struct d64_zip_state state;
+    d64_stats stats;
+    int lev;
+    int r;
+    zoff_t result;
+
+    lev = level == 11 ? 9 : level;
+    if (lev < 1 || lev > 9)
+        ziperr(ZE_LOGIC, "invalid Deflate64 compression level");
+
+    small_store_init(&store_test, (size_t)SBSZ);
+    state.store_test = &store_test;
+    state.output_size = 0;
+    state.write_error = 0;
+    memset(&stats, 0, sizeof(stats));
+
+    r = d64_encode(d64_zip_read, d64_zip_write, &state, lev, &stats);
+    if (state.write_error || r == 2) {
+        small_store_discard(&store_test);
+        ziperr(ZE_TEMP, "error writing Deflate64 data to zipfile");
+    }
+    if (r == 1) {
+        small_store_discard(&store_test);
+        ziperr(ZE_MEM, "Deflate64 compression failed");
+    }
+    if (r != 0) {
+        small_store_discard(&store_test);
+        ziperr(ZE_LOGIC, "Deflate64 compression failed");
+    }
+
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    if (lev <= 2)
+        z_entry->flg |= 4;
+    else if (lev >= 8)
+        z_entry->flg |= 2;
+
+    result = small_store_finish(&store_test, cmpr_method, state.output_size);
+    if (*cmpr_method == STORE)
+        z_entry->flg &= ~6;
+    return result;
+}
+#endif /* DEFLATE64_SUPPORT */
 
 /* ===========================================================================
  * Compression to archive file.

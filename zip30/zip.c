@@ -1525,32 +1525,37 @@ local void help_extended()
 "  Stored symlinks and Unix special files are not supported in PKAV mode.",
 "",
 "Compression:",
-"  -0        store files (no compression)",
-"  -1 to -9  compress fastest to compress best (default is 6)",
-"  -11       Zopfli Deflate; LZMA/XZ use -9, Zstd uses native level 22",
+"  -0        store files (without using compression)",
+"  -1 to -9  compress fastest to compress best (default is -6)",
+"  -11       compress ultra (use Zopfli for Deflate; level 22 for Zstandard)",
 "  -Z cm     set compression method to cm:",
 "              store       - store without compression, same as option -0",
 #ifdef BZIP2_SUPPORT
-"              bzip2       - use bzip2 compression (needs modern unzip)",
+"              bzip2       - bzip2 (method 12; -1..-9 presets)",
 #endif
 "              dcl-implode - PKWARE DCL Implode (method 10)",
-"              deflate     - ZIP Deflate, same as -1 to -9 (default)",
+"              deflate     - ZIP Deflate [default] (method 8; -1..-9 presets)",
+#ifdef DEFLATE64_SUPPORT
+"              deflate64   - ZIP Deflate64 (method 9; -1..-9 presets)",
+#endif
 #ifdef LZMA_SUPPORT
-"              lzma        - LZMA (method 14; -1..-9 presets, -11 = -9)",
-"              xz          - XZ LZMA2 (method 95; -1..-9 presets, -11 = -9)",
+"              lzma        - LZMA (method 14; -1..-9 presets)",
+"              xz          - XZ LZMA2 (method 95; -1..-9 presets)",
 #endif
 #ifdef PPMD_SUPPORT
-"              ppmd        - PPMd Variant I (method 98; -1..-9 tune model)",
+"              ppmd        - PPMd Variant I (method 98; -1..-9 presets)",
 #endif
 #ifdef ZSTD_SUPPORT
-"              zstd        - Zstandard (method 93; -1..-9 native, -11 = 22)",
+"              zstd        - Zstandard (method 93; -1..-9 presets)",
 #endif
 "",
 "Compression tuning:",
 "  --dcl-implode-mode ascii|binary  DCL-implode mode (default binary)",
 "  --dcl-implode-dict 1k|2k|4k      DCL-implode dict size (default automatic)",
 "  --dcl-implode-optimal[-]         enable/disable DCL-Implode optimal parser",
+#ifdef ZOPFLI_SUPPORT
 "  --zopfli-iterations n            Zopfli iterations (default 15, 1..10000)",
+#endif
 #ifdef ZSTD_SUPPORT
 "  --zstd-level n                   Zstandard native compression level (1..22)",
 #endif
@@ -4177,6 +4182,13 @@ char **argv;            /* command line tokens */
           if (strcmp(value, "dcl-implode") == 0) {
             /* PKWARE DCL Implode, ZIP method 10 */
             method = DCLIMPLODE;
+          } else if (strcmp(value, "deflate64") == 0) {
+            /* Deflate64, ZIP method 9. */
+#ifdef DEFLATE64_SUPPORT
+            method = DEFLATE64;
+#else
+            ZIPERR(ZE_COMPERR, "Compression method deflate64 not enabled");
+#endif
           } else if (abbrevmatch("deflate", value, 0, 1)) {
             /* deflate */
             method = DEFLATE;
@@ -4239,10 +4251,16 @@ char **argv;            /* command line tokens */
 #else
 #define ZS_STR ""
 #endif
-            zipwarn("valid compression methods include: store, deflate, dcl-implode" BZ_STR LZ_STR PP_STR ZS_STR, "");
+#ifdef DEFLATE64_SUPPORT
+#define D64_STR ", deflate64"
+#else
+#define D64_STR ""
+#endif
+            zipwarn("valid compression methods include: store, dcl-implode, deflate" D64_STR BZ_STR LZ_STR PP_STR ZS_STR, "");
 #undef BZ_STR
 #undef LZ_STR
 #undef PP_STR
+#undef D64_STR
 #undef ZS_STR
             zipwarn("unknown compression method found:  ", value);
             free(value);

@@ -331,6 +331,7 @@ extern int scanimage;           /* Scan through image files */
 #define BEST -1                 /* Use best method (deflation or store) */
 #define STORE 0                 /* Store method */
 #define DEFLATE 8               /* Deflation method*/
+#define DEFLATE64 9             /* Deflate64 method */
 #define DCLIMPLODE 10           /* PKWARE DCL Implode method */
 #define BZIP2 12                /* BZIP2 method */
 #define LZMA 14                 /* LZMA method */
@@ -351,6 +352,13 @@ extern int scanimage;           /* Scan through image files */
     !defined(NO_PROTO) && !defined(NO_CONST) && !defined(NO_STDLIB_H) && \
     !defined(NO_STDDEF_H) && !defined(NO_SIZE_T) && !defined(NO_VOID)
 # define ZOPFLI_SUPPORT
+#endif
+
+/* The standalone Deflate64 encoder requires a flat ANSI C89 target. */
+#if !defined(NO_DEFLATE64) && !defined(MEMORY16) && \
+    !defined(NO_PROTO) && !defined(NO_CONST) && !defined(NO_STDLIB_H) && \
+    !defined(NO_SIZE_T) && !defined(NO_VOID)
+# define DEFLATE64_SUPPORT
 #endif
 
 /* Compression methods which Zip recognizes while reading existing archives.
