@@ -760,10 +760,15 @@ ln -s /dev/null null > /dev/null 2>/dev/null || LN=ln
 
 rm -f a.out conftest.c conftest.o conftest null
 
+case " ${CFLAGS} " in
+  *" -DNO_CRYPT "*) ZIPS_NOCRYPT=' ZIPS="zip$(E) zipnote$(E) zipsplit$(E)"' ;;
+  *) ZIPS_NOCRYPT='' ;;
+esac
+
 echo CC=\"${CC}\" CFLAGS=\"${CFLAGS}\"  CPP=\"${CPP}\" OBJA=\"${OBJA}\" \
        OCRCU8=\"${OCRCU8}\" OCRCTB=\"${OCRCTB}\" \
        BINDIR=${BINDIR} MANDIR=${MANDIR} LFLAGS1=\"${LFLAGS1}\" \
        LFLAGS2=\"${LFLAGS2}\" LN=\"${LN}\" \
        CC_BZ=\"${CC_BZ}\" CFLAGS_BZ=\"${CFLAGS_BZ}\" \
-       IZ_BZIP2=\"${IZ_BZIP2}\" LIB_BZ=\"${LIB_BZ}\" > flags
+       IZ_BZIP2=\"${IZ_BZIP2}\" LIB_BZ=\"${LIB_BZ}\"${ZIPS_NOCRYPT} > flags
 

@@ -141,7 +141,7 @@ static void  show_version_info  OF((__GPRO));
     "warning:  -U \"escape all non-ASCII UTF-8 chars\" is not supported\n";
 #endif
 
-#if CRYPT
+#if CRYPT || !defined(NO_AES)
    static ZCONST char Far MustGivePasswd[] =
      "error:  must give decryption password with -P option\n";
 #endif
@@ -1711,7 +1711,7 @@ int uz_opts(__G__ pargc, pargv)
                         uO.qflag += 999;
                     }
                     break;
-#if CRYPT
+#if CRYPT || !defined(NO_AES)
                 /* GRR:  yes, this is highly insecure, but dozens of people
                  * have pestered us for this, so here we go... */
                 case ('P'):
@@ -1755,7 +1755,7 @@ int uz_opts(__G__ pargc, pargv)
                                 ;
                     }
                     break;
-#endif /* CRYPT */
+#endif /* CRYPT || AES */
                 case ('q'):    /* quiet:  fewer comments/messages */
                     if (negative) {
                         uO.qflag = MAX(uO.qflag-negative,0);
@@ -2705,6 +2705,11 @@ static void show_version_info(__G)
           ZSTD_versionString());
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
           (char *)(slide+256)));
+        ++numopts;
+#endif
+#ifndef NO_AES
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+          "WINZIP_AES (WinZip-compatible AE-1/AE-2; AES-128/192/256)"));
         ++numopts;
 #endif
 #ifdef USE_PPMD

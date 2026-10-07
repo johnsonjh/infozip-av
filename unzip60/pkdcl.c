@@ -1,5 +1,5 @@
 /*
- * PKDCLX 1.1.1
+ * PKDCLX 1.1.2
  * Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>
  * SPDX-License-Identifier: MIT-0
  */
@@ -1556,6 +1556,70 @@ struct xbits
 };
 
 static int
+x_ulong_add (unsigned long a, unsigned long b, unsigned long *out)
+{
+  if (a > ULONG_MAX - b)
+    {
+      return 0;
+    }
+
+  *out = a + b;
+
+  return 1;
+}
+
+static int
+x_ulong_to_size (unsigned long v, size_t *out)
+{
+  size_t z = (size_t)v;
+
+  if ((unsigned long)z != v) /* //-V547 */
+    {
+      return 0;
+    }
+
+  *out = z;
+
+  return 1;
+}
+
+static void *
+x_malloc_array (unsigned long count, size_t elem_size)
+{
+  size_t n;
+
+  if (!x_ulong_to_size (count, &n))
+    {
+      return NULL;
+    }
+
+  if (elem_size != 0U && n > (size_t)-1 / elem_size)
+    {
+      return NULL;
+    }
+
+  return malloc (n * elem_size);
+}
+
+static void *
+x_calloc_array (unsigned long count, size_t elem_size)
+{
+  size_t n;
+
+  if (!x_ulong_to_size (count, &n))
+    {
+      return NULL;
+    }
+
+  if (elem_size != 0U && n > (size_t)-1 / elem_size)
+    {
+      return NULL;
+    }
+
+  return calloc (n, elem_size);
+}
+
+static int
 xb_grow (struct xbuf *b, unsigned long need)
 {
   unsigned long nc;
@@ -1580,7 +1644,16 @@ xb_grow (struct xbuf *b, unsigned long need)
       nc *= 2UL;
     }
 
-  p = (unsigned char *)realloc (b->p, (size_t)nc);
+  {
+    size_t alloc_size;
+
+    if (!x_ulong_to_size (nc, &alloc_size))
+      {
+        return 0;
+      }
+
+    p = (unsigned char *)realloc (b->p, alloc_size);
+  }
 
   if (p == NULL)
     {
@@ -1612,15 +1685,20 @@ xb_read_all (pkdcl_read_func read_func, void *opaque, struct xbuf *b)
           break;
         }
 
-      if (!xb_grow (b, b->n + (unsigned long)got))
-        {
-          free (b->p);
-          b->p = NULL;
-          b->n = 0;
-          b->cap = 0;
+      {
+        unsigned long need;
 
-          return 0;
-        }
+        if (!x_ulong_add (b->n, (unsigned long)got, &need)
+            || !xb_grow (b, need))
+          {
+            free (b->p);
+            b->p = NULL;
+            b->n = 0;
+            b->cap = 0;
+
+            return 0;
+          }
+      }
 
       (void)memcpy (b->p + b->n, tmp, got);
       b->n += (unsigned long)got;
@@ -1656,6 +1734,13 @@ xb_put (struct xbits *x, unsigned int n, unsigned long v)
       if ((v >> i) & 1UL)
         {
           x->b.p[byte] |= (unsigned char)(1U << (x->bitpos & 7UL));
+        }
+
+      if (x->bitpos == ULONG_MAX)
+        {
+          x->oom = 1;
+
+          return 0;
         }
 
       x->bitpos++;
@@ -1777,12 +1862,20 @@ x_best (const unsigned char *in, unsigned long n, unsigned long pos,
         unsigned int *bestlen, unsigned long *bestdist)
 {
   unsigned long q;
+  unsigned long remaining;
   unsigned int bl, bcost, seen, maxseen, h;
 
   *bestlen = 0U;
   *bestdist = 0UL;
 
-  if (pos + 1UL >= n)
+  if (pos >= n)
+    {
+      return;
+    }
+
+  remaining = n - pos;
+
+  if (remaining < 2UL)
     {
       return;
     }
@@ -1815,7 +1908,7 @@ x_best (const unsigned char *in, unsigned long n, unsigned long pos,
 
       l = 0U;
 
-      while (l < 518U && pos + (unsigned long)l < n
+      while (l < 518U && (unsigned long)l < remaining
              && in[q + (unsigned long)l] == in[pos + (unsigned long)l])
         {
           l++;
@@ -1874,18 +1967,21 @@ x_optimal_encode (const unsigned char *in, unsigned long n, unsigned short type,
       return 0;
     }
 
-  prev = (unsigned long *)malloc (
-      (size_t)((n ? n : 1UL) * sizeof (unsigned long)));
-  head = (unsigned long *)calloc (
-      PKDCL_HASH_COUNT, sizeof (unsigned long));
-  cost = (unsigned long *)malloc (
-      (size_t)((n + 1UL) * sizeof (unsigned long)));
-  mlen = (unsigned short *)malloc (
-      (size_t)((n + 1UL) * sizeof (unsigned short)));
-  mdist = (unsigned long *)malloc (
-      (size_t)((n + 1UL) * sizeof (unsigned long)));
-  path = (unsigned long *)malloc (
-      (size_t)((n + 1UL) * sizeof (unsigned long)));
+  if (n == ULONG_MAX)
+    return 0;
+
+  prev = (unsigned long *)x_malloc_array (n ? n : 1UL,
+                                           sizeof (unsigned long));
+  head = (unsigned long *)x_calloc_array (PKDCL_HASH_COUNT,
+                                           sizeof (unsigned long));
+  cost = (unsigned long *)x_malloc_array (n + 1UL,
+                                           sizeof (unsigned long));
+  mlen = (unsigned short *)x_malloc_array (n + 1UL,
+                                            sizeof (unsigned short));
+  mdist = (unsigned long *)x_malloc_array (n + 1UL,
+                                            sizeof (unsigned long));
+  path = (unsigned long *)x_malloc_array (n + 1UL,
+                                           sizeof (unsigned long));
 
   if (prev == NULL || head == NULL || cost == NULL || mlen == NULL
       || mdist == NULL || path == NULL)
@@ -1911,13 +2007,20 @@ x_optimal_encode (const unsigned char *in, unsigned long n, unsigned short type,
   for (pos = 0UL; pos < n; pos++)
     {
       unsigned long c;
+      unsigned long remaining;
+
+      remaining = n - pos;
 
       if (cost[pos] == ~0UL)
         {
           continue;
         }
 
-      c = cost[pos] + (unsigned long)x_lit_bits (type, in[pos]);
+      {
+        unsigned long add = (unsigned long)x_lit_bits (type, in[pos]);
+
+        c = cost[pos] > ULONG_MAX - add ? ULONG_MAX : cost[pos] + add;
+      }
 
       if (c < cost[pos + 1UL])
         {
@@ -1925,7 +2028,7 @@ x_optimal_encode (const unsigned char *in, unsigned long n, unsigned short type,
           mlen[pos + 1UL] = 0U;
         }
 
-      if (pos + 1UL < n)
+      if (remaining > 1UL)
         {
           unsigned long q;
           unsigned int seen;
@@ -1955,7 +2058,7 @@ x_optimal_encode (const unsigned char *in, unsigned long n, unsigned short type,
 
               l = 0U;
 
-              while (l < 518U && pos + (unsigned long)l < n
+              while (l < 518U && (unsigned long)l < remaining
                      && in[q + (unsigned long)l] == in[pos + (unsigned long)l])
                 {
                   l++;
@@ -1968,7 +2071,11 @@ x_optimal_encode (const unsigned char *in, unsigned long n, unsigned short type,
 
                   for (cl = min_l; cl <= l; cl++)
                     {
-                      unsigned long mcost = cost[pos] + (unsigned long)x_match_bits (cl, d, dbits);
+                      unsigned long add =
+                          (unsigned long)x_match_bits (cl, d, dbits);
+                      unsigned long mcost =
+                          cost[pos] > ULONG_MAX - add ? ULONG_MAX
+                                                     : cost[pos] + add;
 
                       if (mcost < cost[pos + cl])
                         {
@@ -2093,9 +2200,10 @@ x_encode (const unsigned char *in, unsigned long n, unsigned short type,
 
   (void)xb_put (&x, 8U, type);
   (void)xb_put (&x, 8U, dbits);
-  prev = (unsigned long *)malloc (
-      (size_t)((n ? n : 1UL) * sizeof (unsigned long)));
-  head = (unsigned long *)calloc (PKDCL_HASH_COUNT, sizeof (unsigned long));
+  prev = (unsigned long *)x_malloc_array (n ? n : 1UL,
+                                           sizeof (unsigned long));
+  head = (unsigned long *)x_calloc_array (PKDCL_HASH_COUNT,
+                                           sizeof (unsigned long));
 
   if (prev == NULL || head == NULL)
     {
@@ -2137,7 +2245,7 @@ x_encode (const unsigned char *in, unsigned long n, unsigned short type,
 
           for (i = 0UL; i < (unsigned long)l; i++)
             {
-              if (pos + i + 1UL < n)
+              if (pos + i < n - 1UL)
                 {
                   h = x_hash (in + pos + i);
                   prev[pos + i] = head[h];
@@ -2155,7 +2263,7 @@ x_encode (const unsigned char *in, unsigned long n, unsigned short type,
         {
           x_emit_lit (&x, type, in[pos]);
 
-          if (pos + 1UL < n)
+          if (pos < n - 1UL)
             {
               h = x_hash (in + pos);
               prev[pos] = head[h];
@@ -2200,6 +2308,7 @@ struct xmio
   const unsigned char *in;
   unsigned long n, pos;
   struct xbuf out;
+  int oom;
 };
 
 static unsigned short
@@ -2230,11 +2339,19 @@ xm_write (unsigned char *p, unsigned short *sz, void *opaque)
 {
   struct xmio *m = (struct xmio *)opaque;
 
-  if (xb_grow (&m->out, m->out.n + *sz))
-    {
-      (void)memcpy (m->out.p + m->out.n, p, *sz);
-      m->out.n += *sz;
-    }
+  {
+    unsigned long need;
+
+    if (!x_ulong_add (m->out.n, (unsigned long)*sz, &need)
+        || !xb_grow (&m->out, need))
+      {
+        m->oom = 1;
+        return;
+      }
+
+    (void)memcpy (m->out.p + m->out.n, p, *sz);
+    m->out.n = need;
+  }
 }
 
 static int
@@ -2258,7 +2375,7 @@ x_legacy_encode (const unsigned char *in, unsigned long n, unsigned short type,
   r = pkdcl_implode (xm_read, xm_write, w, &m, &type, &ds);
   free (w);
 
-  if (r != 0U)
+  if (r != 0U || m.oom)
     {
       free (m.out.p);
 
@@ -2377,7 +2494,7 @@ pkdcl_implode_ex (pkdcl_read_func read_func, pkdcl_write_func write_func,
       if (!ok)
         {
           free (in.p);
-	  /* cppcheck-suppress doubleFree */
+          /* cppcheck-suppress doubleFree */
           free (a.p);
 
           return PKDCL_CMP_ABORT;
@@ -2409,12 +2526,38 @@ struct xr
 };
 
 static int
+xr_has_bits (const struct xr *r, unsigned long n)
+{
+  unsigned long end;
+  unsigned long byte;
+
+  if (!x_ulong_add (r->bit, n, &end))
+    {
+      return 0;
+    }
+
+  byte = end >> 3;
+
+  if (byte < r->n)
+    {
+      return 1;
+    }
+
+  if (byte > r->n)
+    {
+      return 0;
+    }
+
+  return (end & 7UL) == 0UL;
+}
+
+static int
 xr_get (struct xr *r, unsigned int n, unsigned long *v)
 {
   unsigned int i;
   unsigned long z = 0UL;
 
-  if (r->bit + (unsigned long)n > r->n * 8UL)
+  if (!xr_has_bits (r, (unsigned long)n))
     {
       return 0;
     }
@@ -2443,7 +2586,7 @@ xr_code (struct xr *r, const unsigned char *bits, const unsigned char *codes,
     {
       unsigned long v;
 
-      if (r->bit + l > r->n * 8UL)
+      if (!xr_has_bits (r, (unsigned long)l))
         {
           return 0;
         }
@@ -2482,7 +2625,7 @@ xr_ascii (struct xr *r, unsigned int *ch)
     {
       unsigned long v;
 
-      if (r->bit + l > r->n * 8UL)
+      if (!xr_has_bits (r, (unsigned long)l))
         {
           return 0;
         }
@@ -2597,13 +2740,17 @@ pkdcl_explode_ex (pkdcl_read_func read_func, pkdcl_write_func write_func,
               return PKDCL_CMP_BAD_DATA;
             }
 
-          if (!xb_grow (&out, out.n + 1UL))
-            {
-              free (in.p);
-              free (out.p);
+          {
+            unsigned long need;
 
-              return PKDCL_CMP_ABORT;
-            }
+            if (!x_ulong_add (out.n, 1UL, &need) || !xb_grow (&out, need))
+              {
+                free (in.p);
+                free (out.p);
+
+                return PKDCL_CMP_ABORT;
+              }
+          }
 
           out.p[out.n++] = (unsigned char)sym;
         }
@@ -2673,13 +2820,18 @@ pkdcl_explode_ex (pkdcl_read_func read_func, pkdcl_write_func write_func,
               return PKDCL_CMP_BAD_DATA;
             }
 
-          if (!xb_grow (&out, out.n + (unsigned long)len))
-            {
-              free (in.p);
-              free (out.p);
+          {
+            unsigned long need;
 
-              return PKDCL_CMP_ABORT;
-            }
+            if (!x_ulong_add (out.n, (unsigned long)len, &need)
+                || !xb_grow (&out, need))
+              {
+                free (in.p);
+                free (out.p);
+
+                return PKDCL_CMP_ABORT;
+              }
+          }
 
           while (len--)
             {

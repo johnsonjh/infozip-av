@@ -1,4 +1,9 @@
 /* Self-contained WinZip AES crypto (AE-1/AE-2), strictly ANSI C89 core.
+ *
+ * This file is explicitly dedicated to the public domain.  To the extent
+ * possible under law, its authors waive all copyright and related rights in
+ * this file worldwide.  It is provided without warranty of any kind.
+ *
  * AES-CTR little-endian counter (initial 1), PBKDF2-HMAC-SHA1, 1000 rounds,
  * and 10-byte truncated HMAC-SHA1 over ciphertext.  All counts explicit.
  * A secure operating-system entropy source is MANDATORY for encryption.

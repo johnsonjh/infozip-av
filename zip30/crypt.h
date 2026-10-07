@@ -53,6 +53,9 @@
 #endif /* ?USE_CRYPT */
 #endif /* ?NO_CRYPT */
 
+/* Password input is shared by traditional ZipCrypto and WinZip AES. */
+#define IZ_PWLEN  80    /* input buffer size for reading encryption key */
+
 #if CRYPT
 /* full version */
 
@@ -115,7 +118,6 @@
 #  endif
 #endif /* ?ZIP */
 
-#define IZ_PWLEN  80    /* input buffer size for reading encryption key */
 #ifndef PWLEN           /* for compatibility with previous zcrypt release... */
 #  define PWLEN IZ_PWLEN
 #endif
@@ -163,7 +165,12 @@ void init_keys OF((__GPRO__ ZCONST char *passwd));
 #define zencode
 #define zdecode
 
-#define zfwrite(b,s,c) bfwrite(b,s,c,BFWRITE_DATA)
+#if defined(ZIP) && !defined(UTIL) && !defined(NO_AES)
+   unsigned iz_aes_zfwrite OF((zvoid *, extent, extent));
+#  define zfwrite(b,s,c) iz_aes_zfwrite(b,s,c)
+#else
+#  define zfwrite(b,s,c) bfwrite(b,s,c,BFWRITE_DATA)
+#endif
 
 #endif /* ?CRYPT */
 #endif /* !__crypt_h */

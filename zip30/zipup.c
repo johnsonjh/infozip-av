@@ -431,9 +431,9 @@ local int iz_aes_append_extra(z, version, strength, method)
     z->cextra=cp;z->cext=(ush)(c+11);
     return ZE_OK;
 }
-local void iz_aes_change_method(z, method)
+local void iz_aes_change_info(z, version, method)
     struct zlist far *z;
-    unsigned method;
+    unsigned version, method;
 {
     unsigned i;
     char *ef[2];ush sz[2];int j;
@@ -445,6 +445,8 @@ local void iz_aes_change_method(z, method)
                    ((unsigned)(unsigned char)ef[j][i+3]<<8);
         if(n>(unsigned)sz[j]-i-4)break;
         if(ef[j][i]==1 && (unsigned char)ef[j][i+1]==0x99 && n>=7) {
+            ef[j][i+4]=(char)version;
+            ef[j][i+5]=0;
             ef[j][i+9]=(char)method;
             ef[j][i+10]=(char)(method>>8);
             break;
@@ -1139,10 +1141,10 @@ struct zlist far *z;    /* zip entry to compress */
       if ((r=iz_aes_append_extra(z,iz_aes_version,iz_aes_strength,m))!=ZE_OK)
           return r;
       z->how = 99;
-      /* AE-2 CRC is zero in BOTH headers, even on nonseekable output where
-       * the local header can never be rewritten and a descriptor follows. */
-      if (iz_aes_version == 2)
-          z->crc = 0;
+      /* WinZip AES never uses the traditional ZipCrypto timestamp value as
+       * the local-header CRC placeholder.  Use zero until AE-1 can be
+       * rewritten with the real CRC; AE-2 remains zero by definition. */
+      z->crc = 0;
       /* The method-99 outer header is deliberately versioned according to
        * the actual compressor, not a fictitious AES version requirement. */
   }
@@ -1352,8 +1354,15 @@ struct zlist far *z;    /* zip entry to compress */
 
 #ifndef NO_AES
   if (iz_aes_entry) {
+      unsigned final_aes_version = (unsigned)iz_aes_version;
       if ((r=iz_aes_write_final())!=ZE_OK) return r;
-      iz_aes_change_method(z,(unsigned)m);
+      /* A compressor may fall back to STORE after the initial AES choice.
+       * Re-evaluate the WinZip AE-1/AE-2 policy when that happens.  Such
+       * method fallback is seekable, so the local extra field can be rewritten. */
+      if (m != method)
+        final_aes_version = ((isize < 20) || m == BZIP2) ? 2U : 1U;
+      iz_aes_version = (int)final_aes_version;
+      iz_aes_change_info(z,final_aes_version,(unsigned)m);
       tempzn += 10;
   }
 #endif

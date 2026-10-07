@@ -2824,15 +2824,24 @@ static const unsigned char* GetMatch(const unsigned char* scan,
                                      const unsigned char* safe_end) {
 
   if (sizeof(size_t) == 8) {
-    /* 8 checks at once per array bounds check (size_t is 64-bit). */
-    while (scan < safe_end && *((size_t*)scan) == *((size_t*)match)) {
+    /* 8 checks at once per array bounds check (size_t is 64-bit).
+     * scan and match are arbitrary byte addresses.  Load with memcpy rather
+     * than casts so this remains valid on strict-alignment/aliasing systems. */
+    while (scan < safe_end) {
+      size_t scan_word, match_word;
+      memcpy(&scan_word, scan, sizeof(scan_word));
+      memcpy(&match_word, match, sizeof(match_word));
+      if (scan_word != match_word) break;
       scan += 8;
       match += 8;
     }
   } else if (sizeof(unsigned int) == 4) {
     /* 4 checks at once per array bounds check (unsigned int is 32-bit). */
-    while (scan < safe_end
-        && *((unsigned int*)scan) == *((unsigned int*)match)) {
+    while (scan < safe_end) {
+      unsigned int scan_word, match_word;
+      memcpy(&scan_word, scan, sizeof(scan_word));
+      memcpy(&match_word, match, sizeof(match_word));
+      if (scan_word != match_word) break;
       scan += 4;
       match += 4;
     }

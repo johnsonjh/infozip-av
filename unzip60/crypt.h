@@ -53,6 +53,9 @@
 #endif /* ?USE_CRYPT */
 #endif /* ?NO_CRYPT */
 
+/* Password input is shared by traditional ZipCrypto and WinZip AES. */
+#define IZ_PWLEN  80    /* input buffer size for reading encryption key */
+
 #if CRYPT
 /* full version */
 
@@ -115,7 +118,6 @@
 #  endif
 #endif /* ?ZIP */
 
-#define IZ_PWLEN  80    /* input buffer size for reading encryption key */
 #ifndef PWLEN           /* for compatibility with previous zcrypt release... */
 #  define PWLEN IZ_PWLEN
 #endif

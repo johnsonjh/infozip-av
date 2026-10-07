@@ -1,5 +1,5 @@
 /*
- * PKDCLX 1.1.1
+ * PKDCLX 1.1.2
  * Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>
  * SPDX-License-Identifier: MIT-0
  */

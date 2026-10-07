@@ -31,7 +31,7 @@
 #include "zip.h"
 #include "crypt.h"
 
-#if (CRYPT || (defined(UNZIP) && !defined(FUNZIP)))
+#if (CRYPT || !defined(NO_AES) || (defined(UNZIP) && !defined(FUNZIP)))
 /* Non-echo console/keyboard input is needed for (en/de)cryption's password
  * entry, and for UnZip(SFX)'s MORE and Pause features.
  * (The corresponding #endif is found at the end of this module.)
@@ -507,14 +507,16 @@ int zgetch(__G__ f)
 #endif /* !HAVE_WORKING_GETCH */
 
 
-#if CRYPT                       /* getp() is only used with full encryption */
+#if CRYPT || !defined(NO_AES)  /* password prompt for ZipCrypto or AES */
 
 /*
  * Simple compile-time check for source compatibility between
- * zcrypt and ttyio:
+ * zcrypt and ttyio.  AES itself does not depend on zcrypt.
  */
+#if CRYPT
 #if (!defined(CR_MAJORVER) || (CR_MAJORVER < 2) || (CR_MINORVER < 7))
    error:  This Info-ZIP tool requires zcrypt 2.7 or later.
+#endif
 #endif
 
 /*
@@ -698,5 +700,5 @@ char *getp(__G__ m, p, n)
 
 #endif /* VMS || CMS_MVS */
 #endif /* ?HAVE_WORKING_GETCH */
-#endif /* CRYPT */
-#endif /* CRYPT || (UNZIP && !FUNZIP) */
+#endif /* CRYPT || !NO_AES */
+#endif /* CRYPT || !NO_AES || (UNZIP && !FUNZIP) */

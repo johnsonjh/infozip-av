@@ -1843,6 +1843,9 @@ local void version_info()
 #ifdef ZSTD_SUPPORT
     zstd_opt_ver,
 #endif
+#ifndef NO_AES
+    "WINZIP_AES           (WinZip-compatible AE-1/AE-2; AES-128/192/256)",
+#endif
 #ifdef PPMD_SUPPORT
     "PPM/PPMd support     (ZIP method 98; using public-domain PPMd sources)",
 #endif
@@ -1932,7 +1935,7 @@ local void version_info()
 #endif
 #ifdef ZSTD_SUPPORT
   sprintf(zstd_opt_ver,
-    "USE_ZSTD             (ZIP method 93 and 20; using libzstd v%.32s)",
+    "USE_ZSTD             (ZIP method 93; legacy method 20; using libzstd v%.32s)",
     ZSTD_versionString());
 #endif
 
