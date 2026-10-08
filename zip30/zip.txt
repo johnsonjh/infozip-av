@@ -1754,6 +1754,12 @@ OPTIONS
               Deflate.  If Zopfli is not enabled, -11 with Deflate is an error
               rather than silently falling back to -9.
 
+              deflate64 - ZIP method 9 uses a 64 KiB history.  Levels -8 and
+              -9 use bounded semi-optimal parsing.  Level -11 also evaluates
+              higher-effort matches and alternative Huffman block splits,
+              retaining the -9 candidate when further parsing does not help.
+              It can be much slower without always improving size.
+
               dcl-implode - Use PKWARE DCL Implode (ZIP method 10).  The
               default uses binary literal coding and automatically selects a
               1K dictionary for inputs up to 1K, 2K for inputs over 1K through
@@ -1820,9 +1826,10 @@ OPTIONS
 
               -11 is special.  For Deflate it selects Zopfli optimized Deflate
               when Zopfli support is compiled in; entries remain ZIP method 8.
-              Without Zopfli support, -11 with Deflate is an error.  Other
-              level-aware methods map -11 exactly to -9.  Like -9, -11 ignores
-              the suffix list.
+              Without Zopfli support, -11 with Deflate is an error.  For
+              Deflate64, -11 enables higher-effort parsing and block splitting.
+              Other level-aware methods retain their documented -11 mapping.
+              Like -9, -11 ignores the suffix list.
 
               For PPMd, the effective level selects both model order and model-
               memory allocation; -11 uses the -9 row:

@@ -2478,6 +2478,12 @@ support is not enabled, \fB-11\fP with Deflate is an error rather than a
 silent fallback to \fB-9\fP.  If \fIzip\fP determines that storing is
 better than deflation, the entry will be stored instead.
 
+\fBdeflate64\fP \- ZIP method 9 uses a 64 KiB history.  Levels
+\fB-8\fP and \fB-9\fP use bounded semi-optimal parser.  Level
+\fB-11\fP additionally evaluates more matches and alternative Huffman
+block splits, retaining the \fB-9\fP candidate when further parsing
+does not improve size.  It may take longer without always reducing output.
+
 \fBdcl-implode\fP \- Use PKWARE DCL Implode (ZIP method 10).  The
 default uses binary literal coding and automatically selects a 1K dictionary
 for inputs up to 1K, 2K for inputs over 1K through 2K, and 4K for larger
@@ -2560,9 +2566,10 @@ ignores the suffix list). The default compression level is
 is a special level.  For Deflate it selects Zopfli optimized Deflate
 when Zopfli support is compiled in; the resulting entries remain
 standard ZIP method 8.  If Zopfli support is unavailable,
-using \fB-11\fP with Deflate reports an error.  For every other compression
-method whose behavior depends on the numeric level, \fB-11\fP is mapped to
-exactly \fB-9\fP.  Like \fB-9\fP, \fB-11\fP ignores the suffix list.
+using \fB-11\fP with Deflate reports an error.  With Deflate64,
+\fB-11\fP enables higher-effort parsing and Huffman block splitting.
+Other compression methods retain their documented \fB-11\fP mappings.
+Like \fB-9\fP, \fB-11\fP ignores the suffix list.
 
 For PPMd, the effective level selects both model order and model-memory
 allocation as follows; \fB-11\fP uses the \fB-9\fP row:

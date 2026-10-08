@@ -24,7 +24,7 @@ typedef struct d64_stats
 } d64_stats;
 
 /*
- * Encode one raw Deflate64 stream.  level is 1..9.  Returns 0 on success,
+ * Encode one raw Deflate64 stream.  level is 1..9 or 11.  Returns 0 on success,
  * 1 for allocation failure, 2 for output failure, and 3 for invalid input.
  */
 

@@ -5,6 +5,22 @@
 
 #define D64_OPT_CLASSES 32U
 
+#ifndef D64_OPT_MAX11
+# define D64_OPT_MAX11 8192UL
+#endif
+#ifndef D64_OPT_CHAIN11
+# define D64_OPT_CHAIN11 384U
+#endif
+#ifndef D64_OPT_PASSES11
+# define D64_OPT_PASSES11 5U
+#endif
+#ifndef D64_OPT_COMPARE11
+# define D64_OPT_COMPARE11 192000000UL
+#endif
+#ifndef D64_OPT_QUERIES11
+# define D64_OPT_QUERIES11 24000000UL
+#endif
+
 #ifndef D64_OPT_MAX8
 # define D64_OPT_MAX8 512UL
 #endif /* ifndef D64_OPT_MAX8 */
@@ -20,6 +36,10 @@
 #ifndef D64_OPT_CHAIN9
 # define D64_OPT_CHAIN9 192U
 #endif /* ifndef D64_OPT_CHAIN9 */
+
+#if D64_OPT_MAX11 > 65535UL
+# error D64_OPT_MAX11 exceeds the match length representation
+#endif
 
 #define D64_OPT_INF (~0UL)
 
@@ -108,9 +128,12 @@ d64_opt_discover (d64_encoder *e, d64_opt_workspace *o, unsigned long start,
   unsigned long comparison_limit;
 
   comparisons = 0UL;
-  comparison_limit = e->level == 8 ? 64000000UL : 128000000UL;
-  chain_limit = e->level == 8 ? D64_OPT_CHAIN8 : D64_OPT_CHAIN9;
-  max_match = e->level == 8 ? D64_OPT_MAX8 : D64_OPT_MAX9;
+  comparison_limit = e->level == 8 ? 64000000UL :
+                     e->level == 9 ? 128000000UL : D64_OPT_COMPARE11;
+  chain_limit = e->level == 8 ? D64_OPT_CHAIN8 :
+                e->level == 9 ? D64_OPT_CHAIN9 : D64_OPT_CHAIN11;
+  max_match = e->level == 8 ? D64_OPT_MAX8 :
+              e->level == 9 ? D64_OPT_MAX9 : D64_OPT_MAX11;
 
   for (i = 0U; i < D64_HASH_SIZE; ++i)
     {
@@ -281,7 +304,8 @@ d64_opt_parse (d64_encoder *e, d64_opt_workspace *o, unsigned long start,
   unsigned long query_limit;
 
   queries = 0UL;
-  query_limit = e->level == 8 ? 8000000UL : 16000000UL;
+  query_limit = e->level == 8 ? 8000000UL :
+                e->level == 9 ? 16000000UL : D64_OPT_QUERIES11;
 
   for (i = 0UL; i < o->tree_base * 2UL; ++i)
     {
@@ -504,6 +528,10 @@ d64_optimize (d64_encoder *e, unsigned long start, unsigned long end,
   unsigned long hdr;
   unsigned long lf[D64_LIT_CODES];
   unsigned long df[D64_DIST_CODES];
+  unsigned long latest_lf[D64_LIT_CODES];
+  unsigned long latest_df[D64_DIST_CODES];
+  unsigned long prior_lf[D64_LIT_CODES];
+  unsigned long prior_df[D64_DIST_CODES];
   unsigned long cur;
   unsigned long n;
   unsigned long count;
@@ -511,6 +539,8 @@ d64_optimize (d64_encoder *e, unsigned long start, unsigned long end,
   unsigned passes;
   int improved;
   int have_dynamic;
+  int have_latest;
+  int have_prior;
 
   n = end - start;
 
@@ -521,11 +551,14 @@ d64_optimize (d64_encoder *e, unsigned long start, unsigned long end,
     }
 
   improved = 0;
+  have_latest = 0;
+  have_prior = 0;
   o.best_ntok = ntok;
   memcpy (o.best_tokens, e->tokens, (size_t)ntok * sizeof (d64_token));
   memcpy (o.best_lf, litfreq, sizeof (o.best_lf));
   memcpy (o.best_df, distfreq, sizeof (o.best_df));
   o.best_bits = d64_opt_block_bits (e, n, ntok, litfreq, distfreq);
+
 
   if (o.best_bits <= n / 8UL)
     {
@@ -541,13 +574,13 @@ d64_optimize (d64_encoder *e, unsigned long start, unsigned long end,
       return ntok;
     }
 
-  passes = e->level == 8 ? 2U : 3U;
+  passes = e->level == 8 ? 2U :
+           e->level == 9 ? 3U : D64_OPT_PASSES11;
 
   for (pass = 0U; pass < passes; ++pass)
     {
       const unsigned char *ll;
       const unsigned char *dd;
-
       if (pass == 0U)
         {
           ll = fixed_ll;
@@ -556,8 +589,11 @@ d64_optimize (d64_encoder *e, unsigned long start, unsigned long end,
       else
         {
           have_dynamic = d64_prepare_dynamic (
-              pass == 1U ? litfreq : o.best_lf,
-              pass == 1U ? distfreq : o.best_df, dyn_ll, dyn_dd, llcode,
+              pass == 1U ? litfreq :
+              (e->level == 11 && have_latest ? latest_lf : o.best_lf),
+              pass == 1U ? distfreq :
+              (e->level == 11 && have_latest ? latest_df : o.best_df),
+              dyn_ll, dyn_dd, llcode,
               ddcode, rle, &nrle, bl, blcode, &hlit, &hdist, &hclen, &hdr);
 
           if (!have_dynamic)
@@ -578,6 +614,7 @@ d64_optimize (d64_encoder *e, unsigned long start, unsigned long end,
 
       cur = d64_opt_block_bits (e, n, count, lf, df);
 
+
       if (cur < o.best_bits && o.best_bits - cur >= 8UL)
         {
           improved = 1;
@@ -587,6 +624,33 @@ d64_optimize (d64_encoder *e, unsigned long start, unsigned long end,
                   (size_t)count * sizeof (d64_token));
           memcpy (o.best_lf, lf, sizeof (o.best_lf));
           memcpy (o.best_df, df, sizeof (o.best_df));
+        }
+      /* For level 11, refine against the most recently parsed tree even
+       * if that candidate did not beat the best complete block.  This
+       * permits moving through an intermediate, less favorable parse to
+       * another local minimum.  Guard against fixed points and 2-cycles.
+       * The saved best bitstream remains the only candidate committed. */
+      if (e->level == 11)
+        {
+          int unchanged;
+          int cycle;
+          unchanged = have_latest
+              && memcmp (latest_lf, lf, sizeof (latest_lf)) == 0
+              && memcmp (latest_df, df, sizeof (latest_df)) == 0;
+          cycle = have_prior
+              && memcmp (prior_lf, lf, sizeof (prior_lf)) == 0
+              && memcmp (prior_df, df, sizeof (prior_df)) == 0;
+          if (have_latest)
+            {
+              memcpy (prior_lf, latest_lf, sizeof (prior_lf));
+              memcpy (prior_df, latest_df, sizeof (prior_df));
+              have_prior = 1;
+            }
+          memcpy (latest_lf, lf, sizeof (latest_lf));
+          memcpy (latest_df, df, sizeof (latest_df));
+          have_latest = 1;
+          if (pass >= 2U && (unchanged || cycle))
+            break;
         }
     }
 

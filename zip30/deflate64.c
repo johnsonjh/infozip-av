@@ -280,7 +280,7 @@ d64_find_match (d64_encoder *e, unsigned long pos, unsigned long *dist_out)
       return 0UL;
     }
 
-  cfg = &d64_levels[e->level - 1];
+  cfg = &d64_levels[e->level == 11 ? 8 : e->level - 1];
   h = d64_hash3 (e->in + pos);
   cand = e->head[h];
   best_len = 2UL;
@@ -435,7 +435,7 @@ d64_tokenize (d64_encoder *e, unsigned long start, unsigned long *end_out,
       d64_insert (e, pos);
     }
 
-  cfg = &d64_levels[e->level - 1];
+  cfg = &d64_levels[e->level == 11 ? 8 : e->level - 1];
   pos = start;
   token_count = 0UL;
   block_bytes = 0UL;
@@ -1446,6 +1446,8 @@ d64_encode_block (d64_encoder *e, const unsigned char *raw,
   return d64_emit_fixed (&e->bw, e->tokens, ntok, final);
 }
 
+#include "d64split.inc"
+
 static int
 d64_fill (d64_encoder *e)
 {
@@ -1510,7 +1512,7 @@ d64_encode (d64_read_func read_cb, d64_write_func write_cb, void *opaque,
   int rc;
   int emitted;
 
-  if (read_cb == NULL || write_cb == NULL || level < 1 || level > 9)
+  if (read_cb == NULL || write_cb == NULL || level < 1 || (level > 9 && level != 11))
     {
       return D64_PARAM_ERROR;
     }
@@ -1549,6 +1551,7 @@ d64_encode (d64_read_func read_cb, d64_write_func write_cb, void *opaque,
       unsigned long litfreq[D64_LIT_CODES];
       unsigned long distfreq[D64_DIST_CODES];
       int final;
+      d64_stats before;
 
       start = e.hist;
 
@@ -1590,15 +1593,22 @@ d64_encode (d64_read_func read_cb, d64_write_func write_cb, void *opaque,
             }
         }
 
-      {
-        d64_stats before;
-        before = e.stats;
+      before = e.stats;
         ntok = d64_tokenize (&e, start, &end, litfreq, distfreq);
 
+        if (e.level == 11)
+          {
+            /* Higher effort is an additional search, not a replacement for
+             * the -9 candidate.  Different Huffman models can otherwise
+             * produce a worse result despite more extensive searching. */
+            e.level = 9;
+            ntok = d64_optimize (&e, start, end, ntok, litfreq, distfreq,
+                                 &before);
+            e.level = 11;
+          }
         if (e.level >= 8)
           ntok = d64_optimize (&e, start, end, ntok, litfreq, distfreq,
                                &before);
-      }
 
       if (ntok > D64_MAX_TOKENS)
         {
@@ -1607,8 +1617,12 @@ d64_encode (d64_read_func read_cb, d64_write_func write_cb, void *opaque,
         }
 
       final = e.eof && end == e.in_len;
-      rc = d64_encode_block (&e, e.in + start, end - start, ntok, litfreq,
-                             distfreq, final);
+      if (e.level == 11)
+        rc = d64_split_encode (&e, e.in + start, end - start, ntok, litfreq,
+                               distfreq, final, &before);
+      else
+        rc = d64_encode_block (&e, e.in + start, end - start, ntok, litfreq,
+                               distfreq, final);
 
       if (rc != D64_OK)
         {

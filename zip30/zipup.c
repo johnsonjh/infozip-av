@@ -3057,8 +3057,8 @@ local zoff_t deflate64filecompress(z_entry, cmpr_method)
     int r;
     zoff_t result;
 
-    lev = level == 11 ? 9 : level;
-    if (lev < 1 || lev > 9)
+    lev = level;
+    if (lev < 1 || (lev > 9 && lev != 11))
         ziperr(ZE_LOGIC, "invalid Deflate64 compression level");
 
     small_store_init(&store_test, (size_t)SBSZ);

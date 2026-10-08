@@ -1527,7 +1527,7 @@ local void help_extended()
 "Compression:",
 "  -0        store files (without using compression)",
 "  -1 to -9  compress fastest to compress best (default is -6)",
-"  -11       compress ultra (use Zopfli for Deflate; level 22 for Zstandard)",
+"  -11       compress ultra (Zopfli Deflate; ultra Deflate64; Zstd level 22)",
 "  -Z cm     set compression method to cm:",
 "              store       - store without compression, same as option -0",
 #ifdef BZIP2_SUPPORT
