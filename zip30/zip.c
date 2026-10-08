@@ -1853,6 +1853,9 @@ local void version_info()
 #ifdef ZIP64_SUPPORT
     "Zip64                (use Zip64 to store large files in archives)",
 #endif
+#ifdef DEFLATE64_SUPPORT
+    "Deflate64            (ZIP method 9; PKZIP 4.x Deflate64(tm) supported)",
+#endif
 #ifdef LZMA_SUPPORT
     lzma_opt_ver,
     xz_opt_ver,
