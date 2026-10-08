@@ -458,7 +458,7 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif
 #  ifdef SYMLINKS
      static ZCONST char Far SymLinkSupport[] =
-     "SYMLINKS (symbolic links supported, if RTL and file system permit)";
+     "Symlinks (symbolic links supported, if RTL and file system permit)";
 #  endif
 #  ifdef TIMESTAMP
      static ZCONST char Far TimeStamp[] = "TIMESTAMP";
@@ -471,34 +471,34 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif
 #  ifdef USE_OLDUNZIP
      static ZCONST char Far Use_OldUnzip[] =
-     "OLDUNZIP (Shrink/Reduce/Implode methods 1-6 supported)";
+     "Legacy algorithms (Shrink/Reduce/Implode methods 1-6 supported)";
 #  endif
 #  ifdef USE_DEFLATE64
      static ZCONST char Far Use_Deflate64[] =
-     "USE_DEFLATE64 (PKZIP 4.x Deflate64(tm) supported)";
+     "Deflate64 (ZIP method 9; PKZIP 4.x Deflate64(tm) supported)";
 #  endif
 #  ifdef UNICODE_SUPPORT
 #   ifdef UTF8_MAYBE_NATIVE
 #    ifdef UNICODE_WCHAR
        /* direct native UTF-8 check AND charset transform via wchar_t */
        static ZCONST char Far Use_Unicode[] =
-       "UNICODE_SUPPORT [wide-chars, char coding: %s] (handle UTF-8 paths)";
+       "Unicode [wide-chars, char coding: %s] (handle UTF-8 paths)";
 #    else
        /* direct native UTF-8 check, only */
        static ZCONST char Far Use_Unicode[] =
-       "UNICODE_SUPPORT [char coding: %s] (handle UTF-8 paths)";
+       "Unicode [char coding: %s] (handle UTF-8 paths)";
 #    endif
        static ZCONST char Far SysChUTF8[] = "UTF-8";
        static ZCONST char Far SysChOther[] = "other";
 #   else /* !UTF8_MAYBE_NATIVE */
        /* charset transform via wchar_t, no native UTF-8 support */
        static ZCONST char Far Use_Unicode[] =
-       "UNICODE_SUPPORT [wide-chars] (handle UTF-8 paths)";
+       "Unicode [wide-chars] (handle UTF-8 paths)";
 #   endif /* ?UTF8_MAYBE_NATIVE */
 #  endif /* UNICODE_SUPPORT */
 #  ifdef _MBCS
      static ZCONST char Far Have_MBCS_Support[] =
-     "MBCS-support (multibyte character support, MB_CUR_MAX = %u)";
+     "MBCS (multibyte character support, MB_CUR_MAX = %u)";
 #  endif
 #  ifdef MULT_VOLUME
      static ZCONST char Far Use_MultiVol[] =
@@ -506,11 +506,11 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif
 #  ifdef LARGE_FILE_SUPPORT
      static ZCONST char Far Use_LFS[] =
-     "LARGE_FILE_SUPPORT (large files over 2 GiB supported)";
+     "Large File Support (large files over 2 GiB supported)";
 #  endif
 #  ifdef ZIP64_SUPPORT
      static ZCONST char Far Use_Zip64[] =
-     "ZIP64_SUPPORT (archives using Zip64 for large files supported)";
+     "Zip64 (archives using Zip64 for large files supported)";
 #  endif
 #  if (defined(__DJGPP__) && (__DJGPP__ >= 2))
 #    ifdef USE_DJGPP_ENV
@@ -529,23 +529,27 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif
 #  ifdef USE_BZIP2
      static ZCONST char Far UseBZip2[] =
-     "USE_BZIP2 (PKZIP 4.6+, using bzip2 lib version %s)";
+     "bzip2 (ZIP method 12; using bzip2 v%s)";
 #  endif
 #  ifdef USE_LZMA
      static ZCONST char Far UseLZMA[] =
-     "USE_LZMA (ZIP method 14; using liblzma v%s)";
+     "LZMA (ZIP method 14; using liblzma v%s)";
 #  endif
 #  ifdef USE_XZ
      static ZCONST char Far UseXZ[] =
-     "USE_XZ (ZIP method 95; using liblzma v%s)";
+     "XZ/LZMA2 (ZIP method 95; using liblzma v%s)";
 #  endif
 #  ifdef USE_ZSTD
      static ZCONST char Far UseZstd[] =
-     "USE_ZSTD (ZIP method 93 and 20; using libzstd v%s)";
+     "Zstandard (ZIP method 93 and 20; using libzstd v%s)";
+#  endif
+#  ifdef USE_WZJPEG
+     static ZCONST char Far UseWZJPEG[] =
+     "WinZip WZ-JPEG (ZIP method 96; using liblzma v%s)";
 #  endif
 #  ifdef USE_PPMD
      static ZCONST char Far UsePPMd[] =
-     "PPM/PPMd support (ZIP method 98; using public-domain PPMd sources)";
+     "PPMd Variant I Rev 1 (ZIP method 98; using public-domain PPMd sources)";
 #  endif
 #  ifdef VMS_TEXT_CONV
      static ZCONST char Far VmsTextConv[] = "VMS_TEXT_CONV";
@@ -561,7 +565,7 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif
 #  ifdef PKAV_SUPPORT
      static ZCONST char Far PkavSupport[] =
-       "PKAV (PKWARE Authenticity Verification, with AVEXTRA)";
+       "PKAV (PKWARE Authenticity Verification, with AVEXTRA support)";
 #  endif
      static ZCONST char Far FwkcsSupport[] =
        "FWKCS (Frederick W. Kantor Contents Signatures, using MD5)";
@@ -570,7 +574,7 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
        static ZCONST char Far PasswdStdin[] = "PASSWD_FROM_STDIN";
 #    endif
      static ZCONST char Far Decryption[] =
-       "        [decryption, version %d.%d%s of %s]\n";
+       "        ZipCrypto (decryption; v%d.%d%s of %s)\n";
      static ZCONST char Far CryptDate[] = CR_VERSION_DATE;
 #  endif
 #  ifndef __RSXNT__
@@ -2707,9 +2711,16 @@ static void show_version_info(__G)
           (char *)(slide+256)));
         ++numopts;
 #endif
+#ifdef USE_WZJPEG
+        sprintf((char *)(slide+256), LoadFarStringSmall(UseWZJPEG),
+          lzma_version_string());
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+           (char *)(slide+256)));
+        ++numopts;
+#endif
 #ifndef NO_AES
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
-          "WINZIP_AES (WinZip-compatible AE-1/AE-2; AES-128/192/256)"));
+          "WinZip AES (WinZip-compatible AE-1/AE-2; AES-128/192/256)"));
         ++numopts;
 #endif
 #ifdef USE_PPMD

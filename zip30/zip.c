@@ -1835,25 +1835,23 @@ local void version_info()
 #endif
 #ifdef BZIP2_SUPPORT
     bz_opt_ver,
-    bz_opt_ver2,
-    bz_opt_ver3,
 #endif
 #ifdef S_IFLNK
 # ifdef VMS
-    "SYMLINK_SUPPORT      (symbolic links supported, if C RTL permits)",
+    "Symlinks             (symbolic links supported, if C RTL permits)",
 # else
-    "SYMLINK_SUPPORT      (symbolic links supported)",
+    "Symlinks             (symbolic links supported)",
 # endif
 #endif
 #ifdef LARGE_FILE_SUPPORT
 # ifdef USING_DEFAULT_LARGE_FILE_SUPPORT
-    "LARGE_FILE_SUPPORT (default settings)",
+    "Large File Support   (default settings)",
 # else
-    "LARGE_FILE_SUPPORT   (can read and write large files on file system)",
+    "Large File Support   (can read and write large files on file system)",
 # endif
 #endif
 #ifdef ZIP64_SUPPORT
-    "ZIP64_SUPPORT        (use Zip64 to store large files in archives)",
+    "Zip64                (use Zip64 to store large files in archives)",
 #endif
 #ifdef LZMA_SUPPORT
     lzma_opt_ver,
@@ -1863,20 +1861,19 @@ local void version_info()
     zstd_opt_ver,
 #endif
 #ifndef NO_AES
-    "WINZIP_AES           (WinZip-compatible AE-1/AE-2; AES-128/192/256)",
+    "WinZip AES           (WinZip-compatible AE-1/AE-2; AES-128/192/256)",
 #endif
 #ifdef PPMD_SUPPORT
-    "PPM/PPMd support     (ZIP method 98; using public-domain PPMd sources)",
+    "PPMd Variant I Rev 1 (ZIP method 98; using public-domain PPMd sources)",
 #endif
 #ifdef ZOPFLI_SUPPORT
-    "ZOPFLI_SUPPORT       (Zopfli 1.0.3 optimized DEFLATE algorithm)",
+    "Zopfli               (Zopfli 1.0.3 optimized DEFLATE algorithm)",
 #endif
 #ifdef UNICODE_SUPPORT
-    "UNICODE_SUPPORT      (store and read UTF-8 Unicode paths)",
+    "Unicode              (store and read UTF-8 Unicode paths)",
 #endif
-    "PKAV                 (PKWARE Authenticity Verification with AVEXTRA)",
+    "PKAV                 (PKWARE Authenticity Verification, with AVEXTRA support)",
     "FWKCS                (Frederick W. Kantor Contents Signatures using MD5)",
-
 #ifdef UNIX
     "STORE_UNIX_UIDs_GIDs (store UID/GID sizes/values using new extra field)",
 # ifdef UIDGID_NOT_16BIT
@@ -1946,25 +1943,21 @@ local void version_info()
   /* Fill in library-backed option strings with runtime versions. */
 #ifdef LZMA_SUPPORT
   sprintf(lzma_opt_ver,
-    "USE_LZMA             (ZIP method 14; using liblzma v%.32s)",
+    "LZMA                 (ZIP method 14; using liblzma v%.32s)",
     lzma_version_string());
   sprintf(xz_opt_ver,
-    "USE_XZ               (ZIP method 95; using liblzma v%.32s)",
+    "XZ/LZMA2             (ZIP method 95; using liblzma v%.32s)",
     lzma_version_string());
 #endif
 #ifdef ZSTD_SUPPORT
   sprintf(zstd_opt_ver,
-    "USE_ZSTD             (ZIP method 93; legacy method 20; using libzstd v%.32s)",
+    "Zstandard            (ZIP method 93; legacy method 20; using libzstd v%.32s)",
     ZSTD_versionString());
 #endif
 
 #ifdef BZIP2_SUPPORT
   sprintf( bz_opt_ver,
-   "BZIP2_SUPPORT        (bzip2 library version %.32s)", BZ2_bzlibVersion());
-  sprintf( bz_opt_ver2,
-   "    bzip2 code and library copyright (c) Julian R Seward");
-  sprintf( bz_opt_ver3,
-   "    (See the bzip2 license for terms of use)");
+   "bzip2                (ZIP method 12; using libbz2 v%.32s)", BZ2_bzlibVersion());
 #endif
 
   for (i = 0; (int)i < (int)(sizeof(comp_opts)/sizeof(char *) - 1); i++)
@@ -1980,7 +1973,7 @@ local void version_info()
   i++;  /* zlib use means there IS at least one compilation option */
 #endif
 #if CRYPT
-  printf("\t[encryption, version %d.%d%s of %s] (modified for Zip 3)\n\n",
+  printf("\tZipCrypto            (encryption; v%d.%d%s of %s)\n\n",
             CR_MAJORVER, CR_MINORVER, CR_BETA_VER, CR_VERSION_DATE);
   for (i = 0; i < sizeof(cryptnote)/sizeof(char *); i++)
   {
