@@ -78,10 +78,10 @@ support is available (when compressing using `zip ‑11`):
 
 **NB**: Methods 1 through 6 are legacy algorithms and are no longer recommended
 for use.  <sup>**1**</sup>&nbsp;bzip2 support requires
-[`libbz2`](https://sourceware.org/bzip2/); <sup>**2**</sup>&nbsp;LZMA,
-XZ/LZMA2, and WZ‑JPEG support requires [`liblzma`](https://tukaani.org/xz/);
+[`libbz2`](https://sourceware.org/bzip2/). <sup>**2**</sup>&nbsp;LZMA,
+XZ/LZMA2, and WZ‑JPEG support requires [`liblzma`](https://tukaani.org/xz/).
 <sup>**3**</sup>&nbsp;Zstandard support requires
-[`libzstd`](https://facebook.github.io/zstd/); <sup>**4**</sup>&nbsp;WavPack
+[`libzstd`](https://facebook.github.io/zstd/). <sup>**4**</sup>&nbsp;WavPack
 support requires [`libwavpack`](https://www.wavpack.com/).
 
 These changes are built using Fedoraʼs current Info‑ZIP
