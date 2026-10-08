@@ -30,7 +30,7 @@
 
 This project adds extensive new algorithm support, security hardening, full
 [PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification)
-(create *and* verify for PKAV 2.x, verification‑only for PKAV 1.x),
+(create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x),
 [FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
 [MD5](https://en.wikipedia.org/wiki/MD5), and
 [AES cryptography](https://www.winzip.com/en/support/aes-encryption/)
@@ -80,9 +80,9 @@ support is available (when compressing using `zip ‑11`):
 recommended for use.
 
 These changes are built using Fedoraʼs current Info‑ZIP
-[`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
-[`unzip`](https://src.fedoraproject.org/rpms/unzip) (6.0‑71,&nbsp;2026‑07‑27)
-source packages as a base.
+[`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
+and [`unzip`](https://src.fedoraproject.org/rpms/unzip)
+(`6.0‑71`,&nbsp;2026‑07‑27) source packages as a base.
 
 If you want, you can compare the changes against the Fedora upstream version
 using [GitHub](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
@@ -99,9 +99,9 @@ historical preservation and research*, and it unlocks the encrypted AVEXTRA
 data present in many original PKZIP archives that would otherwise be completely
 inaccessible (or *only* accessible using official PKWARE software).
 
-The `unzip` and `unzipsfx` tools verify both the original PKAV 1.x format used
-by PKWARE PKZIP 1.x releases as well as the more common PKAV 2.x format.  PKAV
-archive creation with `zip` supports PKAV 2.x only.
+The `unzip` and `unzipsfx` tools verify both the original PKAV&nbsp;1.x format
+used by PKWARE PKZIP 1.x releases as well as the more common PKAV&nbsp;2.x
+format.  PKAV archive creation with `zip` supports PKAV&nbsp;2.x only.
 
 #### PKAV archive creation (`zip`)
 
@@ -379,9 +379,9 @@ Testing: putav.com     OK
 The [very](http://justsolve.archiveteam.org/wiki/FWKCS)
 [famous](https://dn790003.ca.archive.org/0/items/emcfarber_jsstestimony/Sadofsky%2C%20Jason%20Scott.pdf)
 [`FWKCS122.ZIP`](https://ftp.sunet.se/mirror/archive/ftp.sunet.se/pub/simtelnet/msdos/bbs/fwkcs122.zip)
-archive is a great example of an important historical file that uses PKAV 2.x
-and includes encrypted AVEXTRA text which needs a complete PKAV implementation
-to correctly decode and display.
+archive is a great example of an important historical file that uses
+PKAV&nbsp;2.x and includes encrypted AVEXTRA text which needs a complete PKAV
+implementation to correctly decode and display.
 
 The decoded PKAV AVEXTRA text from this particular archive was quoted verbatim
 and used (amongst other data points) in a USPTO final decision to
@@ -434,7 +434,7 @@ No errors detected in compressed data of fwkcs122.zip.
 
 The self‑extracting
 [`PKZ110.EXE`](http://cd.textfiles.com/rbbsv3n1/pool/pkz110.exe) archive uses
-PKAV 1.x and includes encrypted AVEXTRA text.
+PKAV&nbsp;1.x and includes encrypted AVEXTRA text.
 
 ```
 $ unzip -t pkz110.exe
