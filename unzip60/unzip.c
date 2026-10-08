@@ -547,6 +547,14 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
      static ZCONST char Far UseWZJPEG[] =
      "WinZip WZ-JPEG (ZIP method 96; using liblzma v%s)";
 #  endif
+#  ifdef USE_WAVP
+     static ZCONST char Far UseWavPack[] =
+     "WavPack (ZIP method 97; using libwavpack v%d.%d.%d)";
+#  endif
+#  ifdef USE_WZMP3
+     static ZCONST char Far UseWZMP3[] =
+     "WinZip WZ-MP3 (ZIP method 94; built-in decoder)";
+#  endif
 #  ifdef USE_PPMD
      static ZCONST char Far UsePPMd[] =
      "PPMd Variant I Rev 1 (ZIP method 98; using public-domain PPMd sources)";
@@ -2716,6 +2724,26 @@ static void show_version_info(__G)
           lzma_version_string());
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
            (char *)(slide+256)));
+        ++numopts;
+#endif
+#ifdef USE_WAVP
+	{
+#         include <wavpack/wavpack.h>
+          unsigned long wv_ver = WavpackGetLibraryVersion();
+          int major = (int)((wv_ver >> 16) & 0xFF);
+          int minor = (int)((wv_ver >> 8) & 0xFF);
+          int micro = (int)(wv_ver & 0xFF);
+
+          sprintf((char *)(slide+256), LoadFarStringSmall(UseWavPack),
+                  major, minor, micro);
+        }
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+           (char *)(slide+256)));
+        ++numopts;
+#endif
+#ifdef USE_WZMP3
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+          LoadFarStringSmall(UseWZMP3)));
         ++numopts;
 #endif
 #ifndef NO_AES
