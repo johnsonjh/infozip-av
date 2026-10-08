@@ -35,7 +35,7 @@ This project adds extensive new algorithm support, full
 ([MD5](https://en.wikipedia.org/wiki/MD5)), and
 [AES cryptography](https://www.winzip.com/en/support/aes-encryption/)
 (**AE‑1**, **AE‑2**, and the quantum‑resistant **AE‑3**) to
-[Info‑ZIP](https://infozip.sourceforge.net/).
+[Info‑ZIP](https://infozip.sourceforge.net/):
 
 The ability to *both compress and decompress* archives using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**
@@ -48,7 +48,36 @@ decompression‑only support for **Shrink** (method&nbsp;1), **Reduce** (methods
 (method&nbsp;92) is supported.  The usual **Store** (method&nbsp;0) and
 **Deflate** (method&nbsp;8) algorithms remain supported.  Additionally, new
 [Zopfli](https://github.com/google/zopfli)‑enhanced **Deflate** (method&nbsp;8)
-support is available (when compressing using `zip ‑11`).
+support is available (when compressing using `zip ‑11`):
+
+| Method | Description                               | Decompress | Compress |
+|-------:|:------------------------------------------|:-----------|:---------|
+|  `0`   | Store&nbsp;(no&nbsp;compression)          |     ✅     |    ✅    |
+|  `1`   | Shrink                                    |     ✅     |          |
+|  `2`   | Reduce&nbsp;(level&nbsp;1)                |     ✅     |          |
+|  `3`   | Reduce&nbsp;(level&nbsp;2)                |     ✅     |          |
+|  `4`   | Reduce&nbsp;(level&nbsp;3)                |     ✅     |          |
+|  `5`   | Reduce&nbsp;(level&nbsp;4)                |     ✅     |          |
+|  `6`   | ZIP&nbsp;Implode                          |     ✅     |          |
+|  `8`   | DEFLATE&nbsp;(Zopfli&nbsp;optional)       |     ✅     |    ✅    |
+|  `9`   | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)   |     ✅     |    ✅    |
+| `10`   | DCL&nbsp;Implode                          |     ✅     |    ✅    |
+| `12`   | bzip2                                     |     ✅     |    ✅    |
+| `14`   | LZMA                                      |     ✅     |    ✅    |
+| `16`   | IBM&nbsp;z/OS&nbsp;CMPSC                  |            |          |
+| `18`   | IBM&nbsp;TERSE                            |            |          |
+| `19`   | IBM&nbsp;LZ77&nbsp;(z/Architecture)       |            |          |
+| `20`   | Zstandard&nbsp;(deprecated)               |     ✅     |          |
+| `92`   | Reference&nbsp;Link&nbsp;(de‑duplication) |     ✅     |          |
+| `93`   | Zstandard&nbsp;(zstd)                     |     ✅     |    ✅    |
+| `94`   | WZ‑MP3                                    |     ✅     |          |
+| `95`   | XZ/LZMA2                                  |     ✅     |    ✅    |
+| `96`   | WZ‑JPEG                                   |     ✅     |          |
+| `97`   | WavPack                                   |     ✅     |          |
+| `98`   | PPMd&nbsp;version&nbsp;I&nbsp;Rev&nbsp;1  |     ✅     |    ✅    |
+
+**NB**: Methods 1 through 6 are legacy algorithms and are no longer
+recommended for use.
 
 These changes are built using Fedora's current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
