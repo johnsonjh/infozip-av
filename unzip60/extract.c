@@ -310,6 +310,10 @@ static int uz_ppmd_decompress(__G)
 }
 #endif /* USE_PPMD */
 
+#ifdef USE_WAVP
+#include "wavpackzip.c"
+#endif
+
 #ifdef USE_WZJPEG
 #include "wzjpeg.c"
 
@@ -3657,6 +3661,34 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             }
             break;
 #endif /* !SFX */
+
+#ifdef USE_WAVP
+        case WAVPACKED:
+            if (!uO.tflag && QCOND2)
+                Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
+                    "decod", FnFilter1(G.filename), avmark, avsep,
+                    (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
+                    uO.cflag ? NEWLINE : ""));
+            r = uz_wavpack_decompress(__G);
+            if (r != PK_COOL) {
+                if (r < PK_DISK) {
+                    if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
+                        Info(slide, 0x401, ((char *)slide,
+                            LoadFarStringSmall(ErrUnzipFile),
+                            r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
+                                LoadFarString(InvalidComprData),
+                            "WavPack", FnFilter1(G.filename)));
+                    else
+                        Info(slide, 0x401, ((char *)slide,
+                            LoadFarStringSmall(ErrUnzipNoFile),
+                            r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
+                                LoadFarString(InvalidComprData), "WavPack"));
+                    error = r == PK_MEM3 ? PK_MEM3 : PK_ERR;
+                } else
+                    error = r;
+            }
+            break;
+#endif /* USE_WAVP */
 
 #ifdef USE_WZJPEG
         case WZJPEGED:

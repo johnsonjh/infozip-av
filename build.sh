@@ -18,6 +18,10 @@ L_LZMA_SFX="-l:liblzma.a -s"
 D_USE_ZSTD_SFX="-DZSTD_SFX"
 L_ZSTD_SFX="-l:libzstd.a -s"
 
+# Enable Wavpack-enabled unzipsfx
+D_USE_WAVPACK_SFX="-DWAVPACK_SFX"
+L_WAVPACK_SFX="-lwavpack"
+
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
 
@@ -39,6 +43,8 @@ mkdir -p "${PREFIX:?}/man1"
       L_LZMA_SFX="${L_LZMA_SFX:-}" \
       D_USE_ZSTD_SFX="${D_USE_ZSTD_SFX:-}" \
       L_ZSTD_SFX="${L_ZSTD_SFX:-}" \
+      D_USE_WAVPACK_SFX="${D_USE_WAVPACK_SFX:-}" \
+      L_WAVPACK_SFX="${L_WAVPACK_SFX:-}" \
       PREFIX="${PREFIX:?}"
 )
 
@@ -69,6 +75,6 @@ mkdir -p "${PREFIX:?}/man1"
 
 "${STRIP:-strip}" "${PREFIX:?}"/bin/* 2> /dev/null || :
 "${SSTRIP:-sstrip}" -z "${PREFIX:?}"/bin/* 2> /dev/null || :
-upx -qq --ultra-brute "build/bin/unzipsfx" 2> /dev/null || :
+upx -qq --best "build/bin/unzipsfx" 2> /dev/null || :
 
 ls -la "${PREFIX}"/*/*

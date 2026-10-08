@@ -82,6 +82,12 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
     skippable, or trailing frames are rejected.  UnZipSFX does not link libzstd
     by default; an explicit ZSTD_SFX build may opt in.
 
+    On Unix, the configure step also detects libwavpack 5 headers and library.
+    When available, UnZip enables lossless WavPack 4 ZIP method 97 extraction
+    through the system library.  Extracted WAV headers, PCM and trailers are
+    restored verbatim; no audio encoder is linked into UnZip.  UnZipSFX does
+    not use libwavpack unless WAVPACK_SFX is explicitly enabled.
+
     As of UnZip 5.53, support for the bzip2 compression algorithm has been
     added to UnZip. However, this support requires the original sources of
     the bzip2 compression library which have to be aquired separately;
@@ -380,6 +386,25 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         To opt in to both methods for the Unix SFX build, set:
           D_USE_LZMA_SFX=-DLZMA_SFX L_LZMA_SFX=-llzma
         in addition to enabling USE_LZMA and USE_XZ.
+
+      USE_WAVP
+        Enable ZIP method 97 (WinZip WavPack 4) decompression using libwavpack
+        version 5 or newer and the matching development headers.  The Unix
+        configure probe enables -DUSE_WAVP and -lwavpack automatically when
+        the WavPack 5 reader / wrapper API can be linked.  This support is
+        decompression-only; the encoder is not used at all by UnZip.
+        Original RIFF headers and trailers must be present in the WavPack
+        stream so that the original WAV bytes can be restored exactly.
+
+        USE_WAVP is automatically disabled when building the normal Unix
+        UnZipSFX stub, and fUnZip does not use libwavpack.  An explicit SFX
+        build can enable it with BOTH variables:
+          D_USE_WAVPACK_SFX=-DWAVPACK_SFX L_WAVPACK_SFX=-lwavpack
+        in addition to enabling USE_WAVP in the main compilation flags.
+
+        For custom Unix builds without autoconfigure, supply:
+          D_USE_WAVPACK=-DUSE_WAVP L_WAVPACK=-lwavpack
+        and ensure that the compiler finds <wavpack/wavpack.h>.
 
       USE_ZSTD
         Enable extraction of deprecated Zstandard ZIP method 20 and current

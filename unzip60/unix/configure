@@ -702,6 +702,41 @@ fi
 rm -f conftest conftest.c conftest.o
 
 
+# libwavpack 5 API for decoding WinZip's WavPack 4 ZIP method 97.
+# Compile AND link a real reader, version, and wrapper probe; do not rely on
+# header presence or a libwavpack runtime package alone.
+echo "Check libwavpack support (5.0.0 or newer)"
+D_USE_WAVPACK=""
+L_WAVPACK=""
+cat > conftest.c << _EOF_
+#include <wavpack/wavpack.h>
+int main(void)
+{
+  WavpackStreamReader64 reader = {0};
+  WavpackContext *ctx;
+  char error[80];
+  if (WavpackGetLibraryVersion() < 0x050000) return 1;
+  ctx = WavpackOpenFileInputEx64(&reader, 0, 0, error, OPEN_WRAPPER, 0);
+  if (ctx) {
+    (void)WavpackGetNumSamples64(ctx);
+    (void)WavpackGetWrapperBytes(ctx);
+    (void)WavpackGetNumErrors(ctx);
+    WavpackCloseFile(ctx);
+  }
+  return 0;
+}
+_EOF_
+$CC $CFLAGS -o conftest conftest.c -lwavpack > /dev/null 2>/dev/null
+if test $? -eq 0; then
+  echo "-- OS supports libwavpack 5 decoder API - enabling WavPack method 97"
+  D_USE_WAVPACK="-DUSE_WAVP"
+  L_WAVPACK="-lwavpack"
+else
+  echo "-- libwavpack 5 headers/library not found - no WavPack support"
+fi
+rm -f conftest conftest.c conftest.o
+
+
 # libzstd -- current ZIP method 93 plus deprecated read-compatible method 20.
 echo "Check libzstd support (1.4.0 or newer)"
 D_USE_ZSTD=""
@@ -738,10 +773,11 @@ fi
 rm -f conftest conftest.c conftest.o
 
 
-echo CC=\"${CC}\" CF=\"${CFLAGSR} ${D_USE_BZ2} ${D_USE_LZMA} ${D_USE_ZSTD}\" CRCA_O=\"${CRC32OA}\" \
+echo CC=\"${CC}\" CF=\"${CFLAGSR} ${D_USE_BZ2} ${D_USE_LZMA} ${D_USE_ZSTD} ${D_USE_WAVPACK}\" CRCA_O=\"${CRC32OA}\" \
        AS=\"${CC} -c\" LFLAGS1=\"${LFLAGS1}\" LF2=\"${LFLAGS2}\" \
        CC_BZ=\"${CC_BZ}\" CFLAGS_BZ=\"${CFLAGS_BZ}\" \
        IZ_BZIP2=\"${IZ_BZIP2}\" D_USE_BZ2=\"${D_USE_BZ2}\" \
        L_BZ2=\"${L_BZ2}\" LIBBZ2=\"${LIBBZ2}\" \
        D_USE_LZMA=\"${D_USE_LZMA}\" L_LZMA=\"${L_LZMA}\" \
-       D_USE_ZSTD=\"${D_USE_ZSTD}\" L_ZSTD=\"${L_ZSTD}\" > flags
+       D_USE_ZSTD=\"${D_USE_ZSTD}\" L_ZSTD=\"${L_ZSTD}\" \
+       D_USE_WAVPACK=\"${D_USE_WAVPACK}\" L_WAVPACK=\"${L_WAVPACK}\" > flags

@@ -255,6 +255,11 @@ LIMITATIONS
        do not acquire a libzstd dependency.  A builder may opt in by defining
        ZSTD_SFX and linking libzstd; see INSTALL and unix/Makefile.
 
+       WinZip WavPack ZIP method 97 also requires an external decoder library
+       (libwavpack 5 or newer) and is excluded from the default Unix unzipsfx
+       binary. Builders can explicitly request WAVPACK_SFX and link libwavpack;
+       see INSTALL and unix/Makefile.
+
        VMS  users  must know how to set up self-extracting archives as foreign
        commands in order to use any of unzipsfx's options.  This is not neces-
        sary  for  simple  extraction,  but  the command to do so then becomes,

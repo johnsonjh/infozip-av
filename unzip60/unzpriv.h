@@ -54,6 +54,9 @@
 #  ifdef USE_XZ
 #    undef USE_XZ
 #  endif
+#  ifdef USE_WAVP       /* fUnZip does not support libwavpack */
+#    undef USE_WAVP
+#  endif
 #  ifdef USE_ZSTD       /* fUnZip does not support libzstd */
 #    undef USE_ZSTD
 #  endif
@@ -82,14 +85,22 @@
 #endif
 
 /* LZMA and XZ use the external liblzma library.
- * Avoid that dependency in the default SFX stub.  LZMA_SFX is the single
- * explicit opt-in for both method 14 and method 95. */
+ * Avoid that dependency in the default SFX stub.
+ * LZMA_SFX is the single opt-in for both method 14 and method 95. */
 #if (defined(SFX) && !defined(LZMA_SFX))
 #  ifdef USE_LZMA
 #    undef USE_LZMA
 #  endif
 #  ifdef USE_XZ
 #    undef USE_XZ
+#  endif
+#endif
+
+/* WavPack ZIP method 97 requires external libwavpack.
+ * Exclude it from UnZipSFX unless WAVPACK_SFX is defined. */
+#if defined(SFX) && !defined(WAVPACK_SFX)
+#  ifdef USE_WAVP
+#    undef USE_WAVP
 #  endif
 #endif
 
