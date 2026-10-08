@@ -36,16 +36,16 @@ This project adds extensive new algorithm support, full
 [AES cryptography](https://www.winzip.com/en/support/aes-encryption/) (AE‑1
 and AE‑2) to [Info‑ZIP](https://infozip.sourceforge.net/).
 
-The ability to both compress and decompress archives using **Zstandard**
+The ability to *both compress and decompress* archives using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**
 (method&nbsp;95), **DCL**&nbsp;**Implode** (method&nbsp;10), **Deflate64**
 (method&nbsp;9), and **PPMd** (method&nbsp;98) has been added.  New
 decompression‑only support for **Shrink** (method&nbsp;1), **Reduce** (methods
-2 through 5), **ZIP**&nbsp;**Implode** (method&nbsp;6), **WZ‑JPEG**
-(method&nbsp;96), and **WavPack** (method&nbsp;97) has also been added.
-WinZip‑style de‑duplication **RefPtr** (method&nbsp;92) is supported.  The
-usual **Store** (method&nbsp;0) and **Deflate** (method&nbsp;8) algorithms
-remain supported.  Additionally, new
+2 through 5), **ZIP**&nbsp;**Implode** (method&nbsp;6),
+**WZ‑MP3** (method&nbsp;94), **WZ‑JPEG** (method&nbsp;96), and **WavPack**
+(method&nbsp;97) has also been added.  WinZip‑style de‑duplication **RefPtr**
+(method&nbsp;92) is supported.  The usual **Store** (method&nbsp;0) and
+**Deflate** (method&nbsp;8) algorithms remain supported.  Additionally, new
 [Zopfli](https://github.com/google/zopfli)‑enhanced **Deflate** (method&nbsp;8)
 support is available (when compressing using `zip -11`).
 
@@ -437,9 +437,10 @@ No errors detected in compressed data of pkz110.exe.
 
 ## Licenses
 
-* The **Deflate64** compressor, **WZ‑JPEG** decompressor, and the **PKAV** and
-  **FWKCS** additions to Info‑ZIP are provided under the [MIT‑0](LICENSE)
-  license, or, at your option, the [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
+* The **Deflate64** compressor, **WZ‑JPEG** decompressor, **WZ‑MP3**
+  decompressor, and the **PKAV** and **FWKCS** additions to Info‑ZIP are
+  provided under the [MIT‑0](LICENSE) license, or, at your option, the
+  [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
   [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
 
 * The **Shrink**, **Reduce**, and **ZIP Implode** decompression
