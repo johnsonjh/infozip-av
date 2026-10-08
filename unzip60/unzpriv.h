@@ -93,6 +93,11 @@
 #  endif
 #endif
 
+/* ZIP method 96 uses liblzma for metadata */
+#if defined(USE_LZMA) && !defined(NO_WZJPEG) && !defined(FUNZIP)
+#  define USE_WZJPEG
+#endif
+
 /* Zstandard methods 20/93 use the external libzstd library.  Keep the
  * redistributable default SFX stub free of that dependency unless the build
  * explicitly opts in with ZSTD_SFX. */
@@ -1752,9 +1757,10 @@
 #define ZSTD_OLD         20
 #define ZSTDED           93
 #define XZED             95
+#define WZJPEGED         96
 #define WAVPACKED        97
 #define PPMDED           98
-#define NUM_METHODS      20     /* number of known method IDs */
+#define NUM_METHODS      21     /* number of known method IDs */
 /* don't forget to update list.c (list_files()), extract.c and zipinfo.c
  * appropriately if NUM_METHODS changes */
 

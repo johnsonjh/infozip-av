@@ -310,6 +310,88 @@ static int uz_ppmd_decompress(__G)
 }
 #endif /* USE_PPMD */
 
+#ifdef USE_WZJPEG
+#include "wzjpeg.c"
+
+struct uz_wzjpeg_io {
+#ifdef REENTRANT
+    Uz_Globs *global;
+#endif
+    int error;
+    unsigned int outsize;
+};
+
+static size_t uz_wzjpeg_reader(void *context,unsigned char *dst,size_t n)
+{
+    struct uz_wzjpeg_io *io=(struct uz_wzjpeg_io *)context;
+#ifdef REENTRANT
+    Uz_Globs *pG=io->global;
+#endif
+    size_t i;
+    int c;
+    (void)io;
+    for(i=0;i<n;i++) {
+        c=NEXTBYTE;
+        if(c==EOF)break;
+        dst[i]=(unsigned char)c;
+    }
+    return i;
+}
+
+static size_t uz_wzjpeg_writer(void *context,const unsigned char *src,size_t n)
+{
+    struct uz_wzjpeg_io *io=(struct uz_wzjpeg_io *)context;
+#ifdef REENTRANT
+    Uz_Globs *pG=io->global;
+#endif
+    size_t used=0,count;
+    int ret;
+    if(io->error)return 0;
+    while(used<n) {
+        count=n-used;
+        if(count>io->outsize)count=io->outsize;
+        if(count==0) {io->error=PK_ERR;return 0;}
+        memcpy(redirSlide,src+used,count);
+        ret=FLUSH((unsigned)count);
+        if(ret!=PK_COOL) {io->error=ret;return 0;}
+        used+=count;
+    }
+    return n;
+}
+
+static int uz_wzjpeg_decompress(__G)
+    __GDEF
+{
+    struct uz_wzjpeg_io io;
+    wz96_report report;
+    zoff_t compressed;
+    int ok;
+    memset(&io,0,sizeof(io));
+#ifdef REENTRANT
+    io.global=pG;
+#endif
+#if (defined(DLL) && !defined(NO_SLIDE_REDIR))
+    if (G.redirect_slide) {
+        io.outsize=G.redirect_size;
+        redirSlide=G.redirect_buffer;
+    } else {
+        io.outsize=WSIZE;
+        redirSlide=slide;
+    }
+#else
+    io.outsize=WSIZE;
+#endif
+    compressed=G.csize+(zoff_t)G.incnt;
+    if(compressed<0 || (zusz_t)compressed>ULONG_MAX ||
+       G.lrec.ucsize>ULONG_MAX)return PK_ERR;
+    ok=wz96_decode(uz_wzjpeg_reader,&io,(unsigned long)compressed,
+                   uz_wzjpeg_writer,&io,(unsigned long)G.lrec.ucsize,&report);
+    if(io.error!=PK_COOL)return io.error;
+    if(!ok || G.csize+(zoff_t)G.incnt!=0)return PK_ERR;
+    return PK_COOL;
+}
+#endif /* USE_WZJPEG */
+
 #ifdef USE_LZMA
 /* Decode ZIP method 14.
  * The ZIP-specific properties header is part of the compressed/encrypted
@@ -1403,19 +1485,20 @@ static ZCONST char Far ComprMsgNum[] =
    static ZCONST char Far CmprXZ[]         = "XZ";
    static ZCONST char Far CmprIBMTerse[]   = "IBM/Terse";
    static ZCONST char Far CmprIBMLZ77[]    = "IBM LZ77";
+   static ZCONST char Far CmprWinJPEG[]    = "WinZip JPEG";
    static ZCONST char Far CmprWavPack[]    = "WavPack";
    static ZCONST char Far CmprPPMd[]       = "PPMd";
    static ZCONST char Far *ComprNames[NUM_METHODS] = {
      CmprNone, CmprShrink, CmprReduce, CmprReduce, CmprReduce, CmprReduce,
      CmprImplode, CmprTokenize, CmprDeflate, CmprDeflat64, CmprDCLImplode,
      CmprBzip, CmprLZMA, CmprIBMTerse, CmprIBMLZ77, CmprZstd, CmprZstd,
-     CmprXZ, CmprWavPack, CmprPPMd
+     CmprXZ, CmprWinJPEG, CmprWavPack, CmprPPMd
    };
    static ZCONST unsigned ComprIDs[NUM_METHODS] = {
      STORED, SHRUNK, REDUCED1, REDUCED2, REDUCED3, REDUCED4,
      IMPLODED, TOKENIZED, DEFLATED, ENHDEFLATED, DCLIMPLODED,
      BZIPPED, LZMAED, IBMTERSED, IBMLZ77ED, ZSTD_OLD, ZSTDED,
-     XZED, WAVPACKED, PPMDED
+     XZED, WZJPEGED, WAVPACKED, PPMDED
    };
 #endif /* !SFX */
 static ZCONST char Far FilNamMsg[] =
@@ -2317,6 +2400,12 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #  define UNKN_LZMA TRUE      /* LZMA unknown */
 #endif
 
+#ifdef USE_WZJPEG
+#  define UNKN_WZJPEG (G.crec.compression_method!=WZJPEGED)
+#else
+#  define UNKN_WZJPEG TRUE
+#endif
+
 #ifdef USE_XZ
 #  define UNKN_XZ (G.crec.compression_method!=XZED)
 #else
@@ -2347,11 +2436,11 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method<DEFLATED \
       && G.crec.compression_method>ENHDEFLATED \
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_ZSTD && UNKN_WAVP && UNKN_PPMD)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_PPMD)
 #  else
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method!=DEFLATED\
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_ZSTD && UNKN_WAVP && UNKN_PPMD)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_PPMD)
 #  endif
 #else
 #  ifdef USE_OLDUNZIP
@@ -2366,13 +2455,13 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>ENHDEFLATED && \
-      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_ZSTD \
+      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD \
       && UNKN_WAVP && UNKN_PPMD))
 #  else
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>DEFLATED && \
-      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_ZSTD \
+      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD \
       && UNKN_WAVP && UNKN_PPMD))
 #  endif
 #endif
@@ -3568,6 +3657,32 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             }
             break;
 #endif /* !SFX */
+
+#ifdef USE_WZJPEG
+        case WZJPEGED:
+            if (!uO.tflag && QCOND2) {
+                Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
+                  "decod", FnFilter1(G.filename), avmark, avsep,
+                  (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
+                  uO.cflag ? NEWLINE : ""));
+            }
+            r=uz_wzjpeg_decompress(__G);
+            if(r!=PK_COOL) {
+                if(r<PK_DISK) {
+                    if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipFile),
+                          LoadFarString(InvalidComprData), "WinZip JPEG",
+                          FnFilter1(G.filename)));
+                    else
+                        Info(slide, 0x401, ((char *)slide,
+                          LoadFarStringSmall(ErrUnzipNoFile),
+                          LoadFarString(InvalidComprData), "WinZip JPEG"));
+                    error=PK_ERR;
+                } else error=r;
+            }
+            break;
+#endif /* USE_WZJPEG */
 
 #ifdef USE_LZMA
         case LZMAED:
