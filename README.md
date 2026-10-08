@@ -62,19 +62,28 @@ support is available (when compressing using `zip ‑11`):
 |  `8`   | DEFLATE&nbsp;(Zopfli&nbsp;optional)       |     ✅     |    ✅    |
 |  `9`   | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)   |     ✅     |    ✅    |
 | `10`   | DCL&nbsp;Implode                          |     ✅     |    ✅    |
-| `12`   | bzip2                                     |     ✅     |    ✅    |
-| `14`   | LZMA                                      |     ✅     |    ✅    |
+| `12`   | bzip2<sup>1</sup>                         |     ✅     |    ✅    |
+| `14`   | LZMA<sup>2</sup>                          |     ✅     |    ✅    |
 | `16`   | IBM&nbsp;z/OS&nbsp;CMPSC                  |            |          |
 | `18`   | IBM&nbsp;TERSE                            |            |          |
 | `19`   | IBM&nbsp;LZ77&nbsp;(z/Architecture)       |            |          |
-| `20`   | Zstandard&nbsp;(deprecated)               |     ✅     |          |
+| `20`   | Zstandard<sup>3</sup>&nbsp;(deprecated)   |     ✅     |          |
 | `92`   | Reference&nbsp;Link&nbsp;(de‑duplication) |     ✅     |          |
-| `93`   | Zstandard&nbsp;(zstd)                     |     ✅     |    ✅    |
+| `93`   | Zstandard<sup>3</sup>&nbsp;(zstd)         |     ✅     |    ✅    |
 | `94`   | WZ‑MP3                                    |     ✅     |          |
-| `95`   | XZ/LZMA2                                  |     ✅     |    ✅    |
-| `96`   | WZ‑JPEG                                   |     ✅     |          |
-| `97`   | WavPack                                   |     ✅     |          |
+| `95`   | XZ/LZMA2<sup>2</sup>                      |     ✅     |    ✅    |
+| `96`   | WZ‑JPEG<sup>2</sup>                       |     ✅     |          |
+| `97`   | WavPack<sup>4</sup>                       |     ✅     |          |
 | `98`   | PPMd&nbsp;version&nbsp;I&nbsp;Rev&nbsp;1  |     ✅     |    ✅    |
+
+* <sup>**1**</sup>&nbsp;bzip2 support requires
+  [libbz2](https://sourceware.org/bzip2/)
+* <sup>**2**</sup>&nbsp;LZMA, XZ/LZMA2, and WZ‑JPEG support requires
+  [liblzma](https://tukaani.org/xz/)
+* <sup>**3**</sup>&nbsp;Zstandard support requires
+  [libzstd](https://facebook.github.io/zstd/)
+* <sup>**4**</sup>&nbsp;WavPack support requires
+  [libwavpack](https://www.wavpack.com/)
 
 **NB**: Methods 1 through 6 are legacy algorithms and are no longer
 recommended for use.
