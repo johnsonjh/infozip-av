@@ -35,11 +35,11 @@ DESCRIPTION
        allow archives as well as files to exceed the previous 2 GB limit (4 GB
        in some cases).  zip also supports  PPMd compression (ZIP method 98) on
        non-16-bit builds.  On Unix builds with liblzma 5.4.0 or newer  it also
-       supports LZMA (ZIP method 14) and  XZ/LZMA2 (ZIP method 95).  Unix builds
+       supports LZMA (ZIP method 14) and XZ/LZMA2 (ZIP method 95). Unix builds
        with libzstd 1.4.0 or newer also support Zstandard (ZIP method 93), and
-       bzip2 compression is available if the bzip2 library is included when zip is
-       compiled.  PPMd entries  require a method-98-capable  extractor;  older
-       PKUNZIP  and  UnZip  versions  that otherwise  read  Zip  3.0  archives
+       bzip2  compression is available if  the bzip2 library is included  when
+       zip is compiled.  PPMd entries require a  method-98-capable  extractor;
+       older PKUNZIP and UnZip versions that otherwise read Zip  3.0  archives
        cannot decode  method 98.  Note that PKUNZIP 1.10  cannot extract files
        produced by PKZIP 2.04 or zip 3.0.  You must use PKUNZIP 2.04g or unzip
        5.0p1 (or later versions) to extract them.
@@ -653,13 +653,13 @@ OPTIONS
 
        -eS
        --aes-encrypt
-              Prompt twice for a password and use WinZip-compatible AES
-              encryption.  This is independent of -e/--encrypt, which retains
+              Prompt  twice for  a  password  and  use  WinZip-compatible  AES
+              encryption.  This  is independent of -e/--encrypt, which retains
               traditional PKZIP encryption.  AES-256 is the default.  WinZip's
-              AE-2 is used for input smaller than 20 bytes and for BZip2;
-              AE-1 is used otherwise, retaining a ZIP CRC32 as well as AES
-              authentication.  See --aes-strength.  -eS cannot be combined
-              with -e or -P.
+              In standard mode,  AE-2 is used  for input smaller than 20 bytes
+              and for BZip2; AE-1 is used otherwise,  retaining a ZIP CRC32 as
+              well as AES authentication.   See --aes-strength.  -eS cannot be
+              combined with -e or -P.
 
        -eP password
        --aes-password password
@@ -680,6 +680,23 @@ OPTIONS
               Encryption does not protect ZIP filenames or central-directory
               metadata.  PKWARE Strong Encryption is a distinct format and
               is not implemented by this option.  zipcloak is unchanged.
+
+       --aes-mode standard|quantum
+              Select standard (default) for WinZip AE-1/AE-2, or quantum for
+              WinZip AE-3 AES-256-GCM. Quantum mode requires -eS or -eP and
+              --aes-strength 256. AE-3 has 44 bytes of encryption overhead
+              per member and uses PBKDF2-HMAC-SHA256 and HKDF-SHA256.
+              Not all ZIP implementations support AE-3.
+
+       --aes-iterations number
+              Set AE-3 PBKDF2 iterations in quantum mode (default 600000).
+              Accepts a decimal integer from 320000 to 64000000 inclusive,
+              in exact steps of 10000. Other values are rejected, never
+              rounded; the AE-3 extra field stores the count in units of
+              10000. Requires quantum mode with -eS or -eP. This option
+              does not affect AE-1/AE-2 encryption. Archives with iteration
+              counts other than WinZip's 600000 default may not be supported
+              by all AE-3 implementations; higher values cost more time.
 
        -E
        --longnames

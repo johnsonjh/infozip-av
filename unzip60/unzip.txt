@@ -171,28 +171,29 @@ OPTIONS
               verbosely,  adding  to the basic -l info the compression method,
               compressed size, compression ratio and 32-bit CRC.  In  contrast
               to most of the competing utilities, unzip removes encryption
-	      overhead from the compressed size numbers: 12 bytes for
-	      traditional ZipCrypto, or the WinZip AES salt, 2-byte password
-	      verifier, and 10-byte authentication code (20, 24, or 28 bytes
-	      total for AES-128, AES-192, or AES-256). Therefore, compressed
-	      size and compression ratio figures are independent of the entrys
-              encryption status and show the correct compression performance.
-              (The complete size of the encrypted compressed data  stream  for
-	      zipfile entries is reported  by the more verbose zipinfo(1L)
-	      reports, see the separate manual.)  When no zipfile is specified
-	      (that is, the complete command is  simply ``unzip -v''), a
-	      diagnostic screen is printed.  In addition to the normal header
-	      with release date and version,  unzip  lists  the  home Info-ZIP
-	      ftp site and where to find a list of other ftp and non-ftp
-	      sites; the target operating system  for  which  it  was
-	      compiled, as well as (possibly) the hardware on which it was
-	      compiled,  the  compiler  and  version used,  and the
-	      compilation date; any special compilation options that might
-	      affect the program's operation (see  also  DECRYPTION below);
-	      and  any  options  stored in environment variables that might
-	      do the same (see ENVIRONMENT OPTIONS below).  As  a  modifier
-	      it  works  in conjunction with other options (e.g., -t) to
-              produce more verbose or debugging output; this is not yet  fully
+              overhead from the compressed size numbers: 12 bytes for
+              traditional ZipCrypto, or the WinZip AES salt, 2-byte password
+              verifier, and 10-byte authentication code (20, 24, or 28 bytes
+              total for AE-1/AE-2 AES-128, AES-192, or AES-256). AE-3 instead
+              adds 44 bytes of encryption overhead per entry. Therefore,
+              compressed size and compression ratio figures are independent of
+              the entrys encryption status and show the correct compression
+              performance.  (The complete size of the encrypted compressed data
+              stream for zipfile entries is reported by the more verbose
+              zipinfo(1L) reports, see the separate manual.)  When no zipfile
+              is specified (that is, the complete command is simply
+              ``unzip -v''), a diagnostic screen is printed.  In addition to
+              the normal header with release date and version,  unzip  lists
+              the  home Info-ZIP ftp site and where to find a list of other
+              ftp and non-ftp sites; the target operating system for which it
+              was compiled, as well as (possibly) the hardware on which it was
+              compiled,  the  compiler  and  version used,  and the
+              compilation date; any special compilation options that might
+              affect the program's operation (see  also  DECRYPTION below);
+              and  any  options  stored in environment variables that might
+              do the same (see ENVIRONMENT OPTIONS below).  As  a  modifier
+              it  works  in conjunction with other options (e.g., -t) to
+              produce more verbose or debugging output; this is not yet fully
               implemented but will be in future releases.
 
        -z     display only the archive comment.
@@ -610,6 +611,14 @@ ENVIRONMENT OPTIONS
        The TZ variable is ignored for this port.
 
 DECRYPTION
+
+       WinZip AES AE-1, AE-2, and AE-3 entries (ZIP method 99, extra field
+       0x9901) are supported.  AE-1/AE-2 use HMAC-SHA1 authentication;
+       AE-3 requires AES-256-GCM with PBKDF2-HMAC-SHA256 and HKDF-SHA256.
+       AE-3 iteration counts from 320000 to 64000000 are accepted in exact
+       steps of 10000; the WinZip default is 600000.  Non-default counts
+       may not be supported by all AE-3 extractors.  A seekable archive is
+       required to authenticate an AES entry before releasing plaintext.
        Encrypted archives are fully supported by Info-ZIP software, but due to
        United States export restrictions, de-/encryption support might be dis-
        abled in your compiled binary.  However, since spring 2000,  US  export

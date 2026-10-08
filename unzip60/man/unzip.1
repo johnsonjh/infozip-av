@@ -191,7 +191,8 @@ compression ratio and 32-bit CRC.  In contrast to most of the competing
 utilities, \fIunzip\fP removes encryption overhead from the compressed
 size numbers:  12 bytes for traditional ZipCrypto, or the WinZip AES salt,
 2-byte password verifier, and 10-byte authentication code (20, 24, or 28
-bytes total for AES-128, AES-192, or AES-256).  Therefore, compressed size
+bytes total for AE-1/AE-2 AES-128, AES-192, or AES-256).  AE-3 uses 44
+bytes of encryption overhead regardless of file size.  Therefore, compressed size
 and compression ratio figures are independent of the entry's encryption
 status and show the correct compression performance.  (The complete
 size of the encrypted compressed data stream for zipfile entries is reported
@@ -641,18 +642,23 @@ Control Panel.  The TZ variable is ignored for this port.
 .PD
 .\" =========================================================================
 .SH DECRYPTION
-WinZip AES AE-1 and AE-2 entries (ZIP method 99, extra field 0x9901)
+WinZip AES AE-1, AE-2 and AE-3 entries (ZIP method 99, extra field 0x9901)
 are supported by built-in ANSI C89 code, without a separate cryptographic
-library.  AES-128, AES-192, and AES-256 keys are accepted, and the actual
+library.  AES-128, AES-192, and AES-256 keys are accepted for AE-1/AE-2;
+AE-3 requires AES-256.  The actual
 compression method is read from the AES extra field.  The full compressed
-encrypted data is authenticated using the WinZip HMAC-SHA1 tag before any
-plaintext is released, even for extraction to standard output.  AE-1
-also checks the ZIP CRC32, while AE-2 deliberately records a zero CRC32.
-AES support is enabled by default in UnZip and UnZipSFX; the compile-time
-NO_AES option disables it.  This does not implement PKWARE Strong Encryption
-or encrypted central directories.  For AES entries, decryption requires a
-seekable archive so that authentication can complete before extraction.
-
+encrypted data is authenticated using the WinZip HMAC-SHA1 tag for AE-1/AE-2,
+or AES-256-GCM and a final authentication value for AE-3, before any
+plaintext is released, even for extraction to standard output.  AE-3 uses
+PBKDF2-HMAC-SHA256 with an iteration count specified in the AES extra field,
+accepted from 320000 through 64000000 inclusive in increments of 10000.
+The WinZip default is 600000; other counts may not be accepted by all AE-3
+implementations.  AE-1 also checks the ZIP CRC32, while AE-2 deliberately
+records a zero CRC32.  AES support is enabled by default in UnZip and
+UnZipSFX; the compile-time NO_AES option disables it.  This does NOT
+implement PKWARE Strong Encryption or encrypted central directories.  For
+AES entries, decryption requires a seekable archive so that authentication
+can complete before extraction.
 
 Encrypted archives are fully supported by Info-ZIP software, but due to
 United States export restrictions, de-/encryption support might be disabled

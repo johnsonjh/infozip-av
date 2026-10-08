@@ -200,8 +200,8 @@ DETAILED DESCRIPTION
        these  methods  and  their  sub-methods  as follows:  stor; re:1, re:2,
        etc.; shrk; i4:2, i8:3, etc.; tokn; and defS, defF, defN, and defX. ZIP
        method 98 (PPMd Variant I) is displayed as ppmd. WinZip AES entries
-       append /AE1 or /AE2 to the actual compression method, for example
-       defN/AE1 or stor/AE2.
+       append /AE1, /AE2, or /AE3 to the actual compression method, for
+       example defN/AE1 or stor/AE3.
 
        The medium and long listings are almost identical to the  short  format
        except that they add information on the file's compression.  The medium
@@ -219,9 +219,10 @@ DETAILED DESCRIPTION
        In  contrast to the unzip listings, the compressed size figures in this
        listing format denote the complete size of compressed data, including
        encryption overhead. Traditional ZipCrypto adds a 12-byte encryption
-       header; WinZip AES adds its salt, 2-byte password verifier, and 10-byte
-       authentication code (20, 24, or 28 bytes total for AES-128, AES-192, or
-       AES-256).
+       header; WinZip AE-1/AE-2 adds its salt, 2-byte password verifier, and
+       10-byte authentication code (20, 24, or 28 bytes total for AES-128,
+       AES-192, or AES-256). WinZip AE-3 instead adds 44 bytes of overhead
+       (salt, key check, counter, GCM tag and final authentication value).
 
        Adding the -T option changes the file date and time to decimal format:
 

@@ -389,6 +389,7 @@ extern int dcl_implode_optimal; /* DCL optimal parse enabled */
 extern int iz_aes_mode;
 extern int iz_aes_strength;
 extern int iz_aes_quantum;
+extern unsigned long iz_aes_iterations; /* AE-3 PBKDF2 iterations */
 extern int zstd_level;          /* 0=generic mapping, otherwise native 1..22 */
 extern int translate_eol;       /* Translate end-of-line LF -> CR LF */
 #ifdef VMS

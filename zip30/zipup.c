@@ -411,11 +411,12 @@ local int fwkcs_add_extra(z, digest)
 
 
 #ifndef NO_AES
-/* Record the AE-1/AE-2 vendor extension in both header extra areas.
+/* Record the AE-1/AE-2/AE-3 vendor extension in both header extra areas.
  * The actual compressor method is carried within this field (not method 99).
- * WinZip 11+ uses AE-2 for input <20 bytes and BZIP2, AE-1 otherwise.
- * For inputs of unknown size (pipes), AE-1 is used unless BZIP2; the
- * decision cannot be changed in a nonseekable local ZIP header later.
+ * In standard mode, WinZip 11+ uses AE-2 for inputs <20 bytes and BZIP2,
+ * AE-1 otherwise.  For unknown input sizes (pipes), standard mode uses
+ * AE-1 unless BZIP2; that decision cannot change in a nonseekable local
+ * header.  "Quantum" mode always writes AE-3 (AES-256-GCM).
  */
 local int iz_aes_append_extra(z, version, strength, method)
     struct zlist far *z;
@@ -431,7 +432,11 @@ local int iz_aes_append_extra(z, version, strength, method)
     ef[6]='A'; ef[7]='E';
     ef[8]=(unsigned char)(strength==128?1:strength==192?2:3);
     ef[9]=(unsigned char)method; ef[10]=(unsigned char)(method>>8);
-    if (version==3) {ef[11]=60;ef[12]=0;}
+    if (version==3) {
+        unsigned units=(unsigned)(iz_aes_iterations/10000UL);
+        ef[11]=(unsigned char)units;
+        ef[12]=(unsigned char)(units>>8);
+    }
     lp=(char *)malloc(l+field_len);if(!lp)return ZE_MEM;
     cp=(char *)malloc(c+field_len);if(!cp){free(lp);return ZE_MEM;}
     if(l)memcpy(lp,z->extra,l);
@@ -475,7 +480,8 @@ local int iz_aes_write_initial(strength, password)
     if(!iz_aes_entropy(salt,n))return ZE_TEMP;
     if (iz_aes_quantum) {
         iz_ae3_salt_counter(salt,ctr);
-        if (!iz_ae3_init(&iz_zip_ae3_ctx,password,salt,ctr,600000UL,ver)) {
+        if (!iz_ae3_init(&iz_zip_ae3_ctx,password,salt,ctr,
+                         iz_aes_iterations,ver)) {
             iz_aes_wipe(salt,sizeof(salt));return ZE_TEMP;
         }
         if (bfwrite(salt,1,16,BFWRITE_DATA)!=16 ||

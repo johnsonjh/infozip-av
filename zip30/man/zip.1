@@ -938,8 +938,9 @@ The password prompt is repeated to save the user from typing errors.
 Select WinZip AES encryption and prompt twice for a password.  The default
 key size is AES-256.  This is separate from the traditional weak PKZIP
 \-e and \-P encryption options and may not be combined with them.
-WinZip AE-2 is written for inputs smaller than 20 bytes and BZip2 entries;
-AE-1 is used otherwise.  Encryption uses method 99 with extra field 0x9901.
+In standard mode, WinZip AE-2 is written for inputs smaller than 20 bytes
+and BZip2 entries; AE-1 is used otherwise.  Encryption uses method 99 with
+extra field 0x9901.
 .TP
 .PD 0
 .B \-eP\ \fRpassword
@@ -955,6 +956,7 @@ Do not combine this with traditional encryption options.
 .TP
 .PD
 Select AES key strength, default 256.  Requires \-eS or \-eP.
+Quantum mode requires 256-bit AES.
 The built-in ANSI C89 AES implementation is enabled unless built with
 NO_AES.  Secure random salt is obtained from /dev/urandom, then
 /dev/random on Unix, or a native Windows cryptographic random source.
@@ -962,7 +964,31 @@ Encryption fails if no secure source is available.  This format encrypts
 file data but does not hide filenames or central-directory metadata.
 PKWARE Strong Encryption and central-directory encryption are not implemented;
 zipcloak does not add AES support.
-
+.TP
+.PD 0
+.B \--aes-mode\ \fRstandard|quantum
+.TP
+.PD
+Select standard (the default) to write AE-1/AE-2 entries, or quantum to
+write WinZip AE-3 entries using AES-256-GCM, PBKDF2-HMAC-SHA256 and
+HKDF-SHA256.  Quantum mode requires \-eS or \-eP and AES-256.
+AE-3 uses a 16-byte salt, a four-byte password check, a four-byte counter,
+a 16-byte GCM tag, and a four-byte final authentication value (44 bytes
+of encryption overhead).  Not all ZIP extractors recognize AE-3.
+.TP
+.PD 0
+.B \--aes-iterations\ \fRnumber
+.TP
+.PD
+Set PBKDF2 iterations in quantum AE-3 mode (default 600000).  The value
+must be a decimal integer from 320000 through 64000000 inclusive, and
+must be an exact multiple of 10000.  The AE-3 extra field represents
+iterations in units of 10000; values that cannot be represented exactly
+are rejected, not rounded.  This option requires quantum mode with
+\-eS or \-eP, and does not change standard AE-1/AE-2 encryption.
+AE-3 archives made with values other than WinZip's 600000 default may
+not be supported by all AE-3 implementations.  Larger values substantially
+increase the time required to create and decrypt an archive.
 .TP
 .PD 0
 .B \-E

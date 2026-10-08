@@ -1568,6 +1568,7 @@ local void help_extended()
 "  -eP pswd  use WinZip AES encryption, password on command line",
 "  --aes-strength 128|192|256  AES key size (default 256)",
 "  --aes-mode standard|quantum  AE-1/2 (default) or AE-3 (AES-256-GCM)",
+"  --aes-iterations n  AE-3 PBKDF2 rounds (default 600000; 320000..64000000, step 10000)",
 #endif
 "",
 "Splits (archives created as a set of split files):",
@@ -2694,6 +2695,7 @@ int set_filetype(out_path)
 #define o_aes_pass      0x153
 #define o_aes_strength  0x154
 #define o_aes_mode      0x155
+#define o_aes_iterations 0x156
 #define o_sp            0x134
 #define o_su            0x135
 #define o_sU            0x136
@@ -2718,6 +2720,7 @@ int set_filetype(out_path)
 static int iz_aes_selected = 0;
 static int iz_zipcrypto_selected = 0;
 static int iz_aes_strength_selected = 0;
+static int iz_aes_iterations_selected = 0;
 
 /* the below is mainly from the old main command line
    switch with a few changes */
@@ -2772,6 +2775,7 @@ struct option_struct far options[] = {
     {"eP", "aes-password", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_aes_pass, "WinZip AES command-line password"},
     {"", "aes-strength", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_aes_strength, "AES key strength 128, 192, 256"},
     {"", "aes-mode", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_aes_mode, "standard AE-1/2 or quantum AE-3"},
+    {"", "aes-iterations", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_aes_iterations, "AE-3 PBKDF2 iterations"},
     {"e",  "encrypt",     o_NO_VALUE,       o_NOT_NEGATABLE, 'e',  "encrypt entries, ask for password"},
 #ifdef OS2
     {"E",  "longnames",   o_NO_VALUE,       o_NOT_NEGATABLE, 'E',  "use OS2 longnames"},
@@ -3096,9 +3100,11 @@ char **argv;            /* command line tokens */
   iz_aes_mode = 0;
   iz_aes_quantum = 0;
   iz_aes_strength = 256;
+  iz_aes_iterations = 600000UL;
   iz_aes_selected = 0;
   iz_zipcrypto_selected = 0;
   iz_aes_strength_selected = 0;
+  iz_aes_iterations_selected = 0;
   translate_eol = 0;   /* Translate end-of-line LF -> CR LF */
 #if defined(OS2) || defined(WIN32)
   use_longname_ea = 0; /* 1=use the .LONGNAME EA as the file's name */
@@ -3634,6 +3640,39 @@ char **argv;            /* command line tokens */
             ZIPERR(ZE_PARMS, "--aes-strength must be 128, 192, or 256");
           iz_aes_strength = atoi(value);
           free(value);
+#else
+          ZIPERR(ZE_PARMS, "AES support disabled at build time");
+#endif
+          break;
+        case o_aes_iterations:
+#ifndef NO_AES
+          {
+            unsigned long n;
+            char *endp;
+            /* strtoul accepts signs and whitespace: reject them explicitly. */
+            if (*value == '\0' || strspn(value, "0123456789") != strlen(value)) {
+              free(value);
+              ZIPERR(ZE_PARMS, "--aes-iterations requires a decimal integer");
+            }
+            errno = 0;
+            n = strtoul(value, &endp, 10);
+            if (errno == ERANGE || endp == value || *endp != '\0' ||
+                n > 64000000UL) {
+              free(value);
+              ZIPERR(ZE_PARMS, "--aes-iterations must not exceed 64000000");
+            }
+            if (n < 320000UL) {
+              free(value);
+              ZIPERR(ZE_PARMS, "--aes-iterations must be at least 320000");
+            }
+            if (n % 10000UL != 0) {
+              free(value);
+              ZIPERR(ZE_PARMS, "--aes-iterations must be an exact multiple of 10000");
+            }
+            iz_aes_iterations = n;
+            iz_aes_iterations_selected = 1;
+            free(value);
+          }
 #else
           ZIPERR(ZE_PARMS, "AES support disabled at build time");
 #endif
@@ -4484,6 +4523,8 @@ char **argv;            /* command line tokens */
     ZIPERR(ZE_PARMS, "--aes-mode quantum requires -eS or -eP");
   if (iz_aes_strength_selected && !iz_aes_selected)
     ZIPERR(ZE_PARMS, "--aes-strength requires -eS or -eP");
+  if (iz_aes_iterations_selected && (!iz_aes_quantum || !iz_aes_selected))
+    ZIPERR(ZE_PARMS, "--aes-iterations requires quantum AES mode (-eS or -eP)");
   pkav_validate_options();
 
   /* Key not yet specified.  If needed, get/verify it now. */
