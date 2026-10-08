@@ -965,7 +965,7 @@ int zipinfo(__G)   /* return PK-type error code */
                       G.crec.extra_field_length, &aes_total_version,
                       &aes_total_strength, &aes_total_method);
                     if (aes_total_status == 1) {
-                        aes_total_ovh = wzaes_overhead(aes_total_strength);
+                        aes_total_ovh = (aes_total_version==3?44U:wzaes_overhead(aes_total_strength));
                         if ((zusz_t)aes_total_ovh <= G.crec.csize)
                             tot_csize -= aes_total_ovh;
                     }
@@ -2347,7 +2347,7 @@ static int zi_short(__G)   /* return PK-type error code */
 
         if (G.crec.general_purpose_bit_flag & 1) {
             if (methid == 99 && aes_status == 1) {
-                aes_ovh = wzaes_overhead(aes_strength);
+                aes_ovh = (aes_version==3?44U:wzaes_overhead(aes_strength));
                 if ((zusz_t)aes_ovh <= csiz)
                     csiz -= aes_ovh;
             } else if (methid != 99 && csiz >= 12) {

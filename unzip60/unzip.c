@@ -2748,7 +2748,7 @@ static void show_version_info(__G)
 #endif
 #ifndef NO_AES
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
-          "WinZip AES (WinZip-compatible AE-1/AE-2; AES-128/192/256)"));
+          "WinZip AES (WinZip-compatible AE-1/AE-2/AE-3; AES-128/192/256)"));
         ++numopts;
 #endif
 #ifdef USE_PPMD

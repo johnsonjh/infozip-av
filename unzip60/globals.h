@@ -322,6 +322,7 @@ typedef struct Globals {
     ulg      outsize;              /* extract.c static */
 #ifndef NO_AES
     iz_wzaes aes_ctx;
+    iz_ae3 ae3_ctx;
     int aes_active;
 #endif
     int      reported_backslash;   /* extract.c static */

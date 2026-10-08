@@ -247,4 +247,5 @@ int iz_aes_entropy(unsigned char *out,size_t n) {
     (void)out;(void)n;return 0;
 #endif
 }
+#include "ae3_impl.h"
 #endif

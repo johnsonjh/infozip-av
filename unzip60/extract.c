@@ -167,6 +167,89 @@ static int iz_aes_authenticate(__G)
     undefer_input(__G);
     return PK_COOL;
 }
+/* AE-3: authenticate GCM ciphertext and FIN before decrypting. */
+static int iz_ae3_authenticate(__G)
+    __GDEF
+{
+    unsigned char salt[16],check[4],ctr[4],ver[4];
+    unsigned char tag[16],fin[4],calctag[16],calcfin[4];
+    unsigned i,chunk;
+    zoff_t start,encrypted_start,cipher_len,remaining;
+    iz_ae3 mac_ctx;
+    const char *pw=NULL;
+    int n=0,r,j,attempts;
+    unsigned char diff=0;
+    unsigned long iter=G.pInfo->aes_iterations;
+
+    G.aes_active=0;
+    iz_aes_wipe(&G.ae3_ctx,sizeof(G.ae3_ctx));
+    if(iter<320000UL || iter>64000000UL || G.csize<(zoff_t)44)return PK_ERR;
+    start=G.cur_zipfile_bufstart+(G.inptr-G.inbuf);
+    encrypted_start=start+24;
+    cipher_len=G.csize-44;
+    /* A 32-bit signed zoff_t cannot reach the GCM size limit; avoid
+     * narrowing 0xfffffffeUL to a negative signed value on those ports. */
+    if(sizeof(zoff_t)>=8 &&
+       (cipher_len/16>(zoff_t)0xfffffffeUL ||
+       (cipher_len/16==(zoff_t)0xfffffffeUL && cipher_len%16)))return PK_ERR;
+    G.pInfo->encrypted=FALSE;
+    defer_leftover_input(__G);
+    for(i=0;i<16;i++) {j=NEXTBYTE;if(j==EOF){undefer_input(__G);return PK_ERR;}salt[i]=(unsigned char)j;}
+    for(i=0;i<4;i++) {j=NEXTBYTE;if(j==EOF){undefer_input(__G);return PK_ERR;}check[i]=(unsigned char)j;}
+    for(i=0;i<4;i++) {j=NEXTBYTE;if(j==EOF){undefer_input(__G);return PK_ERR;}ctr[i]=(unsigned char)j;}
+    if(uO.pwdarg)pw=uO.pwdarg;
+    else if(G.key && *G.key)pw=G.key;
+    for(attempts=0;attempts<3;attempts++) {
+        if(!pw) {
+            if(G.nopwd)break;
+            if(!G.key && (G.key=(char *)malloc(81))==NULL){undefer_input(__G);return PK_MEM2;}
+            r=(*G.decr_passwd)((zvoid *)&G,&n,G.key,81,G.zipfn,G.filename);
+            if(r!=IZ_PW_ENTERED){if(r==IZ_PW_CANCELALL)G.nopwd=TRUE;break;}
+            pw=G.key;
+        }
+        if(!iz_ae3_init(&mac_ctx,pw,salt,ctr,iter,ver)){undefer_input(__G);return PK_ERR;}
+        diff=(unsigned char)!iz_ae3_equal(ver,check,4);
+        if(!diff)break;
+        iz_aes_wipe(&mac_ctx,sizeof(mac_ctx));
+        if(uO.pwdarg || G.nopwd)break;
+        pw=NULL;
+    }
+    if(attempts>=3 || !pw || diff){undefer_input(__G);iz_aes_wipe(salt,sizeof(salt));return PK_WARN;}
+    /* Preserve the initialized stream state before GHASH preauthentication. */
+    memcpy(&G.ae3_ctx,&mac_ctx,sizeof(mac_ctx));
+    remaining=cipher_len;
+    while(remaining>0){
+        if(G.incnt<=0){
+            if(G.csize<=0 || fillinbuf(__G)==0){
+                undefer_input(__G);iz_aes_wipe(&mac_ctx,sizeof(mac_ctx));return PK_ERR;
+            }
+        }
+        chunk=(unsigned)((zoff_t)G.incnt<remaining?G.incnt:remaining);
+        if(!iz_ae3_update(&mac_ctx,G.inptr,chunk)){
+            undefer_input(__G);iz_aes_wipe(&mac_ctx,sizeof(mac_ctx));return PK_ERR;
+        }
+        G.inptr+=chunk;G.incnt-=(int)chunk;remaining-=(zoff_t)chunk;
+    }
+    for(i=0;i<16;i++){j=NEXTBYTE;if(j==EOF){undefer_input(__G);return PK_ERR;}tag[i]=(unsigned char)j;}
+    for(i=0;i<4;i++){j=NEXTBYTE;if(j==EOF){undefer_input(__G);return PK_ERR;}fin[i]=(unsigned char)j;}
+    iz_ae3_final(&mac_ctx,calctag,calcfin);
+    iz_aes_wipe(&mac_ctx,sizeof(mac_ctx));
+    if(!iz_ae3_equal(tag,calctag,16) || !iz_ae3_equal(fin,calcfin,4)){
+        undefer_input(__G);iz_aes_wipe(salt,sizeof(salt));
+        Info(slide,0x401,((char *)slide,"AE-3 authentication failed: %s\n",FnFilter1(G.filename)));
+        return PK_ERR;
+    }
+    undefer_input(__G);
+    r=seek_zipf(__G__ encrypted_start-G.extra_bytes);
+    if(r!=PK_OK){iz_aes_wipe(salt,sizeof(salt));return r;}
+    G.csize=cipher_len;
+    iz_aes_wipe(salt,sizeof(salt));
+    G.aes_active=3;
+    defer_leftover_input(__G);
+    if(G.incnt>0)iz_ae3_decrypt(&G.ae3_ctx,G.inptr,(size_t)G.incnt);
+    undefer_input(__G);
+    return PK_COOL;
+}
 #endif /* !NO_AES */
 
 #ifdef USE_PPMD
@@ -2603,11 +2686,13 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
            (G.crec.general_purpose_bit_flag&0x2040))return 0;
         G.pInfo->aes_strength=strength;
         G.pInfo->aes_version=v;
+        G.pInfo->aes_iterations=(v==3)?wzaes_ae3_iterations(G.extra_field,G.crec.extra_field_length):0;
         G.pInfo->aes_method=m;
         G.crec.compression_method=(ush)m;
     } else {
         G.pInfo->aes_strength=0;
         G.pInfo->aes_version=0;
+        G.pInfo->aes_iterations=0;
         G.pInfo->aes_method=0;
     }
 #endif
@@ -3062,6 +3147,8 @@ static int extract_or_test_entrylist(__G__ numchunk,
             if(ar!=1 || G.lrec.compression_method!=99 ||
                v!=G.pInfo->aes_version ||
                strength!=G.pInfo->aes_strength || m!=G.pInfo->aes_method ||
+               (v==3 && wzaes_ae3_iterations(G.extra_field,
+                  G.lrec.extra_field_length)!=G.pInfo->aes_iterations) ||
                !(G.lrec.general_purpose_bit_flag&1)) {
                 Info(slide,0x401,((char *)slide,
                     "malformed WinZip AES metadata: %s\n",FnFilter1(G.filename)));
@@ -3112,8 +3199,8 @@ static int extract_or_test_entrylist(__G__ numchunk,
             if (G.pInfo->encrypted) {
 #ifndef NO_AES
                 if(G.pInfo->aes_strength) {
-                    zusz_t overhead = (zusz_t)iz_aes_salt_size(
-                                          G.pInfo->aes_strength)+12;
+                    zusz_t overhead = G.pInfo->aes_version==3 ? 44 :
+                        (zusz_t)iz_aes_salt_size(G.pInfo->aes_strength)+12;
                     if(csiz_decrypted < overhead){
                         error_in_archive=PK_ERR;continue;
                     }
@@ -3148,7 +3235,8 @@ static int extract_or_test_entrylist(__G__ numchunk,
 #if CRYPT || !defined(NO_AES)
 #ifndef NO_AES
         if (G.pInfo->aes_strength) {
-            error=iz_aes_authenticate(__G);
+            error=(G.pInfo->aes_version==3) ?
+                iz_ae3_authenticate(__G) : iz_aes_authenticate(__G);
         } else
 #endif
 #if CRYPT
@@ -4165,10 +4253,11 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 #ifndef NO_AES
     G.aes_active=0;
     iz_aes_wipe(&G.aes_ctx,sizeof(G.aes_ctx));
+    iz_aes_wipe(&G.ae3_ctx,sizeof(G.ae3_ctx));
     /* AE-2 normally has CRC32=0 and relies on its verified HMAC.
      * Some third-party AE-2 writers include a real CRC; verify it when
      * present instead of silently ignoring it. */
-    if(G.pInfo->aes_strength && G.pInfo->aes_version==2 &&
+    if(G.pInfo->aes_strength && G.pInfo->aes_version!=1 &&
        G.lrec.crc32==0)
         crc_bad=FALSE;
     else
@@ -4236,8 +4325,9 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
     /* The already verified 10-byte authentication code is outside the
      * encrypted compressed stream and precedes the ZIP data descriptor. */
     if (G.pInfo->aes_strength) {
-        uch auth_after_data[10];
-        if (readbuf(__G__ (char *)auth_after_data, 10) != 10)
+        uch auth_after_data[20];
+        unsigned trailer_len=G.pInfo->aes_version==3?20U:10U;
+        if (readbuf(__G__ (char *)auth_after_data, trailer_len) != trailer_len)
             error = PK_ERR;
     }
 #endif

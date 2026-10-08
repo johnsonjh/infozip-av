@@ -388,6 +388,7 @@ extern ulg dcl_implode_dict;    /* DCL dictionary bytes: 0=automatic */
 extern int dcl_implode_optimal; /* DCL optimal parse enabled */
 extern int iz_aes_mode;
 extern int iz_aes_strength;
+extern int iz_aes_quantum;
 extern int zstd_level;          /* 0=generic mapping, otherwise native 1..22 */
 extern int translate_eol;       /* Translate end-of-line LF -> CR LF */
 #ifdef VMS

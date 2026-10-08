@@ -413,7 +413,8 @@ int list_files(__G)    /* return PK-type error code */
             csiz = G.crec.csize;
             if (G.crec.general_purpose_bit_flag & 1) {
                 if (G.crec.compression_method == 99 && aes_status == 1) {
-                    aes_ovh = wzaes_overhead(aes_strength);
+                    aes_ovh = (aes_version == 3 ? 44U :
+                               wzaes_overhead(aes_strength));
                     if ((zusz_t)aes_ovh <= csiz)
                         csiz -= aes_ovh;
                 } else if (G.crec.compression_method != 99 && csiz >= 12) {

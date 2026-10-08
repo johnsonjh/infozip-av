@@ -20,6 +20,22 @@ typedef struct {
     unsigned stream_pos;
     iz_hmac mac;
 } iz_wzaes;
+/* AE-3 uses PBKDF2-HMAC-SHA256, domain-separated HKDF, AES-256-GCM. */
+typedef struct {
+    iz_wzaes aes;
+    unsigned char aut[32], j0[16], ctr[16], stream[16];
+    unsigned char h[16], acc[16], partial[16];
+    unsigned stream_n, partial_n;
+    unsigned long data_lo, data_hi;
+} iz_ae3;
+int iz_ae3_init(iz_ae3 *, const char *, const unsigned char [16],
+                const unsigned char [4], unsigned long, unsigned char [4]);
+void iz_ae3_salt_counter(const unsigned char [16], unsigned char [4]);
+int iz_ae3_update(iz_ae3 *, const unsigned char *, size_t);
+int iz_ae3_encrypt(iz_ae3 *, unsigned char *, size_t);
+void iz_ae3_decrypt(iz_ae3 *, unsigned char *, size_t);
+void iz_ae3_final(iz_ae3 *, unsigned char [16], unsigned char [4]);
+int iz_ae3_equal(const unsigned char *, const unsigned char *, size_t);
 unsigned iz_aes_salt_size(unsigned strength);
 int iz_aes_init(iz_wzaes *ctx, const char *password,
                 const unsigned char *salt, unsigned strength,

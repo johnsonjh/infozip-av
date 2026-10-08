@@ -2809,7 +2809,11 @@ int ef_scan_for_wzaes(ef_buf, ef_len, version, strength, method)
             v = (unsigned)ef_buf[off+4] | ((unsigned)ef_buf[off+5] << 8);
             sz = (unsigned)ef_buf[off+8];
             m = (unsigned)ef_buf[off+9] | ((unsigned)ef_buf[off+10] << 8);
-            if ((v != 1 && v != 2) || ef_buf[off+6] != 'A' ||
+            if ((v != 1 && v != 2 && v != 3) ||
+                (v==3 ? (n!=9 || sz!=3 ||
+                 ((unsigned)ef_buf[off+11] | ((unsigned)ef_buf[off+12]<<8)) < 32 ||
+                 ((unsigned)ef_buf[off+11] | ((unsigned)ef_buf[off+12]<<8)) > 6400) : 0) ||
+                ef_buf[off+6] != 'A' ||
                 ef_buf[off+7] != 'E' || sz < 1 || sz > 3 || m == 99)
                 return -1;
             if (version != NULL)
@@ -2823,6 +2827,22 @@ int ef_scan_for_wzaes(ef_buf, ef_len, version, strength, method)
         off += n + EB_HEADSIZE;
     }
     return seen ? 1 : 0;
+}
+
+/* Call only after ef_scan_for_wzaes succeeds with version 3. */
+unsigned long wzaes_ae3_iterations(ef_buf, ef_len)
+    ZCONST uch *ef_buf; unsigned ef_len;
+{
+    unsigned off=0,n;
+    while(off+4<=ef_len){
+        n=(unsigned)ef_buf[off+2] | ((unsigned)ef_buf[off+3]<<8);
+        if(n>ef_len-off-4)return 0;
+        if(ef_buf[off]==1 && ef_buf[off+1]==0x99 && n==9)
+            return ((unsigned long)ef_buf[off+11] |
+                    ((unsigned long)ef_buf[off+12]<<8))*10000UL;
+        off+=n+4;
+    }
+    return 0;
 }
 
 /* Bytes included in ZIP compressed size but outside the encrypted

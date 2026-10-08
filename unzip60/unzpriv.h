@@ -2140,6 +2140,7 @@ typedef struct min_info {
 #ifndef NO_AES
     unsigned aes_strength;
     unsigned aes_version;
+    unsigned long aes_iterations;
     unsigned aes_method;
 #endif
     unsigned encrypted : 1;  /* file encrypted: decrypt before uncompressing */
@@ -2409,6 +2410,7 @@ int      ef_scan_for_wzaes       OF((ZCONST uch *ef_buf, unsigned ef_len,
                                      unsigned *version, unsigned *strength,
                                      unsigned *method));
 unsigned wzaes_overhead          OF((unsigned strength));
+unsigned long wzaes_ae3_iterations OF((ZCONST uch *ef_buf, unsigned ef_len));
 #if (defined(RISCOS) || defined(ACORN_FTYPE_NFS))
    zvoid *getRISCOSexfield       OF((ZCONST uch *ef_buf, unsigned ef_len));
 #endif

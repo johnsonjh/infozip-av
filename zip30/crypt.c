@@ -37,6 +37,7 @@
 #include "wzaes.h"
 #if defined(ZIP) && !defined(UTIL)
 extern iz_wzaes iz_zip_aes_ctx;
+extern iz_ae3 iz_zip_ae3_ctx;
 extern int iz_zip_aes_active;
 #endif
 #endif
@@ -471,8 +472,11 @@ unsigned zfwrite(buf, item_size, nb)
 
 #ifndef NO_AES
     if (iz_zip_aes_active) {
-        iz_aes_encrypt(&iz_zip_aes_ctx, (unsigned char *)buf,
-                       (size_t)item_size * (size_t)nb);
+        if (iz_zip_aes_active == 3) {
+            if (!iz_ae3_encrypt(&iz_zip_ae3_ctx,(unsigned char *)buf,
+                                (size_t)item_size * (size_t)nb))return 0;
+        } else iz_aes_encrypt(&iz_zip_aes_ctx,(unsigned char *)buf,
+                             (size_t)item_size * (size_t)nb);
         return bfwrite(buf, item_size, nb, BFWRITE_DATA);
     }
 #endif
@@ -709,8 +713,13 @@ unsigned iz_aes_zfwrite(buf, item_size, nb)
     extent nb;
 {
     if (iz_zip_aes_active)
-        iz_aes_encrypt(&iz_zip_aes_ctx, (unsigned char *)buf,
-                       (size_t)item_size * (size_t)nb);
+    {
+        if (iz_zip_aes_active == 3) {
+            if (!iz_ae3_encrypt(&iz_zip_ae3_ctx,(unsigned char *)buf,
+                                (size_t)item_size * (size_t)nb))return 0;
+        } else iz_aes_encrypt(&iz_zip_aes_ctx,(unsigned char *)buf,
+                             (size_t)item_size * (size_t)nb);
+    }
     return bfwrite(buf, item_size, nb, BFWRITE_DATA);
 }
 #endif
@@ -721,5 +730,6 @@ unsigned iz_aes_zfwrite(buf, item_size, nb)
 /* Compile shared, strictly C89 AES primitives without build-system changes. */
 #include "wzaes.c"
 iz_wzaes iz_zip_aes_ctx;
+iz_ae3 iz_zip_ae3_ctx;
 int iz_zip_aes_active = 0;
 #endif

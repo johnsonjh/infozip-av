@@ -1567,6 +1567,7 @@ local void help_extended()
 "  -eS       use WinZip AES encryption, prompt for password",
 "  -eP pswd  use WinZip AES encryption, password on command line",
 "  --aes-strength 128|192|256  AES key size (default 256)",
+"  --aes-mode standard|quantum  AE-1/2 (default) or AE-3 (AES-256-GCM)",
 #endif
 "",
 "Splits (archives created as a set of split files):",
@@ -1864,7 +1865,7 @@ local void version_info()
     zstd_opt_ver,
 #endif
 #ifndef NO_AES
-    "WinZip AES           (WinZip-compatible AE-1/AE-2; AES-128/192/256)",
+    "WinZip AES           (WinZip-compatible AE-1/AE-2/AE-3; AES-128/192/256)",
 #endif
 #ifdef PPMD_SUPPORT
     "PPMd Variant I Rev 1 (ZIP method 98; using public-domain PPMd sources)",
@@ -2692,6 +2693,7 @@ int set_filetype(out_path)
 #define o_aes_prompt    0x152
 #define o_aes_pass      0x153
 #define o_aes_strength  0x154
+#define o_aes_mode      0x155
 #define o_sp            0x134
 #define o_su            0x135
 #define o_sU            0x136
@@ -2769,6 +2771,7 @@ struct option_struct far options[] = {
     {"eS", "aes-encrypt", o_NO_VALUE, o_NOT_NEGATABLE, o_aes_prompt, "WinZip AES password prompt"},
     {"eP", "aes-password", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_aes_pass, "WinZip AES command-line password"},
     {"", "aes-strength", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_aes_strength, "AES key strength 128, 192, 256"},
+    {"", "aes-mode", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_aes_mode, "standard AE-1/2 or quantum AE-3"},
     {"e",  "encrypt",     o_NO_VALUE,       o_NOT_NEGATABLE, 'e',  "encrypt entries, ask for password"},
 #ifdef OS2
     {"E",  "longnames",   o_NO_VALUE,       o_NOT_NEGATABLE, 'E',  "use OS2 longnames"},
@@ -3091,6 +3094,7 @@ char **argv;            /* command line tokens */
   dcl_implode_optimal = 0;
   zstd_level = 0;
   iz_aes_mode = 0;
+  iz_aes_quantum = 0;
   iz_aes_strength = 256;
   iz_aes_selected = 0;
   iz_zipcrypto_selected = 0;
@@ -3608,6 +3612,16 @@ char **argv;            /* command line tokens */
           if (key != NULL) free(key);
           key = value;
           key_needed = 0;
+#else
+          ZIPERR(ZE_PARMS, "AES support disabled at build time");
+#endif
+          break;
+        case o_aes_mode:
+#ifndef NO_AES
+          if (!strcmp(value,"standard")) iz_aes_quantum = 0;
+          else if (!strcmp(value,"quantum")) iz_aes_quantum = 1;
+          else ZIPERR(ZE_PARMS, "--aes-mode must be standard or quantum");
+          free(value);
 #else
           ZIPERR(ZE_PARMS, "AES support disabled at build time");
 #endif
@@ -4464,6 +4478,10 @@ char **argv;            /* command line tokens */
 
   if (iz_aes_selected && iz_zipcrypto_selected)
     ZIPERR(ZE_PARMS, "cannot combine WinZip AES and traditional ZipCrypto options");
+  if (iz_aes_quantum && iz_aes_strength != 256)
+    ZIPERR(ZE_PARMS, "quantum mode requires 256-bit AES");
+  if (iz_aes_quantum && !iz_aes_selected)
+    ZIPERR(ZE_PARMS, "--aes-mode quantum requires -eS or -eP");
   if (iz_aes_strength_selected && !iz_aes_selected)
     ZIPERR(ZE_PARMS, "--aes-strength requires -eS or -eP");
   pkav_validate_options();

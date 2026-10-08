@@ -22,6 +22,7 @@
 #ifndef NO_AES
 #include "wzaes.h"
 extern iz_wzaes iz_zip_aes_ctx;
+extern iz_ae3 iz_zip_ae3_ctx;
 extern int iz_zip_aes_active;
 #endif
 #include <ctype.h>
@@ -422,22 +423,24 @@ local int iz_aes_append_extra(z, version, strength, method)
 {
     unsigned l = z->ext, c = z->cext;
     char *lp, *cp;
-    unsigned char ef[11];
-    if (l > EF_SIZE_MAX - 11 || c > EF_SIZE_MAX - 11) return ZE_BIG;
-    ef[0]=1; ef[1]=0x99; ef[2]=7; ef[3]=0;
+    unsigned char ef[13];
+    unsigned field_len = version==3 ? 13U : 11U;
+    if (l > EF_SIZE_MAX - field_len || c > EF_SIZE_MAX - field_len) return ZE_BIG;
+    ef[0]=1; ef[1]=0x99; ef[2]=(unsigned char)(field_len-4); ef[3]=0;
     ef[4]=(unsigned char)version; ef[5]=0;
     ef[6]='A'; ef[7]='E';
     ef[8]=(unsigned char)(strength==128?1:strength==192?2:3);
     ef[9]=(unsigned char)method; ef[10]=(unsigned char)(method>>8);
-    lp=(char *)malloc(l+11);if(!lp)return ZE_MEM;
-    cp=(char *)malloc(c+11);if(!cp){free(lp);return ZE_MEM;}
+    if (version==3) {ef[11]=60;ef[12]=0;}
+    lp=(char *)malloc(l+field_len);if(!lp)return ZE_MEM;
+    cp=(char *)malloc(c+field_len);if(!cp){free(lp);return ZE_MEM;}
     if(l)memcpy(lp,z->extra,l);
     if(c)memcpy(cp,z->cextra,c);
-    memcpy(lp+l,ef,11);memcpy(cp+c,ef,11);
+    memcpy(lp+l,ef,field_len);memcpy(cp+c,ef,field_len);
     if(z->extra!=z->cextra) {free(z->extra);free(z->cextra);}
     else free(z->extra);
-    z->extra=lp;z->ext=(ush)(l+11);
-    z->cextra=cp;z->cext=(ush)(c+11);
+    z->extra=lp;z->ext=(ush)(l+field_len);
+    z->cextra=cp;z->cext=(ush)(c+field_len);
     return ZE_OK;
 }
 local void iz_aes_change_info(z, version, method)
@@ -467,27 +470,50 @@ local int iz_aes_write_initial(strength, password)
     int strength;
     const char *password;
 {
-    unsigned char salt[16],ver[2];
-    unsigned n=iz_aes_salt_size((unsigned)strength);
+    unsigned char salt[16],ver[4],ctr[4];
+    unsigned n=iz_aes_quantum ? 16U : iz_aes_salt_size((unsigned)strength);
     if(!iz_aes_entropy(salt,n))return ZE_TEMP;
-    if(!iz_aes_init(&iz_zip_aes_ctx,password,salt,(unsigned)strength,ver)) {
-       iz_aes_wipe(salt,sizeof(salt));return ZE_TEMP;
-    }
-    if (bfwrite(salt,1,(extent)n,BFWRITE_DATA)!=n ||
-        bfwrite(ver,1,2,BFWRITE_DATA)!=2) {
-       iz_aes_wipe(salt,sizeof(salt));
-       iz_aes_wipe(&iz_zip_aes_ctx,sizeof(iz_zip_aes_ctx));
-       return ZE_TEMP;
+    if (iz_aes_quantum) {
+        iz_ae3_salt_counter(salt,ctr);
+        if (!iz_ae3_init(&iz_zip_ae3_ctx,password,salt,ctr,600000UL,ver)) {
+            iz_aes_wipe(salt,sizeof(salt));return ZE_TEMP;
+        }
+        if (bfwrite(salt,1,16,BFWRITE_DATA)!=16 ||
+            bfwrite(ver,1,4,BFWRITE_DATA)!=4 ||
+            bfwrite(ctr,1,4,BFWRITE_DATA)!=4) {
+            iz_aes_wipe(salt,sizeof(salt));
+            iz_aes_wipe(&iz_zip_ae3_ctx,sizeof(iz_zip_ae3_ctx));
+            return ZE_TEMP;
+        }
+        iz_zip_aes_active=3;
+    } else {
+        if(!iz_aes_init(&iz_zip_aes_ctx,password,salt,(unsigned)strength,ver)) {
+            iz_aes_wipe(salt,sizeof(salt));return ZE_TEMP;
+        }
+        if (bfwrite(salt,1,(extent)n,BFWRITE_DATA)!=n ||
+            bfwrite(ver,1,2,BFWRITE_DATA)!=2) {
+            iz_aes_wipe(salt,sizeof(salt));
+            iz_aes_wipe(&iz_zip_aes_ctx,sizeof(iz_zip_aes_ctx));
+            return ZE_TEMP;
+        }
+        iz_zip_aes_active=1;
     }
     iz_aes_wipe(salt,sizeof(salt));
-    iz_zip_aes_active=1;
     return ZE_OK;
 }
 local int iz_aes_write_final()
 {
-    unsigned char auth[10];
-    unsigned n;
+    unsigned char auth[20],fin[4];
+    unsigned n,quantum=(iz_zip_aes_active==3);
     iz_zip_aes_active=0;
+    if (quantum) {
+        iz_ae3_final(&iz_zip_ae3_ctx,auth,fin);
+        n=bfwrite(auth,1,16,BFWRITE_DATA);
+        if(n==16)n=bfwrite(fin,1,4,BFWRITE_DATA);
+        iz_aes_wipe(&iz_zip_ae3_ctx,sizeof(iz_zip_ae3_ctx));
+        iz_aes_wipe(auth,sizeof(auth));iz_aes_wipe(fin,sizeof(fin));
+        return n==4?ZE_OK:ZE_TEMP;
+    }
     iz_aes_auth(&iz_zip_aes_ctx,auth);
     n=bfwrite(auth,1,10,BFWRITE_DATA);
     iz_aes_wipe(auth,sizeof(auth));
@@ -1149,8 +1175,9 @@ struct zlist far *z;    /* zip entry to compress */
   iz_zip_aes_active = 0;
   if (!isdir && iz_aes_mode && key != NULL) {
       iz_aes_entry = 1;
-      iz_aes_version = ((q >= 0 && q < 20) || m == BZIP2) ? 2 : 1;
-      iz_aes_overhead = iz_aes_salt_size((unsigned)iz_aes_strength) + 12;
+      iz_aes_version = iz_aes_quantum ? 3 : (((q >= 0 && q < 20) || m == BZIP2) ? 2 : 1);
+      iz_aes_overhead = iz_aes_quantum ? 44U : iz_aes_salt_size((unsigned)iz_aes_strength) + 12;
+      if (iz_aes_quantum && z->ver < 20) z->ver = 20;
       if ((r=iz_aes_append_extra(z,iz_aes_version,iz_aes_strength,m))!=ZE_OK)
           return r;
       z->how = 99;
@@ -1197,7 +1224,7 @@ struct zlist far *z;    /* zip entry to compress */
       if ((r=iz_aes_write_initial(iz_aes_strength,key))!=ZE_OK)
         return r;
       z->siz += iz_aes_overhead;
-      tempzn += iz_aes_salt_size((unsigned)iz_aes_strength) + 2;
+      tempzn += iz_aes_quantum ? 24 : iz_aes_salt_size((unsigned)iz_aes_strength) + 2;
     } else
 #endif
     {
@@ -1377,11 +1404,11 @@ struct zlist far *z;    /* zip entry to compress */
       /* A compressor may fall back to STORE after the initial AES choice.
        * Re-evaluate the WinZip AE-1/AE-2 policy when that happens.  Such
        * method fallback is seekable, so the local extra field can be rewritten. */
-      if (m != method)
+      if (m != method && !iz_aes_quantum)
         final_aes_version = ((isize < 20) || m == BZIP2) ? 2U : 1U;
       iz_aes_version = (int)final_aes_version;
       iz_aes_change_info(z,final_aes_version,(unsigned)m);
-      tempzn += 10;
+      tempzn += iz_aes_quantum ? 20 : 10;
   }
 #endif
   tempzn += s;
@@ -1425,7 +1452,7 @@ struct zlist far *z;    /* zip entry to compress */
   {
     /* Try to rewrite the local header with correct information */
 #ifndef NO_AES
-    z->crc = (iz_aes_entry && iz_aes_version==2) ? 0 : crc;
+    z->crc = (iz_aes_entry && iz_aes_version!=1) ? 0 : crc;
 #else
     z->crc = crc;
 #endif

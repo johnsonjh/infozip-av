@@ -44,6 +44,7 @@ int dcl_implode_mode = 0;    /* 0=binary literals, 1=ASCII literals */
 ulg dcl_implode_dict = 0;    /* 0=automatic, otherwise 1K/2K/4K */
 int dcl_implode_optimal = 0; /* 1=enable optimal DCL parse */
 int zstd_level = 0;
+int iz_aes_quantum = 0; /* --aes-mode=quantum */
 int iz_aes_mode = 0;     /* zero=ZipCrypto/off, one=WinZip AES */
 int iz_aes_strength = 256; /* AES key size in bits */
 int translate_eol = 0;  /* Translate end-of-line LF -> CR LF */

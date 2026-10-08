@@ -789,7 +789,9 @@ int readbyte(__G)   /* refill inbuf and return a byte if available, else EOF */
 #ifndef NO_AES
         /* Decrypt each newly loaded input span exactly once.  In particular,
          * do not decrypt the remaining buffer on every readbyte() call. */
-        if (G.aes_active)
+        if (G.aes_active==3)
+            iz_ae3_decrypt(&G.ae3_ctx,G.inptr,(size_t)G.incnt);
+        else if (G.aes_active)
             iz_aes_decrypt(&G.aes_ctx, G.inptr, (size_t)G.incnt);
 #endif
     }
@@ -834,7 +836,9 @@ int fillinbuf(__G) /* like readbyte() except returns number of bytes in inbuf */
     defer_leftover_input(__G);           /* decrements G.csize */
 
 #ifndef NO_AES
-    if (G.aes_active)
+    if (G.aes_active==3)
+        iz_ae3_decrypt(&G.ae3_ctx,G.inptr,(size_t)G.incnt);
+    else if (G.aes_active)
         iz_aes_decrypt(&G.aes_ctx, G.inptr, (size_t)G.incnt);
 #endif
 #if CRYPT

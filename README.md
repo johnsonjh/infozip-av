@@ -33,8 +33,9 @@ This project adds extensive new algorithm support, full
 (create *and* verify for PKAV 2.x, verification‑only for PKAV 1.x),
 [FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
 ([MD5](https://en.wikipedia.org/wiki/MD5)), and
-[AES cryptography](https://www.winzip.com/en/support/aes-encryption/) (AE‑1
-and AE‑2) to [Info‑ZIP](https://infozip.sourceforge.net/).
+[AES cryptography](https://www.winzip.com/en/support/aes-encryption/)
+(**AE‑1**, **AE‑2**, and **AE‑3**) to
+[Info‑ZIP](https://infozip.sourceforge.net/).
 
 The ability to *both compress and decompress* archives using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**
