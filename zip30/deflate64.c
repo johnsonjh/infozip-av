@@ -1380,6 +1380,8 @@ d64_emit_dynamic (d64_writer *w, const d64_token *tok, unsigned long ntok,
   return d64_emit_tokens (w, tok, ntok, ll, llcode, dd, ddcode);
 }
 
+#include "d64opt.inc"
+
 static int
 d64_encode_block (d64_encoder *e, const unsigned char *raw,
                   unsigned long raw_len, unsigned long ntok,
@@ -1588,7 +1590,15 @@ d64_encode (d64_read_func read_cb, d64_write_func write_cb, void *opaque,
             }
         }
 
-      ntok = d64_tokenize (&e, start, &end, litfreq, distfreq);
+      {
+        d64_stats before;
+        before = e.stats;
+        ntok = d64_tokenize (&e, start, &end, litfreq, distfreq);
+
+        if (e.level >= 8)
+          ntok = d64_optimize (&e, start, end, ntok, litfreq, distfreq,
+                               &before);
+      }
 
       if (ntok > D64_MAX_TOKENS)
         {
