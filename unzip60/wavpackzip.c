@@ -243,14 +243,17 @@ uz_wavpack_decompress (__G) __GDEF
   zusz_t remaining;
   char error[128];
 
-  stream.left = G.csize + (zoff_t)G.incnt;
-
-  if (stream.left <= 0 || (uint64_t)stream.left > INT64_MAX)
-    {
-      return PK_ERR;
-    }
-
-  stream.length = (int64_t)stream.left;
+  /* Check before addition: a malformed ZIP64 size must not overflow the
+   * signed input counter, even transiently.  WavPack uses int64_t lengths. */
+  if (G.csize < 0 || G.incnt < 0 ||
+      (uint64_t)G.csize > (uint64_t)INT64_MAX - (uint64_t)G.incnt)
+    return PK_ERR;
+  stream.length = (int64_t)G.csize + (int64_t)G.incnt;
+  if (stream.length <= 0 ||
+      (sizeof(zoff_t) < sizeof(int64_t) &&
+       stream.length > (int64_t)LONG_MAX))
+    return PK_ERR;
+  stream.left = (zoff_t)stream.length;
   stream.position = 0;
   stream.pushed = -1;
   stream.last = -1;
