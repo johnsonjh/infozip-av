@@ -28,14 +28,14 @@
 
 ## Overview
 
-This project adds extensive new algorithm support, full
+This project adds extensive new algorithm support, security hardening, full
 [PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification)
 (create *and* verify for PKAV 2.x, verification‑only for PKAV 1.x),
 [FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
-([MD5](https://en.wikipedia.org/wiki/MD5)), and
+[MD5](https://en.wikipedia.org/wiki/MD5), and
 [AES cryptography](https://www.winzip.com/en/support/aes-encryption/)
-(**AE‑1**, **AE‑2**, and the quantum‑resistant **AE‑3**) to
-[Info‑ZIP](https://infozip.sourceforge.net/):
+(**AE‑1**, **AE‑2**, and “quantum‑resistant” **AE‑3**) to
+[Info‑ZIP](https://infozip.sourceforge.net/).
 
 The ability to *both compress and decompress* archives using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**
@@ -79,7 +79,7 @@ support is available (when compressing using `zip ‑11`):
 **NB**: Methods 1 through 6 are legacy algorithms and are no longer
 recommended for use.
 
-These changes are built using Fedora's current Info‑ZIP
+These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
 [`unzip`](https://src.fedoraproject.org/rpms/unzip) (6.0‑71,&nbsp;2026‑07‑27)
 source packages as a base.
@@ -87,7 +87,7 @@ source packages as a base.
 If you want, you can compare the changes against the Fedora upstream version
 using [GitHub](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
 or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav),
-or clone the repo and compile it using "`./build.sh`" (on most Unix systems
+or clone the repo and compile it using “`./build.sh`” (on most Unix systems
 with GCC).
 
 ## Usage
@@ -174,7 +174,7 @@ The `unzipsfx` self‑extracting stub handles PKAV automatically.
 
 > [!IMPORTANT]
 > When creating a self‑extracting archive, ensure that you correct the entry
-> offsets using the `zip ‑A` command.  If you don't run `zip ‑A` the archive
+> offsets using the `zip ‑A` command.  If you donʼt run `zip ‑A` the archive
 > is not a fully conforming ZIP file and other software (especially PKWARE
 > software) may reject it as invalid or corrupt.
 
@@ -221,7 +221,7 @@ a number of reasons:
 
 1. Mainly to avoid *silently* including FWKCS MD5 metadata when most ZIP
    implementations just *silently* ignore it.  This could be catastrophic for
-   privacy; a "mostly hidden" MD5 hash may betray the contents of an
+   privacy; a “mostly hidden” MD5 hash may betray the contents of an
    encrypted file.
 2. It complicates adding new members to existing archives.  If FWKCS support
    was enabled by default, updating an archive would *silently* create archives
@@ -234,7 +234,7 @@ a number of reasons:
    easily misunderstand FWKCS to be a security feature, and it is not.
 5. Requiring opt‑in when listing (`‑l`) and verbosely listing (`‑v`) ensures
    that users who are further processing the output (*e.g.*, `AWK` scripts)
-   won't experience regressions.
+   wonʼt experience regressions.
 
 #### FWKCS archive creation (`zip`)
 
@@ -303,7 +303,7 @@ At least one error was detected in pkstuff.zip.
 
 > [!IMPORTANT]
 > When creating a self‑extracting archive, ensure that you correct the entry
-> offsets using the `zip ‑A` command.  If you don't run `zip ‑A` the archive
+> offsets using the `zip ‑A` command.  If you donʼt run `zip ‑A` the archive
 > is not a fully conforming ZIP file and other software (especially PKWARE
 > software) may reject it as invalid or corrupt.
 
