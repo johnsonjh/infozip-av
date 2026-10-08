@@ -51,7 +51,7 @@ decompression‑only support for **Shrink** (method&nbsp;1), **Reduce** (methods
 support is available (when compressing using `zip ‑11`):
 
 | Method | Description                               | Decompress | Compress |
-|-------:|:------------------------------------------|:-----------|:---------|
+|-------:|:------------------------------------------|:----------:|:--------:|
 |  `0`   | Store&nbsp;(no&nbsp;compression)          |     ✅     |    ✅    |
 |  `1`   | Shrink                                    |     ✅     |          |
 |  `2`   | Reduce&nbsp;(level&nbsp;1)                |     ✅     |          |
