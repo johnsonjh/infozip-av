@@ -36,7 +36,8 @@ static unsigned int minimum(unsigned int x,unsigned int y)
     return x<y?x:y;
 }
 #define WZMP3_PPM_INIT(model,alpha,ctx,order,limit) \
-    wzmp3_ppm_init(&(model),(alpha),(ctx),(order),511U,(limit))
+    wzmp3_ppm_init(&(model),(alpha),(ctx),(order),511U,(limit), \
+                   ar->source->memory)
 #define SYM(model,context) \
     (wzmp3_ppm_shift(&(model),(context)))
 #define NEXT(model,out) \
@@ -89,7 +90,7 @@ int wzmp3_regions_decode(wzmp3_range *ar,const wzmp3_header *h,
         }
         if(!wzmp3_ppm_flush(&mr0,1) || !wzmp3_ppm_flush(&mr1,1) ||
            !wzmp3_ppm_flush(&mb,1))goto done;
-        prev0=prev1=prev_size0=ctxsmall=0;
+        prev0=prev_size0=ctxsmall=0;
         for(i=0;i<n;++i){
             wzmp3_granule *x=cur+i;
             unsigned int sband;

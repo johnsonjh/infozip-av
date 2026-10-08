@@ -2119,6 +2119,7 @@ typedef struct refptr_candidate {
     zusz_t compressed, uncompressed;
     ulg crc;
     ush method, flags;
+    int supported;
 } refptr_candidate;
 #endif
 

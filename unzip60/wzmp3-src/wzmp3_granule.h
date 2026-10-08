@@ -7,6 +7,7 @@
 #include "wzmp3_regions.h"
 
 typedef struct {
+    wzmp3_memory *memory;
     wzmp3_ppm_model *scale_models;
     wzmp3_ppm_model small_bound;
     wzmp3_ppm_model damaged_bound;
@@ -21,7 +22,7 @@ typedef struct {
     int pending_bound;
 } wzmp3_granule_state;
 
-int wzmp3_granule_init(wzmp3_granule_state *st, const wzmp3_header *h);
+int wzmp3_granule_init(wzmp3_granule_state *st, const wzmp3_header *h, wzmp3_memory *memory);
 /* Call exactly once for each granule in frame/granule/channel order.
  * Spectral decoding MUST be performed between successive calls by the
  * eventual complete decoder; this API does not do it on its own.

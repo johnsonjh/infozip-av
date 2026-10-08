@@ -16,7 +16,7 @@ trap 'rm -f "$TMPH" "$TMPC"' 0 1 2 3 15
   echo '#ifndef WZMP3_AMALGAMATED_H'
   echo '#define WZMP3_AMALGAMATED_H'
   echo '#include <stddef.h>'
-  for part in core ppm regions granule binary spectral mpeg make join decode tail codebooks; do
+  for part in memory core ppm regions granule binary spectral mpeg make join decode tail codebooks; do
     echo "/* ===== BEGIN wzmp3_${part}.h ===== */"
     sed '/^#include "wzmp3_[a-z_]*\.h"/d' "$CDIR/wzmp3_${part}.h"
     echo "/* ===== END wzmp3_${part}.h ===== */"
@@ -28,7 +28,7 @@ trap 'rm -f "$TMPH" "$TMPC"' 0 1 2 3 15
   echo ' * Source code MIT-0; codebook data from minimp3, CC0-1.0.'
   echo ' */'
   echo '#include "wzmp3.h"'
-  for part in core ppm binary regions granule spectral mpeg tail make join decode codebooks; do
+  for part in memory core ppm binary regions granule spectral mpeg tail make join decode codebooks; do
     echo "/* ===== BEGIN wzmp3_${part}.c ===== */"
     sed '/^#include "wzmp3_[a-z_]*\.h"/d' "$CDIR/wzmp3_${part}.c"
     echo "/* ===== END wzmp3_${part}.c ===== */"

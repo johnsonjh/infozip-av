@@ -19,7 +19,7 @@ static unsigned int expected_bitrate(unsigned int main_size,unsigned int hz)
     for(i=1;i<=14U;i++)if(main_size<mp3_frame_bytes(br_kbps[i],hz))return i;
     return 15U;
 }
-int wzmp3_tail_init(wzmp3_tail *t,const wzmp3_header *h)
+int wzmp3_tail_init(wzmp3_tail *t,const wzmp3_header *h,wzmp3_memory *memory)
 {
     if(!t || !h || h->channels<1U || h->channels>2U ||
        (h->samplerate!=44100U && h->samplerate!=48000U &&
@@ -39,8 +39,8 @@ int wzmp3_tail_init(wzmp3_tail *t,const wzmp3_header *h)
         unsigned int k;
         for(k=0;k<256U;k++)t->raw_freq[k][0]=t->raw_freq[k][1]=1;
     }
-    if(!wzmp3_ppm_init(&t->aux_model,256U,256U,1U,511U,150000UL) ||
-       !wzmp3_ppm_init(&t->bitrate_model,16U,16U,1U,511U,40000UL)){
+    if(!wzmp3_ppm_init(&t->aux_model,256U,256U,1U,511U,150000UL,memory) ||
+       !wzmp3_ppm_init(&t->bitrate_model,16U,16U,1U,511U,40000UL,memory)){
         wzmp3_tail_free(t);return 0;
     }
     t->initialized=1;

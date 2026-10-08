@@ -68,7 +68,7 @@ int main(int argc, char **argv)
     if (!out.fp) goto cleanup;
     created = 1;
     wzmp3_input_init(&reader, wzmp3_get, &in, 0UL, (unsigned long)compressed);
-    ok = wzmp3_decode(&reader, books, &options, wzmp3_put, &out);
+    ok = wzmp3_decode(&reader, books, &options, wzmp3_put, &out) == 1;
     if (fclose(out.fp)) ok = 0;
     out.fp = NULL;
 cleanup:

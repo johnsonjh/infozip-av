@@ -118,12 +118,12 @@ int wzmp3_read_repairs(wzmp3_input *s, const wzmp3_header *h,
     if (!wzmp3_input_octet(s, &n) || (unsigned long)n > h->frame_count)
         return 0;
     needed = 1U + (unsigned int)n * (2U + h->channels * 8U);
-    memory = (unsigned char *)malloc((size_t)needed);
+    memory = (unsigned char *)wzmp3_memory_alloc(s->memory,(size_t)needed);
     if (!memory) return 0;
     memory[0] = n;
     for (i = 1; i < needed; ++i) {
         if (!wzmp3_input_octet(s, &memory[i])) {
-            free(memory);
+            wzmp3_memory_free(s->memory,memory);
             return 0;
         }
     }

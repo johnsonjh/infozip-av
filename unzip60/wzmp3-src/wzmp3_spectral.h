@@ -13,6 +13,7 @@ typedef struct wzmp3_bin2_s {
 } wzmp3_bin2;
 
 typedef struct wzmp3_spectral_s {
+    wzmp3_memory *memory;
     wzmp3_ppm_model *magnitudes[2][8][32];
     wzmp3_bin2 *small[2][8][2];
     wzmp3_bin2 *signs[2][8];
@@ -37,7 +38,8 @@ typedef struct wzmp3_spectrum_s {
     unsigned char stuffing_bits[4096]; /* unpacked 0/1; byte output not yet implemented */
 } wzmp3_spectrum;
 
-int wzmp3_spectral_init(wzmp3_spectral *st,const wzmp3_header *header);
+int wzmp3_spectral_init(wzmp3_spectral *st,const wzmp3_header *header,
+                        wzmp3_memory *memory);
 /* Call in frame/granule/channel order; pass the current frame's ch0 block type.
  * For channel 0, ch0_type must equal granule->type, and other_type is
  * the next channel's block type (or the same type for mono).

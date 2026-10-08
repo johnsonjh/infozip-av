@@ -53,17 +53,19 @@ static int bin2_read(wzmp3_bin2 *m,wzmp3_range *r,unsigned int *symbol)
 }
 
 static int new_ppm(wzmp3_ppm_model **p,unsigned int syms,
-                   unsigned int ctx,unsigned int order,unsigned long maxnodes)
+                   unsigned int ctx,unsigned int order,unsigned long maxnodes,
+                   wzmp3_memory *memory)
 {
-    *p=(wzmp3_ppm_model*)calloc(1,sizeof(**p));
+    *p=(wzmp3_ppm_model*)wzmp3_memory_calloc(memory,1U,sizeof(**p));
     if(!*p)return 0;
-    return wzmp3_ppm_init(*p,syms,ctx,order,511U,maxnodes);
+    return wzmp3_ppm_init(*p,syms,ctx,order,511U,maxnodes,memory);
 }
-int wzmp3_spectral_init(wzmp3_spectral *s,const wzmp3_header *h)
+int wzmp3_spectral_init(wzmp3_spectral *s,const wzmp3_header *h,wzmp3_memory *memory)
 {
     unsigned int ch,flag,book,master,maxflag;
     if(!s || !h || h->channels<1U || h->channels>2U)return 0;
     memset(s,0,sizeof(*s));
+    s->memory=memory;
     s->channels=h->channels;
     s->joint=h->channels==2U && h->channel_mode<2U;
     for(ch=0;ch<s->channels;ch++){
@@ -77,22 +79,22 @@ int wzmp3_spectral_init(wzmp3_spectral *s,const wzmp3_header *h)
                     continue;
                 }
                 if(!new_ppm(&s->magnitudes[ch][flag][book],
-                            (unsigned int)book_max[book]+1U,16U,2U,30000UL))goto fail;
+                            (unsigned int)book_max[book]+1U,16U,2U,30000UL,memory))goto fail;
             }
             for(book=0;book<2U;book++){
-                s->small[ch][flag][book]=(wzmp3_bin2*)malloc(sizeof(wzmp3_bin2));
+                s->small[ch][flag][book]=(wzmp3_bin2*)wzmp3_memory_alloc(memory,sizeof(wzmp3_bin2));
                 if(!s->small[ch][flag][book])goto fail;
                 bin2_init(s->small[ch][flag][book]);
             }
-            s->signs[ch][flag]=(wzmp3_bin2*)malloc(sizeof(wzmp3_bin2));
+            s->signs[ch][flag]=(wzmp3_bin2*)wzmp3_memory_alloc(memory,sizeof(wzmp3_bin2));
             if(!s->signs[ch][flag])goto fail;
             bin2_init(s->signs[ch][flag]);
         }
         for(book=1;book<=13;book++)
-            if(!new_ppm(&s->lengths[ch][book],book+1U,14U,1U,30000UL))goto fail;
+            if(!new_ppm(&s->lengths[ch][book],book+1U,14U,1U,30000UL,memory))goto fail;
     }
     bin2_init(&s->remainder);
-    if(!wzmp3_ppm_init(&s->stuffing_count,16U,16U,1U,511U,10000UL))goto fail;
+    if(!wzmp3_ppm_init(&s->stuffing_count,16U,16U,1U,511U,10000UL,memory))goto fail;
     wzmp3_binary_init(&s->stuffing_bits);
     s->initialized=1;
     return 1;
@@ -109,14 +111,14 @@ void wzmp3_spectral_free(wzmp3_spectral *s)
             for(b=1;b<32;b++){
                 if(s->magnitudes[ch][f][b] && book_master[b]==b){
                     wzmp3_ppm_cleanup(s->magnitudes[ch][f][b]);
-                    free(s->magnitudes[ch][f][b]);
+                    wzmp3_memory_free(s->memory,s->magnitudes[ch][f][b]);
                 }
             }
-            for(b=0;b<2;b++)free(s->small[ch][f][b]);
-            free(s->signs[ch][f]);
+            for(b=0;b<2;b++)wzmp3_memory_free(s->memory,s->small[ch][f][b]);
+            wzmp3_memory_free(s->memory,s->signs[ch][f]);
         }
         for(b=1;b<=13;b++)if(s->lengths[ch][b]){
-            wzmp3_ppm_cleanup(s->lengths[ch][b]);free(s->lengths[ch][b]);
+            wzmp3_ppm_cleanup(s->lengths[ch][b]);wzmp3_memory_free(s->memory,s->lengths[ch][b]);
         }
     }
     wzmp3_ppm_cleanup(&s->stuffing_count);

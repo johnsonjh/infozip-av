@@ -6,6 +6,7 @@
 typedef struct wzmp3_ppm_node_s wzmp3_ppm_node;
 
 typedef struct wzmp3_ppm_model_s {
+    wzmp3_memory *memory;
     unsigned int alphabet;
     unsigned int context_alphabet;
     unsigned int order;
@@ -19,7 +20,8 @@ typedef struct wzmp3_ppm_model_s {
 
 int wzmp3_ppm_init(wzmp3_ppm_model *m, unsigned int alphabet,
                    unsigned int context_alphabet, unsigned int order,
-                   unsigned int threshold, unsigned long node_limit);
+                   unsigned int threshold, unsigned long node_limit,
+                   wzmp3_memory *memory);
 void wzmp3_ppm_cleanup(wzmp3_ppm_model *m);
 int wzmp3_ppm_shift(wzmp3_ppm_model *m,unsigned int context);
 int wzmp3_ppm_flush(wzmp3_ppm_model *m,unsigned int shift);

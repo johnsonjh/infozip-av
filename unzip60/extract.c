@@ -409,6 +409,7 @@ static int uz_wzmp3_decompress(__G)
     result = wzmp3_decode(&input, books, &options, uz_wzmp3_write, &io);
     free(books);
     if (io.error) return io.error;
+    if (result < 0) return PK_MEM3;
     if (!result || G.csize != -(zoff_t)G.incnt) return PK_ERR;
     return PK_COOL;
 }
@@ -3627,10 +3628,16 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
                   (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
                   uO.cflag ? NEWLINE : ""));
             error = refptr_extract(__G);
-            if (error != PK_COOL)
-                Info(slide, 0x401, ((char *)slide,
-                  "error: RefPtr source missing, invalid, or digest mismatch: %s\n",
-                  FnFilter1(G.filename)));
+            if (error != PK_COOL) {
+                if (G.refptr_missing_method)
+                    Info(slide, 0x401, ((char *)slide,
+                      "error: RefPtr possible source uses unavailable ZIP compression method %u (size/CRC candidate only): %s\n",
+                      (unsigned)G.refptr_missing_method, FnFilter1(G.filename)));
+                else
+                    Info(slide, 0x401, ((char *)slide,
+                      "error: RefPtr source missing, invalid, or digest mismatch: %s\n",
+                      FnFilter1(G.filename)));
+            }
             break;
 #endif
         case STORED:

@@ -30,7 +30,7 @@ static int run(void)
     memset(&join,0,sizeof(join));
     memset(&out,0,sizeof(out));
     out.limit=sizeof(out.bytes);
-    if(!wzmp3_join_init(&join,4U,2U))return 0;
+    if(!wzmp3_join_init(&join,4U,2U,NULL))return 0;
     if(wzmp3_join_emit(&join,0,0,0,0,collect,&out))return 0;
     if(!wzmp3_join_frame_add(&join,head,21U,23U,0U,audio,8U,tail,8U))return 0;
     if(wzmp3_join_emit(&join,0,0,0,0,collect,&out))return 0;
@@ -41,14 +41,14 @@ static int run(void)
     out.used=0;out.limit=22U;
     if(wzmp3_join_emit(&join,0,0,0,0,collect,&out))return 0;
     wzmp3_join_free(&join);
-    if(!wzmp3_join_init(&join,2U,1U))return 0;
+    if(!wzmp3_join_init(&join,2U,1U,NULL))return 0;
     if(wzmp3_join_frame_add(&join,head,21U,23U,0U,audio,8U,tail,7U))return 0;
     if(wzmp3_join_emit(&join,0,0,0,0,collect,&out))return 0;
     wzmp3_join_free(&join);
-    if(!wzmp3_join_init(&join,2U,1U))return 0;
+    if(!wzmp3_join_init(&join,2U,1U,NULL))return 0;
     if(wzmp3_join_frame_add(&join,head,21U,23U,1U,audio,8U,tail,8U))return 0;
     wzmp3_join_free(&join);
-    if(!wzmp3_join_init(&join,2U,1U))return 0;
+    if(!wzmp3_join_init(&join,2U,1U,NULL))return 0;
     if(wzmp3_join_frame_add(&join,head,21U,23U,512U,audio,8U,tail,8U))return 0;
     wzmp3_join_free(&join);
     return 1;

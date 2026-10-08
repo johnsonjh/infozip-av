@@ -5,6 +5,7 @@
 #ifndef WZMP3_JOIN_H
 #define WZMP3_JOIN_H
 #include <stddef.h>
+#include "wzmp3_memory.h"
 
 typedef struct wzmp3_join_frame_s {
     unsigned char header[40];
@@ -13,6 +14,7 @@ typedef struct wzmp3_join_frame_s {
 } wzmp3_join_frame;
 
 typedef struct wzmp3_join_s {
+    wzmp3_memory *memory;
     wzmp3_join_frame *frames;
     unsigned char *main_data;
     size_t main_capacity;
@@ -27,7 +29,8 @@ typedef int (*wzmp3_write_cb)(void *,const unsigned char *,size_t);
 
 /* main_capacity bounds the entire contiguous MPEG frame-body stream. The
  * caller may choose a stricter limit based on the ZIP uncompressed size. */
-int wzmp3_join_init(wzmp3_join *j,size_t main_capacity,size_t frame_count);
+int wzmp3_join_init(wzmp3_join *j,size_t main_capacity,size_t frame_count,
+                    wzmp3_memory *memory);
 void wzmp3_join_free(wzmp3_join *j);
 /* `audio` is the MPEG part2_3 bitstream of all granules of this frame,
  * concatenated in granule/channel order. `tail` fills the remaining bits

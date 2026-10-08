@@ -24,7 +24,8 @@ typedef struct wzmp3_tail_result_s {
     unsigned int payload_bits;
     unsigned char payload[2048];
 } wzmp3_tail_result;
-int wzmp3_tail_init(wzmp3_tail *tail,const wzmp3_header *header);
+int wzmp3_tail_init(wzmp3_tail *tail,const wzmp3_header *header,
+                    wzmp3_memory *memory);
 int wzmp3_tail_read(wzmp3_tail *tail,wzmp3_range *ar,
                     unsigned int main_bits,unsigned int padding,
                     int last_frame,wzmp3_tail_result *out);

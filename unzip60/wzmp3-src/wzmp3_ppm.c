@@ -20,7 +20,7 @@ static wzmp3_ppm_node *ppm_new(wzmp3_ppm_model *m)
 {
     wzmp3_ppm_node *n;
     if (m->allocated >= m->node_limit) return 0;
-    n=(wzmp3_ppm_node*)calloc(1,sizeof(*n));
+    n=(wzmp3_ppm_node*)wzmp3_memory_calloc(m->memory,1U,sizeof(*n));
     if(!n)return 0;
     n->allocation_next=m->all_nodes;
     m->all_nodes=n;
@@ -33,19 +33,23 @@ void wzmp3_ppm_cleanup(wzmp3_ppm_model *m)
     wzmp3_ppm_node *n, *next;
     if (!m)return;
     n=m->all_nodes;
-    while(n){next=n->allocation_next;free(n->frequency);free(n);n=next;}
+    while(n){next=n->allocation_next;
+        wzmp3_memory_free(m->memory,n->frequency);
+        wzmp3_memory_free(m->memory,n);n=next;}
     memset(m,0,sizeof(*m));
 }
 
 int wzmp3_ppm_init(wzmp3_ppm_model *m,unsigned int alphabet,
                    unsigned int context_alphabet,unsigned int order,
-                   unsigned int threshold,unsigned long node_limit)
+                   unsigned int threshold,unsigned long node_limit,
+                   wzmp3_memory *memory)
 {
     if(!m || alphabet<2 || alphabet>1024 || order>4 ||
        (order && (!context_alphabet || context_alphabet>1024)) ||
        threshold<2 || threshold>65535U || node_limit<1)
         return 0;
     memset(m,0,sizeof(*m));
+    m->memory=memory;
     m->alphabet=alphabet;
     m->context_alphabet=context_alphabet;
     m->order=order;
@@ -114,7 +118,8 @@ int wzmp3_ppm_flush(wzmp3_ppm_model *m,unsigned int shift)
 static int ppm_prepare(wzmp3_ppm_model *m,wzmp3_ppm_node *n)
 {
     if(!n->frequency){
-        n->frequency=(unsigned short*)calloc(m->alphabet,sizeof(unsigned short));
+        n->frequency=(unsigned short*)wzmp3_memory_calloc(m->memory,
+                          m->alphabet,sizeof(unsigned short));
         if(!n->frequency)return 0;
     }
     return 1;

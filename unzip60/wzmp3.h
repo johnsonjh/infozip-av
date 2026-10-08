@@ -4,6 +4,25 @@
 #ifndef WZMP3_AMALGAMATED_H
 #define WZMP3_AMALGAMATED_H
 #include <stddef.h>
+/* ===== BEGIN wzmp3_memory.h ===== */
+/* SPDX-License-Identifier: MIT-0
+ * Per-decoder, C89 allocation accounting. Each block includes its header in
+ * the budget. Does not claim to account for the platform malloc overhead.
+ */
+#ifndef WZMP3_MEMORY_H
+#define WZMP3_MEMORY_H
+#include <stddef.h>
+typedef struct wzmp3_memory_s {
+    size_t current, peak, limit;
+    int exhausted;
+} wzmp3_memory;
+void wzmp3_memory_init(wzmp3_memory *m, size_t limit);
+void *wzmp3_memory_alloc(wzmp3_memory *m, size_t count);
+void *wzmp3_memory_calloc(wzmp3_memory *m, size_t count, size_t size);
+void *wzmp3_memory_realloc(wzmp3_memory *m, void *ptr, size_t count);
+void wzmp3_memory_free(wzmp3_memory *m, void *ptr);
+#endif
+/* ===== END wzmp3_memory.h ===== */
 /* ===== BEGIN wzmp3_core.h ===== */
 /* SPDX-License-Identifier: MIT-0
  * WinZip Method 94 / packMP3 1.0 independently written decoder primitives.
@@ -26,6 +45,7 @@ typedef struct wzmp3_input_s {
     unsigned int bit_byte;
     unsigned int virtual_bits;
     int failed;
+    wzmp3_memory *memory; /* set only for duration of a decode */
 } wzmp3_input;
 
 typedef struct wzmp3_header_s {
@@ -93,6 +113,7 @@ int wzmp3_range_remove(wzmp3_range *d, unsigned long scale,
 typedef struct wzmp3_ppm_node_s wzmp3_ppm_node;
 
 typedef struct wzmp3_ppm_model_s {
+    wzmp3_memory *memory;
     unsigned int alphabet;
     unsigned int context_alphabet;
     unsigned int order;
@@ -106,7 +127,8 @@ typedef struct wzmp3_ppm_model_s {
 
 int wzmp3_ppm_init(wzmp3_ppm_model *m, unsigned int alphabet,
                    unsigned int context_alphabet, unsigned int order,
-                   unsigned int threshold, unsigned long node_limit);
+                   unsigned int threshold, unsigned long node_limit,
+                   wzmp3_memory *memory);
 void wzmp3_ppm_cleanup(wzmp3_ppm_model *m);
 int wzmp3_ppm_shift(wzmp3_ppm_model *m,unsigned int context);
 int wzmp3_ppm_flush(wzmp3_ppm_model *m,unsigned int shift);
@@ -160,6 +182,7 @@ int wzmp3_scalefactor_controls_decode(wzmp3_range *ar,
 #define WZMP3_GRANULE_H
 
 typedef struct {
+    wzmp3_memory *memory;
     wzmp3_ppm_model *scale_models;
     wzmp3_ppm_model small_bound;
     wzmp3_ppm_model damaged_bound;
@@ -174,7 +197,7 @@ typedef struct {
     int pending_bound;
 } wzmp3_granule_state;
 
-int wzmp3_granule_init(wzmp3_granule_state *st, const wzmp3_header *h);
+int wzmp3_granule_init(wzmp3_granule_state *st, const wzmp3_header *h, wzmp3_memory *memory);
 /* Call exactly once for each granule in frame/granule/channel order.
  * Spectral decoding MUST be performed between successive calls by the
  * eventual complete decoder; this API does not do it on its own.
@@ -227,6 +250,7 @@ typedef struct wzmp3_bin2_s {
 } wzmp3_bin2;
 
 typedef struct wzmp3_spectral_s {
+    wzmp3_memory *memory;
     wzmp3_ppm_model *magnitudes[2][8][32];
     wzmp3_bin2 *small[2][8][2];
     wzmp3_bin2 *signs[2][8];
@@ -251,7 +275,8 @@ typedef struct wzmp3_spectrum_s {
     unsigned char stuffing_bits[4096]; /* unpacked 0/1; byte output not yet implemented */
 } wzmp3_spectrum;
 
-int wzmp3_spectral_init(wzmp3_spectral *st,const wzmp3_header *header);
+int wzmp3_spectral_init(wzmp3_spectral *st,const wzmp3_header *header,
+                        wzmp3_memory *memory);
 /* Call in frame/granule/channel order; pass the current frame's ch0 block type.
  * For channel 0, ch0_type must equal granule->type, and other_type is
  * the next channel's block type (or the same type for mono).
@@ -386,6 +411,7 @@ typedef struct wzmp3_join_frame_s {
 } wzmp3_join_frame;
 
 typedef struct wzmp3_join_s {
+    wzmp3_memory *memory;
     wzmp3_join_frame *frames;
     unsigned char *main_data;
     size_t main_capacity;
@@ -400,7 +426,8 @@ typedef int (*wzmp3_write_cb)(void *,const unsigned char *,size_t);
 
 /* main_capacity bounds the entire contiguous MPEG frame-body stream. The
  * caller may choose a stricter limit based on the ZIP uncompressed size. */
-int wzmp3_join_init(wzmp3_join *j,size_t main_capacity,size_t frame_count);
+int wzmp3_join_init(wzmp3_join *j,size_t main_capacity,size_t frame_count,
+                    wzmp3_memory *memory);
 void wzmp3_join_free(wzmp3_join *j);
 /* `audio` is the MPEG part2_3 bitstream of all granules of this frame,
  * concatenated in granule/channel order. `tail` fills the remaining bits
@@ -430,6 +457,8 @@ typedef struct wzmp3_decode_options_s {
     size_t maximum_output; /* hard output bound; should be ZIP uncompressed size */
     unsigned long maximum_frames;
 } wzmp3_decode_options;
+/* Returns 1 on success, 0 for invalid data/output error, and -1 for
+ * exhausted decoder heap budget or system allocation failure. */
 int wzmp3_decode(wzmp3_input *input,const wzmp3_codebook books[34],
                  const wzmp3_decode_options *options,
                  wzmp3_write_cb output,void *output_context);
@@ -461,7 +490,8 @@ typedef struct wzmp3_tail_result_s {
     unsigned int payload_bits;
     unsigned char payload[2048];
 } wzmp3_tail_result;
-int wzmp3_tail_init(wzmp3_tail *tail,const wzmp3_header *header);
+int wzmp3_tail_init(wzmp3_tail *tail,const wzmp3_header *header,
+                    wzmp3_memory *memory);
 int wzmp3_tail_read(wzmp3_tail *tail,wzmp3_range *ar,
                     unsigned int main_bits,unsigned int padding,
                     int last_frame,wzmp3_tail_result *out);

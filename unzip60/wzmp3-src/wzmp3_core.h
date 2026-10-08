@@ -4,6 +4,7 @@
  */
 #ifndef WZMP3_CORE_H
 #define WZMP3_CORE_H
+#include "wzmp3_memory.h"
 
 /* Callback returns 1 and fills *byte, or 0 on failure. */
 typedef int (*wzmp3_read_cb)(void *opaque, unsigned char *byte);
@@ -19,6 +20,7 @@ typedef struct wzmp3_input_s {
     unsigned int bit_byte;
     unsigned int virtual_bits;
     int failed;
+    wzmp3_memory *memory; /* set only for duration of a decode */
 } wzmp3_input;
 
 typedef struct wzmp3_header_s {

@@ -11,7 +11,7 @@
 #define WZMP3_METADATA_MAX ((size_t)16777216U)
 #define WZMP3_FRAME_MAX 2048U
 
-typedef struct wzmp3_buf_s {unsigned char *ptr;size_t len,cap;} wzmp3_buf;
+typedef struct wzmp3_buf_s {unsigned char *ptr;size_t len,cap; wzmp3_memory *memory;} wzmp3_buf;
 static int push(wzmp3_buf *b,unsigned int c)
 {
     size_t n;
@@ -21,7 +21,7 @@ static int push(wzmp3_buf *b,unsigned int c)
         n=b->cap?b->cap*2U:1024U;
         if(n>WZMP3_METADATA_MAX)n=WZMP3_METADATA_MAX;
         if(n<=b->cap)return 0;
-        p=(unsigned char *)realloc(b->ptr,n);
+        p=(unsigned char *)wzmp3_memory_realloc(b->memory,b->ptr,n);
         if(!p)return 0;
         b->ptr=p;b->cap=n;
     }
@@ -36,7 +36,7 @@ static int metadata(wzmp3_range *ar,const wzmp3_header *h,
     wzmp3_buf *b;
     memset(&m,0,sizeof(m));
     if(!h->has_leading_bytes && !h->has_trailing_bytes)return 1;
-    if(!wzmp3_ppm_init(&m,257U,256U,0U,511U,4096UL))return 0;
+    if(!wzmp3_ppm_init(&m,257U,256U,0U,511U,4096UL,ar->source->memory))return 0;
     for(i=0;i<2U;i++){
         if((i==0U && !h->has_leading_bytes) ||
            (i==1U && !h->has_trailing_bytes))continue;
@@ -63,7 +63,7 @@ static int padding_decode(wzmp3_range *ar,const wzmp3_header *h,
         memset(pads,0,(size_t)h->frame_count);
         return 1;
     }
-    if(!wzmp3_ppm_init(&m,256,256,1,511,4096)||
+    if(!wzmp3_ppm_init(&m,256,256,1,511,4096,ar->source->memory)||
        !wzmp3_ppm_decode(&m,ar,&run)||!wzmp3_ppm_shift(&m,run))goto bad;
     for(i=0;i<h->frame_count;i++){
         while(run==0){
@@ -89,8 +89,8 @@ static int switches(wzmp3_range *ar,const wzmp3_header *h,
     memset(&sm,0,sizeof(sm));
     memset(&tm,0,sizeof(tm));
     if(!h->has_special_blocks)return 1;
-    if(!wzmp3_ppm_init(&sm,32,32,1,511,16384)||
-       !wzmp3_ppm_init(&tm,4,4,1,511,4096))goto bad;
+    if(!wzmp3_ppm_init(&sm,32,32,1,511,16384,ar->source->memory)||
+       !wzmp3_ppm_init(&tm,4,4,1,511,4096,ar->source->memory))goto bad;
     for(ch=0;ch<h->channels;++ch){
         if(ch && !h->has_special_differences)break;
         if(!wzmp3_ppm_shift(&sm,0U)||
@@ -136,7 +136,7 @@ static int gain_decode(wzmp3_range *ar,const wzmp3_header *h,
     wzmp3_ppm_model m;
     unsigned long j,n=h->frame_count*2UL;
     unsigned int last=0,code;
-    if(!wzmp3_ppm_init(&m,256,0,0,511,4096))return 0;
+    if(!wzmp3_ppm_init(&m,256,0,0,511,4096,ar->source->memory))return 0;
     for(j=0;j<n;++j){
         if(!wzmp3_ppm_decode(&m,ar,&code))goto bad;
         last=(last+code)&255U;
@@ -160,7 +160,7 @@ static int slength_decode(wzmp3_range *ar,const wzmp3_header *h,
     unsigned long j,n=h->frame_count*2UL;
     unsigned int histogram[256],ch,i,previous,code,v,low;
     unsigned long best,window;
-    if(!wzmp3_ppm_init(&m,16,16,2,511,100000))return 0;
+    if(!wzmp3_ppm_init(&m,16,16,2,511,100000,ar->source->memory))return 0;
     for(ch=0;ch<h->channels;++ch){
         memset(histogram,0,sizeof(histogram));
         for(j=0;j<n;++j)++histogram[g[ch*n+j].gain];
@@ -214,10 +214,14 @@ int wzmp3_decode(wzmp3_input *input,const wzmp3_codebook books[34],
     size_t max_output,nbits,prefix_sum;
     unsigned long fr,n,ng;
     int success=0;
+    wzmp3_memory memory;
     unsigned int granul,ch,bound;
+    wzmp3_memory_init(&memory,1000000000U - 34U*sizeof(*books));
     memset(&prefix,0,sizeof(prefix));memset(&suffix,0,sizeof(suffix));
     memset(&join,0,sizeof(join));memset(&tail,0,sizeof(tail));
     memset(&gs,0,sizeof(gs));memset(&sp,0,sizeof(sp));
+    if(input)input->memory=&memory;
+    prefix.memory=suffix.memory=&memory;
     if(!input || !opt || !output || !books || !opt->maximum_output ||
        !opt->maximum_frames || !wzmp3_parse_header(input,&h) ||
        h.frame_count>opt->maximum_frames ||
@@ -231,18 +235,18 @@ int wzmp3_decode(wzmp3_input *input,const wzmp3_codebook books[34],
     max_output=opt->maximum_output-prefix.len-suffix.len;
     n=h.frame_count*2UL;
     ng=n*h.channels;
-    g=(wzmp3_granule *)calloc((size_t)ng,sizeof(*g));
-    pads=(unsigned char *)calloc((size_t)h.frame_count,1U);
-    ms=(unsigned char *)calloc((size_t)h.frame_count,1U);
+    g=(wzmp3_granule *)wzmp3_memory_calloc(&memory,(size_t)ng,sizeof(*g));
+    pads=(unsigned char *)wzmp3_memory_calloc(&memory,(size_t)h.frame_count,1U);
+    ms=(unsigned char *)wzmp3_memory_calloc(&memory,(size_t)h.frame_count,1U);
     if(!g || !pads || !ms || !padding_decode(&ar,&h,pads) ||
        !switches(&ar,&h,g)||!gain_decode(&ar,&h,g)||
        !slength_decode(&ar,&h,g)||!wzmp3_regions_decode(&ar,&h,g)||
        !wzmp3_scalefactor_controls_decode(&ar,&h,g)||
        !wzmp3_ms_stereo_decode(&ar,&h,ms))goto cleanup;
-    if(!wzmp3_granule_init(&gs,&h)||!wzmp3_spectral_init(&sp,&h)||
-       !wzmp3_tail_init(&tail,&h))goto cleanup;
-    if(!wzmp3_join_init(&join,max_output,(size_t)h.frame_count))goto cleanup;
-    values=(wzmp3_spectrum *)malloc(sizeof(*values));
+    if(!wzmp3_granule_init(&gs,&h,&memory)||!wzmp3_spectral_init(&sp,&h,&memory)||
+       !wzmp3_tail_init(&tail,&h,&memory))goto cleanup;
+    if(!wzmp3_join_init(&join,max_output,(size_t)h.frame_count,&memory))goto cleanup;
+    values=(wzmp3_spectrum *)wzmp3_memory_alloc(&memory,sizeof(*values));
     if(!values)goto cleanup;
     for(fr=0;fr<h.frame_count;fr++){
         wzmp3_bitwriter whole;
@@ -307,7 +311,11 @@ cleanup:
     wzmp3_spectral_free(&sp);
     wzmp3_tail_free(&tail);
     wzmp3_join_free(&join);
-    free(g);free(pads);free(ms);free(repair);free(values);
-    free(prefix.ptr);free(suffix.ptr);
-    return success;
+    wzmp3_memory_free(&memory,g);wzmp3_memory_free(&memory,pads);
+    wzmp3_memory_free(&memory,ms);wzmp3_memory_free(&memory,repair);
+    wzmp3_memory_free(&memory,values);
+    wzmp3_memory_free(&memory,prefix.ptr);
+    wzmp3_memory_free(&memory,suffix.ptr);
+    if(input)input->memory=NULL;
+    return success ? 1 : (memory.exhausted ? -1 : 0);
 }

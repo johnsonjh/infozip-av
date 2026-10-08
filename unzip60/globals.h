@@ -240,6 +240,7 @@ typedef struct Globals {
     int fwkcs_list_md5;
 #ifdef USE_REFPTR
     refptr_candidate *refptr_index;
+    ush refptr_missing_method;
     size_t refptr_count, refptr_capacity;
     iz_sha1 *refptr_sha;          /* non-NULL only during source decoding */
     zusz_t refptr_bytes, refptr_expected;

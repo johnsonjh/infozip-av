@@ -84,6 +84,24 @@ refptr_method_supported (unsigned method)
     }
 }
 
+/* Recognized ZIP methods are indexed even when their decoder is absent,
+ * solely to give a conditional diagnostic for a size/CRC candidate. Unknown
+ * methods must not be described as having a known missing codec. */
+static int
+refptr_method_recognized (unsigned method)
+{
+  switch (method)
+    {
+    case STORED: case DEFLATED: case ENHDEFLATED:
+    case IMPLODED: case DCLIMPLODED: case BZIPPED:
+    case LZMAED: case XZED: case ZSTD_OLD: case ZSTDED:
+    case PPMDED: case WZJPEGED: case WZMP3ED: case WAVPACKED:
+      return TRUE;
+    default:
+      return FALSE;
+    }
+}
+
 static int
 refptr_build_index (__G) __GDEF
 {
@@ -154,7 +172,7 @@ refptr_build_index (__G) __GDEF
 
       if ((G.crec.general_purpose_bit_flag & 1) != 0
           || G.crec.disk_number_start != 0
-          || !refptr_method_supported (G.crec.compression_method))
+          || !refptr_method_recognized (G.crec.compression_method))
         {
           continue;
         }
@@ -174,6 +192,7 @@ refptr_build_index (__G) __GDEF
       c.crc = G.crec.crc32;
       c.method = G.crec.compression_method;
       c.flags = G.crec.general_purpose_bit_flag;
+      c.supported = refptr_method_supported (c.method);
 
       if (G.refptr_count == G.refptr_capacity)
         {
@@ -426,11 +445,13 @@ refptr_extract (__G) __GDEF
   size_t i;
   iz_sha1 sh;
   int r = PK_ERR, found = FALSE;
+  ush missing_codec = 0;
   int saved_test = uO.tflag;
   int saved_fwkcs = G.fwkcs_active;
   ulg source_crc;
   zusz_t source_bytes;
 
+  G.refptr_missing_method = 0;
   if ((reference.general_purpose_bit_flag & 1) || G.pInfo->encrypted
       || reference.csize != 20 || G.csize < 0 || G.incnt < 0
       || (zusz_t)G.csize + (zusz_t)G.incnt != 20)
@@ -478,6 +499,12 @@ refptr_extract (__G) __GDEF
           continue;
         }
 
+      if (!candidate->supported)
+        {
+          if (!missing_codec) missing_codec = candidate->method;
+          continue;
+        }
+
       undefer_input (__G);
 
       if (refptr_select_source (__G__ candidate) != PK_COOL)
@@ -517,6 +544,7 @@ refptr_extract (__G) __GDEF
 
   if (!found)
     {
+      G.refptr_missing_method = missing_codec;
       r = PK_ERR;
 
       goto restore;

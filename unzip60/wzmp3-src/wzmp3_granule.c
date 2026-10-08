@@ -16,25 +16,26 @@ static const unsigned char group_ends[4] = {6,11,16,21};
 static const unsigned char short_ends[2] = {6,12};
 #define SF(st,ch,b,g) (st)->scale_models[(ch)*40U+(b)*10U+(g)]
 
-int wzmp3_granule_init(wzmp3_granule_state *st, const wzmp3_header *h)
+int wzmp3_granule_init(wzmp3_granule_state *st, const wzmp3_header *h, wzmp3_memory *memory)
 {
     unsigned int c,b,g;
     if(!st)return 0;
     memset(st,0,sizeof(*st));
     if(!h || h->channels<1U || h->channels>2U ||
        h->frame_count==0 || h->frame_count>ULONG_MAX/(4UL))return 0;
+    st->memory=memory;
     st->channel_count=h->channels;
     st->total_steps=h->frame_count*2UL*h->channels;
-    st->scale_models=(wzmp3_ppm_model*)calloc(80,sizeof(wzmp3_ppm_model));
+    st->scale_models=(wzmp3_ppm_model*)wzmp3_memory_calloc(memory,80U,sizeof(wzmp3_ppm_model));
     if(!st->scale_models)return 0;
     for(c=0;c<h->channels;c++)
         for(b=0;b<4;b++)
             for(g=0;g<10;g++)
-                if(!wzmp3_ppm_init(&SF(st,c,b,g),2U<<b,16,2,511,30000)){
+                if(!wzmp3_ppm_init(&SF(st,c,b,g),2U<<b,16,2,511,30000,memory)){
                     wzmp3_granule_destroy(st);return 0;
                 }
-    if(!wzmp3_ppm_init(&st->small_bound,146,146,1,511,30000) ||
-       !wzmp3_ppm_init(&st->damaged_bound,289,0,0,511,30000)){
+    if(!wzmp3_ppm_init(&st->small_bound,146,146,1,511,30000,memory) ||
+       !wzmp3_ppm_init(&st->damaged_bound,289,0,0,511,30000,memory)){
         wzmp3_granule_destroy(st);return 0;
     }
     st->ready=1;
@@ -150,7 +151,7 @@ void wzmp3_granule_destroy(wzmp3_granule_state *st)
     if(st->scale_models){
         for(c=0;c<2;c++)for(b=0;b<4;b++)for(g=0;g<10;g++)
             wzmp3_ppm_cleanup(&SF(st,c,b,g));
-        free(st->scale_models);
+        wzmp3_memory_free(st->memory,st->scale_models);
     }
     wzmp3_ppm_cleanup(&st->small_bound);
     wzmp3_ppm_cleanup(&st->damaged_bound);

@@ -18,15 +18,17 @@ static int copy_bits(wzmp3_join *j,const unsigned char *src,size_t bits)
     j->main_bits+=bits;
     return 1;
 }
-int wzmp3_join_init(wzmp3_join *j,size_t main_capacity,size_t frame_count)
+int wzmp3_join_init(wzmp3_join *j,size_t main_capacity,size_t frame_count,
+                    wzmp3_memory *memory)
 {
     if(!j)return 0;
     memset(j,0,sizeof(*j));
+    j->memory=memory;
     if(!frame_count || !main_capacity ||
        frame_count>((size_t)-1)/sizeof(wzmp3_join_frame) ||
        main_capacity>((size_t)-1)/8U)return 0;
-    j->frames=(wzmp3_join_frame*)calloc(frame_count,sizeof(*j->frames));
-    j->main_data=(unsigned char*)calloc(main_capacity,1);
+    j->frames=(wzmp3_join_frame*)wzmp3_memory_calloc(memory,frame_count,sizeof(*j->frames));
+    j->main_data=(unsigned char*)wzmp3_memory_calloc(memory,main_capacity,1U);
     if(!j->frames || !j->main_data){wzmp3_join_free(j);return 0;}
     j->frame_count=frame_count;
     j->main_capacity=main_capacity;
@@ -35,7 +37,8 @@ int wzmp3_join_init(wzmp3_join *j,size_t main_capacity,size_t frame_count)
 void wzmp3_join_free(wzmp3_join *j)
 {
     if(!j)return;
-    free(j->frames);free(j->main_data);
+    wzmp3_memory_free(j->memory,j->frames);
+    wzmp3_memory_free(j->memory,j->main_data);
     memset(j,0,sizeof(*j));
 }
 int wzmp3_join_frame_add(wzmp3_join *j,const unsigned char *header,
