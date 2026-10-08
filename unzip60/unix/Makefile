@@ -115,6 +115,11 @@ IZ_BZIP2 = $(IZ_OUR_BZIP2_DIR)
 
 #D_USE_REFPTR_SFX = -DREFPTR_SFX
 
+# Method 94 uses no external libraries. Enabled for normal UnZip by default;
+# explicitly opt in for SFX.  The checked-in wzmp3.c/h are regenerated only
+# when running wzmp3-src/amalgamate.sh manually.
+#D_USE_WZMP3_SFX = -DWZMP3_SFX
+
 # defaults for unzip's "built-in" bzip2 library compilation
 CC_BZ = $(CC)
 CFLAGS_BZ = $(CFLAGS)
@@ -329,7 +334,7 @@ crc32$O:	crc32.c $(UNZIP_H) zip.h crc32.h
 crypt$O:	crypt.c izsha1.c izsha1.h $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h
 envargs$O:	envargs.c $(UNZIP_H)
 explode$O:	explode.c $(UNZIP_H)
-extract$O:	extract.c refptr.c wavpackzip.c $(UNZIP_H) crc32.h crypt.h
+extract$O:	extract.c refptr.c wavpackzip.c wzmp3.c wzmp3.h $(UNZIP_H) crc32.h crypt.h
 fileio$O:	fileio.c $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h
 funzip$O:	funzip.c $(UNZIP_H) crc32.h crypt.h ttyio.h
 globals$O:	globals.c $(UNZIP_H)
@@ -346,37 +351,37 @@ zipinfo$O:	zipinfo.c $(UNZIP_H)
 
 # unzipsfx compilation section
 unzipsfx$O:	unzip.c $(UNZIP_H) crypt.h unzvers.h consts.h
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ unzip.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ unzip.c
 
 crc32_$O:	crc32.c $(UNZIP_H) zip.h crc32.h
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ crc32.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ crc32.c
 
 crypt_$O:	crypt.c izsha1.c izsha1.h $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ crypt.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ crypt.c
 
-extract_$O:	extract.c refptr.c wavpackzip.c $(UNZIP_H) crc32.h crypt.h
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ extract.c
+extract_$O:	extract.c refptr.c wavpackzip.c wzmp3.c wzmp3.h $(UNZIP_H) crc32.h crypt.h
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ extract.c
 
 fileio_$O:	fileio.c $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ fileio.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ fileio.c
 
 globals_$O:	globals.c $(UNZIP_H)
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ globals.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ globals.c
 
 inflate_$O:	inflate.c inflate.h $(UNZIP_H) crypt.h
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ inflate.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ inflate.c
 
 match_$O:	match.c $(UNZIP_H)
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ match.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ match.c
 
 process_$O:	process.c $(UNZIP_H) crc32.h
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ process.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ process.c
 
 ttyio_$O:	ttyio.c $(UNZIP_H) zip.h crypt.h ttyio.h
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ ttyio.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ ttyio.c
 
 ubz2err_$O:	ubz2err.c $(UNZIP_H)
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ ubz2err.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ ubz2err.c
 
 
 # funzip compilation section
@@ -413,7 +418,7 @@ msdos$O:	msdos/msdos.c $(UNZIP_H) unzvers.h		# DOS only
 
 msdos_$O:	msdos/msdos.c $(UNZIP_H)			# DOS unzipsfx
 	-$(CP) msdos/msdos.c msdos_.c > nul
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX msdos_.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX msdos_.c
 	$(RM) msdos_.c
 
 #os2$O:		os2/os2.c $(UNZIP_H)				# OS/2 only
@@ -423,7 +428,7 @@ unix$O:		unix/unix.c $(UNZIP_H) unzvers.h		# Unix only
 	$(CC) -c $(CF) unix/unix.c
 
 unix_$O:	unix/unix.c $(UNZIP_H)				# Unix unzipsfx
-	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) -DSFX -o $@ unix/unix.c
+	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ unix/unix.c
 
 unix.pic.o:	unix/unix.c $(UNZIP_H) unzvers.h		# Unix shlib
 	$(CC) -c $(CF) -o $@ unix/unix.c

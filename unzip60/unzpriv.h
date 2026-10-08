@@ -110,6 +110,17 @@
 #  define USE_REFPTR
 #endif
 
+/* Method 94: WZ-MP3 decoder.
+ * Disabled in fUnZip and UnZipSFX unless WZMP3_SFX is defined.
+ * Disabled for 16-bit / segmented builds unless WZMP3_16BIT is defined. */
+#if !defined(FUNZIP) && !defined(NO_WZMP3) && \
+    (!defined(SFX) || defined(WZMP3_SFX)) && \
+    (defined(WZMP3_16BIT) || \
+     (!defined(__16BIT__) && !defined(SMALL_MEM) && \
+      !(defined(MSDOS) && !defined(__DJGPP__) && !defined(__GO32__))))
+#  define USE_WZMP3
+#endif
+
 /* ZIP method 96 uses liblzma for metadata */
 #if defined(USE_LZMA) && !defined(NO_WZJPEG) && !defined(FUNZIP)
 #  define USE_WZJPEG
@@ -1773,12 +1784,13 @@
 #define IBMLZ77ED        19
 #define ZSTD_OLD         20
 #define REFPTR           92
+#define WZMP3ED          94
 #define ZSTDED           93
 #define XZED             95
 #define WZJPEGED         96
 #define WAVPACKED        97
 #define PPMDED           98
-#define NUM_METHODS      22     /* number of known method IDs */
+#define NUM_METHODS      23     /* number of known method IDs */
 /* don't forget to update list.c (list_files()), extract.c and zipinfo.c
  * appropriately if NUM_METHODS changes */
 

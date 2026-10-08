@@ -314,6 +314,106 @@ static int uz_ppmd_decompress(__G)
 #include "wavpackzip.c"
 #endif
 
+#ifdef USE_WZMP3
+/* Source-only amalgamation: no extra linker objects or libraries. */
+#include "wzmp3.c"
+
+struct uz_wzmp3_io {
+#ifdef REENTRANT
+    Uz_Globs *global;
+#endif
+    int error;
+    unsigned int outsize;
+};
+
+static int uz_wzmp3_read(void *context, unsigned char *byte)
+{
+    struct uz_wzmp3_io *io = (struct uz_wzmp3_io *)context;
+#ifdef REENTRANT
+    Uz_Globs *pG = io->global;
+#endif
+    int c;
+    (void)io;
+    c = NEXTBYTE;
+    if (c == EOF) return 0;
+    *byte = (unsigned char)c;
+    return 1;
+}
+
+static int uz_wzmp3_write(void *context, const unsigned char *buf, size_t n)
+{
+    struct uz_wzmp3_io *io = (struct uz_wzmp3_io *)context;
+#ifdef REENTRANT
+    Uz_Globs *pG = io->global;
+#endif
+    size_t pos = 0U, count;
+    int r;
+    if (io->error) return 0;
+    while (pos < n) {
+        count = n - pos;
+        if (count > io->outsize) count = io->outsize;
+        if (!count) { io->error = PK_ERR; return 0; }
+        memcpy(redirSlide, buf + pos, count);
+        r = FLUSH((unsigned)count);
+        if (r != PK_COOL) { io->error = r; return 0; }
+        pos += count;
+    }
+    return 1;
+}
+
+static int uz_wzmp3_decompress(__G)
+    __GDEF
+{
+    struct uz_wzmp3_io io;
+    wzmp3_input input;
+    wzmp3_decode_options options;
+    wzmp3_codebook *books;
+    unsigned long compressed;
+    int result;
+    memset(&io, 0, sizeof(io));
+#ifdef REENTRANT
+    io.global = pG;
+#endif
+#if (defined(DLL) && !defined(NO_SLIDE_REDIR))
+    if (G.redirect_slide) {
+        io.outsize = G.redirect_size;
+        redirSlide = G.redirect_buffer;
+    } else {
+        io.outsize = WSIZE;
+        redirSlide = slide;
+    }
+#else
+    io.outsize = WSIZE;
+#endif
+    /* Bounds-check the addition BEFORE evaluating it, including ZIP64. */
+    if (G.csize < 0 || G.incnt < 0 ||
+        (zusz_t)G.csize > ULONG_MAX ||
+        (zusz_t)G.incnt > ULONG_MAX - (unsigned long)G.csize ||
+        G.lrec.ucsize > (zusz_t)(size_t)-1 ||
+        G.lrec.ucsize == 0 || io.outsize == 0) return PK_ERR;
+    compressed = (unsigned long)G.csize + (unsigned long)G.incnt;
+    options.maximum_output = (size_t)G.lrec.ucsize;
+    /* MPEG-1 Layer III frames contain a header and side information;
+     * even a minimal frame occupies more than sixteen output bytes.
+     * Bound frame-state allocation by the declared output size. */
+    options.maximum_frames = 1000000UL;
+    if (G.lrec.ucsize / 16U < (zusz_t)options.maximum_frames)
+        options.maximum_frames = (unsigned long)(G.lrec.ucsize / 16U);
+    if (options.maximum_frames == 0) return PK_ERR;
+    /* These allocations are reused by the one decoding operation. */
+    books = (wzmp3_codebook *)malloc(34U * sizeof(*books));
+    if (books == NULL) return PK_MEM3;
+    wzmp3_codebooks_init(books);
+    wzmp3_input_init(&input, uz_wzmp3_read, &io, 0UL,
+                     (unsigned long)compressed);
+    result = wzmp3_decode(&input, books, &options, uz_wzmp3_write, &io);
+    free(books);
+    if (io.error) return io.error;
+    if (!result || G.csize != -(zoff_t)G.incnt) return PK_ERR;
+    return PK_COOL;
+}
+#endif /* USE_WZMP3 */
+
 #ifdef USE_WZJPEG
 #include "wzjpeg.c"
 
@@ -1491,6 +1591,7 @@ static ZCONST char Far ComprMsgNum[] =
    static ZCONST char Far CmprLZMA[]       = "LZMA";
    static ZCONST char Far CmprZstd[]       = "Zstd";
    static ZCONST char Far CmprRefPtr[]     = "RefPtr";
+   static ZCONST char Far CmprWZMP3[]      = "WZ-MP3";
    static ZCONST char Far CmprXZ[]         = "XZ";
    static ZCONST char Far CmprIBMTerse[]   = "IBM/Terse";
    static ZCONST char Far CmprIBMLZ77[]    = "IBM LZ77";
@@ -1501,13 +1602,13 @@ static ZCONST char Far ComprMsgNum[] =
      CmprNone, CmprShrink, CmprReduce, CmprReduce, CmprReduce, CmprReduce,
      CmprImplode, CmprTokenize, CmprDeflate, CmprDeflat64, CmprDCLImplode,
      CmprBzip, CmprLZMA, CmprIBMTerse, CmprIBMLZ77, CmprZstd, CmprZstd,
-     CmprRefPtr, CmprXZ, CmprWinJPEG, CmprWavPack, CmprPPMd
+     CmprRefPtr, CmprWZMP3, CmprXZ, CmprWinJPEG, CmprWavPack, CmprPPMd
    };
    static ZCONST unsigned ComprIDs[NUM_METHODS] = {
      STORED, SHRUNK, REDUCED1, REDUCED2, REDUCED3, REDUCED4,
      IMPLODED, TOKENIZED, DEFLATED, ENHDEFLATED, DCLIMPLODED,
      BZIPPED, LZMAED, IBMTERSED, IBMLZ77ED, ZSTD_OLD, ZSTDED,
-     REFPTR, XZED, WZJPEGED, WAVPACKED, PPMDED
+     REFPTR, WZMP3ED, XZED, WZJPEGED, WAVPACKED, PPMDED
    };
 #endif /* !SFX */
 static ZCONST char Far FilNamMsg[] =
@@ -2413,6 +2514,12 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #  define UNKN_LZMA TRUE      /* LZMA unknown */
 #endif
 
+#ifdef USE_WZMP3
+#  define UNKN_WZMP3 (G.crec.compression_method!=WZMP3ED)
+#else
+#  define UNKN_WZMP3 TRUE
+#endif
+
 #ifdef USE_WZJPEG
 #  define UNKN_WZJPEG (G.crec.compression_method!=WZJPEGED)
 #else
@@ -2455,11 +2562,11 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method<DEFLATED \
       && G.crec.compression_method>ENHDEFLATED \
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD)
 #  else
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method!=DEFLATED\
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD)
 #  endif
 #else
 #  ifdef USE_OLDUNZIP
@@ -2474,13 +2581,13 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>ENHDEFLATED && \
-      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD \
+      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD \
       && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD))
 #  else
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>DEFLATED && \
-      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD \
+      G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD \
       && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD))
 #  endif
 #endif
@@ -3729,6 +3836,33 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             }
             break;
 #endif /* USE_WAVP */
+
+#ifdef USE_WZMP3
+        case WZMP3ED:
+            if (!uO.tflag && QCOND2)
+                Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
+                  "decod", FnFilter1(G.filename), avmark, avsep,
+                  (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
+                  uO.cflag ? NEWLINE : ""));
+            r = uz_wzmp3_decompress(__G);
+            if (r != PK_COOL) {
+                if (r < PK_DISK) {
+                    if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
+                        Info(slide, 0x401, ((char *)slide,
+                            LoadFarStringSmall(ErrUnzipFile),
+                            r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
+                                LoadFarString(InvalidComprData),
+                            "WZ-MP3", FnFilter1(G.filename)));
+                    else
+                        Info(slide, 0x401, ((char *)slide,
+                            LoadFarStringSmall(ErrUnzipNoFile),
+                            r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
+                                LoadFarString(InvalidComprData), "WZ-MP3"));
+                    error = r == PK_MEM3 ? PK_MEM3 : PK_ERR;
+                } else error = r;
+            }
+            break;
+#endif /* USE_WZMP3 */
 
 #ifdef USE_WZJPEG
         case WZJPEGED:

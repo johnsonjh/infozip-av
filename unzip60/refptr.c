@@ -64,6 +64,11 @@ refptr_method_supported (unsigned method)
       return TRUE;
 # endif /* ifdef USE_WAVP */
 
+# ifdef USE_WZMP3
+    case WZMP3ED:
+      return TRUE;
+# endif /* ifdef USE_WZMP3 */
+
 # ifdef USE_WZJPEG
     case WZJPEGED:
       return TRUE;
@@ -394,6 +399,11 @@ refptr_decode_source (__G) __GDEF
     case WAVPACKED:
       return uz_wavpack_decompress (__G);
 # endif /* ifdef USE_WAVP */
+
+# ifdef USE_WZMP3
+    case WZMP3ED:
+      return uz_wzmp3_decompress (__G);
+# endif /* ifdef USE_WZMP3 */
 
 # ifdef USE_WZJPEG
     case WZJPEGED:

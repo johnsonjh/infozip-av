@@ -25,6 +25,9 @@ L_WAVPACK_SFX="-lwavpack"
 # Enable RefPtr-enabled unzipsfx
 D_USE_REFPTR_SFX="-DREFPTR_SFX"
 
+# Enable WZ-MP3-enabled unzipsfx
+D_USE_WZMP3_SFX="-DWZMP3_SFX"
+
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
 
@@ -49,6 +52,7 @@ mkdir -p "${PREFIX:?}/man1"
       D_USE_WAVPACK_SFX="${D_USE_WAVPACK_SFX:-}" \
       L_WAVPACK_SFX="${L_WAVPACK_SFX:-}" \
       D_USE_REFPTR_SFX="${D_USE_REFPTR_SFX:-}" \
+      D_USE_WZMP3_SFX="${D_USE_WZMP3_SFX:-}" \
       PREFIX="${PREFIX:?}"
 )
 
