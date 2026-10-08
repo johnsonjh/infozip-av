@@ -466,3 +466,4 @@ No errors detected in compressed data of pkz110.exe.
 * [`johnsonjh/pkstuff`](https://github.com/johnsonjh/pkstuff) ‑ PKZIP/PKUNZIP/PKSFX/PKLITE utilities
 * [PKDCLX](https://github.com/johnsonjh/pkdclx) ‑ PKWARE DCL‑compatible Extended DCL‑Implode and DCL‑Explode
 * [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT) ‑ Current ZIP file format specification
+* [WinZip WZ‑JPEG](https://www.winzip.com/static/wz/docs/wz-jpg-comp.pdf) ‑ Method&nbsp;96 JPEG Compression specification
