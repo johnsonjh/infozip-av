@@ -12,11 +12,11 @@ GLDFLAGS="${LTO:-} ${WLB:-}"
 
 # Enable LZMA-enabled unzipsfx
 D_USE_LZMA_SFX="-DLZMA_SFX"
-L_LZMA_SFX="-l:liblzma.a -s"
+L_LZMA_SFX="-l:liblzma.a"
 
 # Enable Zstd-enabled unzipsfx
 D_USE_ZSTD_SFX="-DZSTD_SFX"
-L_ZSTD_SFX="-l:libzstd.a -s"
+L_ZSTD_SFX="-l:libzstd.a"
 
 # Enable WavPack-enabled unzipsfx
 D_USE_WAVPACK_SFX="-DWAVPACK_SFX"
