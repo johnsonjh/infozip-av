@@ -2,11 +2,8 @@
 For UnZip 6.1/who knows:
 ================================
 
-   o add extraction support for other compression algorithms used by new
-     PKZIP, WinZIP, 7-Zip versions.
-
    o add support for PKWARE Strong Encryption archives
-     (WinZip AES AE-1/AE-2 support is already implemented.)
+     (WinZip AES AE-1/AE-2/AE-3 support is already implemented.)
 
    o add multi-part zipfile handling
 
