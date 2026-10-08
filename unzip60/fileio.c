@@ -980,13 +980,25 @@ static int partflush(__G__ rawbuf, size, unshrink)
     Compute the CRC first; if testing or if disk is full, that's it.
   ---------------------------------------------------------------------------*/
 
+#ifdef USE_REFPTR
+    if (G.refptr_sha != NULL) {
+        if (G.refptr_bytes > G.refptr_expected ||
+            (zusz_t)size > G.refptr_expected - G.refptr_bytes)
+            return PK_ERR;
+        iz_sha1_update(G.refptr_sha, rawbuf, (size_t)size);
+        G.refptr_bytes += (zusz_t)size;
+    }
+#endif
     G.crc32val = crc32(G.crc32val, rawbuf, (extent)size);
 #ifndef FUNZIP
     if (G.fwkcs_active)
         fwkcs_md5_update(__G__ rawbuf, size);
 #endif
 #ifdef PKAV_SUPPORT
-    pkav_update(__G__ rawbuf, size);
+#ifdef USE_REFPTR
+    if (!G.refptr_probe)
+#endif
+        pkav_update(__G__ rawbuf, size);
 #endif
 
 #ifdef DLL

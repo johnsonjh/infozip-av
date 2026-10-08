@@ -18,9 +18,12 @@ L_LZMA_SFX="-l:liblzma.a -s"
 D_USE_ZSTD_SFX="-DZSTD_SFX"
 L_ZSTD_SFX="-l:libzstd.a -s"
 
-# Enable Wavpack-enabled unzipsfx
+# Enable WavPack-enabled unzipsfx
 D_USE_WAVPACK_SFX="-DWAVPACK_SFX"
 L_WAVPACK_SFX="-lwavpack"
+
+# Enable RefPtr-enabled unzipsfx
+D_USE_REFPTR_SFX="-DREFPTR_SFX"
 
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
@@ -45,6 +48,7 @@ mkdir -p "${PREFIX:?}/man1"
       L_ZSTD_SFX="${L_ZSTD_SFX:-}" \
       D_USE_WAVPACK_SFX="${D_USE_WAVPACK_SFX:-}" \
       L_WAVPACK_SFX="${L_WAVPACK_SFX:-}" \
+      D_USE_REFPTR_SFX="${D_USE_REFPTR_SFX:-}" \
       PREFIX="${PREFIX:?}"
 )
 

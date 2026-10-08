@@ -1464,6 +1464,10 @@ static int fwkcs_note_cdir(__G)
 
 
 
+#ifdef USE_REFPTR
+#include "refptr.c"
+#endif
+
 /*******************************/
 /*  Strings used in extract.c  */
 /*******************************/
@@ -1486,6 +1490,7 @@ static ZCONST char Far ComprMsgNum[] =
    static ZCONST char Far CmprBzip[]       = "bzip2";
    static ZCONST char Far CmprLZMA[]       = "LZMA";
    static ZCONST char Far CmprZstd[]       = "Zstd";
+   static ZCONST char Far CmprRefPtr[]     = "RefPtr";
    static ZCONST char Far CmprXZ[]         = "XZ";
    static ZCONST char Far CmprIBMTerse[]   = "IBM/Terse";
    static ZCONST char Far CmprIBMLZ77[]    = "IBM LZ77";
@@ -1496,13 +1501,13 @@ static ZCONST char Far ComprMsgNum[] =
      CmprNone, CmprShrink, CmprReduce, CmprReduce, CmprReduce, CmprReduce,
      CmprImplode, CmprTokenize, CmprDeflate, CmprDeflat64, CmprDCLImplode,
      CmprBzip, CmprLZMA, CmprIBMTerse, CmprIBMLZ77, CmprZstd, CmprZstd,
-     CmprXZ, CmprWinJPEG, CmprWavPack, CmprPPMd
+     CmprRefPtr, CmprXZ, CmprWinJPEG, CmprWavPack, CmprPPMd
    };
    static ZCONST unsigned ComprIDs[NUM_METHODS] = {
      STORED, SHRUNK, REDUCED1, REDUCED2, REDUCED3, REDUCED4,
      IMPLODED, TOKENIZED, DEFLATED, ENHDEFLATED, DCLIMPLODED,
      BZIPPED, LZMAED, IBMTERSED, IBMLZ77ED, ZSTD_OLD, ZSTDED,
-     XZED, WZJPEGED, WAVPACKED, PPMDED
+     REFPTR, XZED, WZJPEGED, WAVPACKED, PPMDED
    };
 #endif /* !SFX */
 static ZCONST char Far FilNamMsg[] =
@@ -1918,6 +1923,10 @@ int extract_or_test_files(__G)    /* return PK-type error code */
     pkav_reset(__G);
 #endif
     G.pInfo = G.info;
+#ifdef USE_REFPTR
+    if ((error = refptr_build_index(__G)) != PK_COOL)
+        return error;
+#endif
 
 #if CRYPT
     G.newzip = TRUE;
@@ -2435,16 +2444,22 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #  define UNKN_PPMD TRUE      /* PPMd unknown */
 #endif
 
+#ifdef USE_REFPTR
+#  define UNKN_REFPTR (G.crec.compression_method!=REFPTR)
+#else
+#  define UNKN_REFPTR TRUE
+#endif
+
 #ifdef SFX
 #  ifdef USE_DEFLATE64
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method<DEFLATED \
       && G.crec.compression_method>ENHDEFLATED \
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_PPMD)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD)
 #  else
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method!=DEFLATED\
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_PPMD)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD)
 #  endif
 #else
 #  ifdef USE_OLDUNZIP
@@ -2460,13 +2475,13 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>ENHDEFLATED && \
       G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD \
-      && UNKN_WAVP && UNKN_PPMD))
+      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD))
 #  else
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>DEFLATED && \
       G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZJPEG && UNKN_ZSTD \
-      && UNKN_WAVP && UNKN_PPMD))
+      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD))
 #  endif
 #endif
 
@@ -2579,6 +2594,17 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
         return 0;
     }
 
+#ifdef USE_REFPTR
+    /* WinZip produces no encrypted references; never bypass encryption of
+     * a source entry via an unencrypted reference. */
+    if (G.crec.compression_method == REFPTR &&
+        (G.crec.general_purpose_bit_flag & 1)) {
+        Info(slide, 0x401, ((char *)slide,
+          "   skipping: %-22s encrypted RefPtr is unsupported\n",
+          FnFilter1(G.filename)));
+        return 0;
+    }
+#endif
     if (UNKN_COMPR) {
         if (!((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))) {
 #ifndef SFX
@@ -3486,6 +3512,20 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 
     defer_leftover_input(__G);    /* so NEXTBYTE bounds check will work */
     switch (G.lrec.compression_method) {
+#ifdef USE_REFPTR
+        case REFPTR:
+            if (!uO.tflag && QCOND2)
+                Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
+                  "decod", FnFilter1(G.filename), avmark, avsep,
+                  (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
+                  uO.cflag ? NEWLINE : ""));
+            error = refptr_extract(__G);
+            if (error != PK_COOL)
+                Info(slide, 0x401, ((char *)slide,
+                  "error: RefPtr source missing, invalid, or digest mismatch: %s\n",
+                  FnFilter1(G.filename)));
+            break;
+#endif
         case STORED:
             if (!uO.tflag && QCOND2) {
 #ifdef SYMLINKS

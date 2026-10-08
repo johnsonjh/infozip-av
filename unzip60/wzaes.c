@@ -23,8 +23,6 @@ typedef BOOL (WINAPI *iz_acquire_fn)(HCRYPTPROV *, LPCSTR, LPCSTR, DWORD,
 typedef BOOL (WINAPI *iz_random_fn)(HCRYPTPROV, DWORD, BYTE *);
 typedef BOOL (WINAPI *iz_release_fn)(HCRYPTPROV, DWORD);
 #endif
-#define M32(v) ((v) & 0xffffffffUL)
-#define ROL(v,n) M32(((v) << (n)) | ((v) >> (32-(n))))
 static const unsigned char iz_sbox[256] = {
  0x63,0x7c,0x77,0x7b,0xf2,0x6b,0x6f,0xc5,0x30,0x01,0x67,0x2b,0xfe,0xd7,0xab,0x76,
  0xca,0x82,0xc9,0x7d,0xfa,0x59,0x47,0xf0,0xad,0xd4,0xa2,0xaf,0x9c,0xa4,0x72,0xc0,
@@ -47,67 +45,19 @@ void iz_aes_wipe(void *ptr, size_t n) {
     volatile unsigned char *p = (volatile unsigned char *)ptr;
     while (n--) *p++ = 0;
 }
-static void sha_transform(iz_sha1 *s, const unsigned char *p) {
-    unsigned long w[80], a,b,c,d,e,t,k,f;
-    unsigned i;
-    for (i=0;i<16;i++) w[i] = ((unsigned long)p[i*4]<<24)|
-        ((unsigned long)p[i*4+1]<<16)|((unsigned long)p[i*4+2]<<8)|p[i*4+3];
-    for (i=16;i<80;i++) w[i]=ROL(w[i-3]^w[i-8]^w[i-14]^w[i-16],1);
-    a=s->h[0];b=s->h[1];c=s->h[2];d=s->h[3];e=s->h[4];
-    for (i=0;i<80;i++) {
-        if (i<20) { f=(b&c)|((~b)&d);k=0x5a827999UL; }
-        else if (i<40) { f=b^c^d;k=0x6ed9eba1UL; }
-        else if (i<60) { f=(b&c)|(b&d)|(c&d);k=0x8f1bbcdcUL; }
-        else { f=b^c^d;k=0xca62c1d6UL; }
-        t=M32(ROL(a,5)+f+e+k+w[i]);
-        e=d;d=c;c=ROL(b,30);b=a;a=t;
-    }
-    s->h[0]=M32(s->h[0]+a);s->h[1]=M32(s->h[1]+b);
-    s->h[2]=M32(s->h[2]+c);s->h[3]=M32(s->h[3]+d);
-    s->h[4]=M32(s->h[4]+e);
-    iz_aes_wipe(w,sizeof(w));
-}
-static void sha_init(iz_sha1 *s) {
-    memset(s,0,sizeof(*s));
-    s->h[0]=0x67452301UL;s->h[1]=0xefcdab89UL;s->h[2]=0x98badcfeUL;
-    s->h[3]=0x10325476UL;s->h[4]=0xc3d2e1f0UL;
-}
-static void sha_update(iz_sha1 *s, const unsigned char *p,size_t n) {
-    unsigned i;
-    unsigned long lo = s->low;
-    s->low=M32(lo+((unsigned long)n<<3));
-    if (s->low<lo) s->high=M32(s->high+1);
-    s->high=M32(s->high+((unsigned long)n>>29));
-    while (n) {
-        i=64U-s->used;
-        if ((size_t)i>n) i=(unsigned)n;
-        memcpy(s->block+s->used,p,i);s->used+=i;p+=i;n-=i;
-        if (s->used==64) {sha_transform(s,s->block);s->used=0;}
-    }
-}
-static void sha_finish(iz_sha1 *s,unsigned char out[20]) {
-    unsigned char len[8],pad[64];unsigned long lo=s->low,hi=s->high;
-    unsigned i;
-    for(i=0;i<4;i++) {len[i]=(unsigned char)(hi>>(24-i*8));len[i+4]=(unsigned char)(lo>>(24-i*8));}
-    memset(pad,0,sizeof(pad));pad[0]=0x80;
-    sha_update(s,pad,s->used<56 ? 56-s->used : 120-s->used);
-    sha_update(s,len,8);
-    for(i=0;i<20;i++) out[i]=(unsigned char)(s->h[i/4]>>(24-(i%4)*8));
-    iz_aes_wipe(s,sizeof(*s));
-}
 static void hm_init(iz_hmac *h,const unsigned char *key,size_t len) {
     unsigned char ipad[64],opad[64],temp[20];unsigned i;
-    if(len>64) {iz_sha1 sh;sha_init(&sh);sha_update(&sh,key,len);sha_finish(&sh,temp);key=temp;len=20;}
+    if(len>64) {iz_sha1 sh;iz_sha1_init(&sh);iz_sha1_update(&sh,key,len);iz_sha1_finish(&sh,temp);key=temp;len=20;}
     memset(ipad,0x36,64);memset(opad,0x5c,64);
     for(i=0;i<len;i++){ipad[i]^=key[i];opad[i]^=key[i];}
-    sha_init(&h->inner);sha_update(&h->inner,ipad,64);
-    sha_init(&h->outer);sha_update(&h->outer,opad,64);
+    iz_sha1_init(&h->inner);iz_sha1_update(&h->inner,ipad,64);
+    iz_sha1_init(&h->outer);iz_sha1_update(&h->outer,opad,64);
     iz_aes_wipe(temp,sizeof(temp));iz_aes_wipe(ipad,sizeof(ipad));iz_aes_wipe(opad,sizeof(opad));
 }
-static void hm_update(iz_hmac *h,const unsigned char *p,size_t n) {sha_update(&h->inner,p,n);}
+static void hm_update(iz_hmac *h,const unsigned char *p,size_t n) {iz_sha1_update(&h->inner,p,n);}
 static void hm_finish(iz_hmac *h,unsigned char out[20]) {
-    unsigned char in[20];sha_finish(&h->inner,in);sha_update(&h->outer,in,20);
-    sha_finish(&h->outer,out);iz_aes_wipe(in,sizeof(in));
+    unsigned char in[20];iz_sha1_finish(&h->inner,in);iz_sha1_update(&h->outer,in,20);
+    iz_sha1_finish(&h->outer,out);iz_aes_wipe(in,sizeof(in));
 }
 static void pbkdf(const unsigned char *pass,size_t plen,
                   const unsigned char *salt,size_t slen,unsigned char *out,size_t olen) {

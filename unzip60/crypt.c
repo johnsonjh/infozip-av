@@ -662,6 +662,11 @@ int zcr_dummy;
 
 #endif /* ?CRYPT */
 
+/* Shared SHA-1 core */
+#if !defined(FUNZIP) && (defined(USE_REFPTR) || !defined(NO_AES))
+#include "izsha1.c"
+#endif
+
 #if !defined(NO_AES) && !defined(FUNZIP)
 /* Compile the AES core */
 #include "wzaes.c"

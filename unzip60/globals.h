@@ -1,6 +1,9 @@
 #ifndef NO_AES
 #include "wzaes.h"
 #endif
+#ifdef USE_REFPTR
+#include "izsha1.h"
+#endif
 /*
   Copyright (c) 1990-2009 Info-ZIP.  All rights reserved.
 
@@ -235,6 +238,13 @@ typedef struct Globals {
     ulg fwkcs_verified;
     int fwkcs_active;
     int fwkcs_list_md5;
+#ifdef USE_REFPTR
+    refptr_candidate *refptr_index;
+    size_t refptr_count, refptr_capacity;
+    iz_sha1 *refptr_sha;          /* non-NULL only during source decoding */
+    zusz_t refptr_bytes, refptr_expected;
+    int refptr_probe;            /* avoid metadata updates during SHA probe */
+#endif
 #endif /* !FUNZIP */
     union work area;                /* see unzpriv.h for definition of work */
 

@@ -602,6 +602,12 @@ void free_G_buffers(__G)     /* releases all memory allocated in global vars */
         free(G.extra_field);
         G.extra_field = (uch *)NULL;
    }
+#ifdef USE_REFPTR
+   free(G.refptr_index);
+   G.refptr_index = (refptr_candidate *)NULL;
+   G.refptr_count = G.refptr_capacity = 0;
+   G.refptr_sha = (iz_sha1 *)NULL;
+#endif
 
 #if (!defined(VMS) && !defined(SMALL_MEM))
     /* VMS uses its own buffer scheme for textmode flush() */

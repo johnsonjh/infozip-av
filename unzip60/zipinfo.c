@@ -209,6 +209,7 @@ static ZCONST char Far MthdLZMA[] = "LZMA-ed";
 static ZCONST char Far MthdTerse[] = "tersed (IBM)";
 static ZCONST char Far MthdLZ77[] = "LZ77-compressed (IBM)";
 static ZCONST char Far MthdZstd[] = "Zstandard-compressed";
+static ZCONST char Far MthdRefPtr[] = "RefPtr";
 static ZCONST char Far MthdXZ[] = "XZ-compressed";
 static ZCONST char Far MthdWZJPEG[] = "WinZip JPEG compression";
 static ZCONST char Far MthdWavPack[] = "WavPacked";
@@ -1103,7 +1104,7 @@ static int zi_long(__G__ pEndprev, error_in_archive)
         MthdNone, MthdShrunk, MthdRedF1, MthdRedF2, MthdRedF3, MthdRedF4,
         MthdImplode, MthdToken, MthdDeflate, MthdDeflat64, MthdDCLImplode,
         MthdBZip2, MthdLZMA, MthdTerse, MthdLZ77, MthdZstd, MthdZstd,
-        MthdXZ, MthdWZJPEG, MthdWavPack, MthdPPMd
+        MthdRefPtr, MthdXZ, MthdWZJPEG, MthdWavPack, MthdPPMd
     };
     static ZCONST char Far *dtypelng[4] = {
         DeflNorm, DeflMax, DeflFast, DeflSFast
@@ -2048,7 +2049,7 @@ static int zi_short(__G)   /* return PK-type error code */
     static ZCONST char Far method[NUM_METHODS+1][5] = {
         "stor", "shrk", "re:1", "re:2", "re:3", "re:4", "i#:#", "tokn",
         "def#", "d64#", "dcli", "bzp2", "lzma", "ters", "lz77", "zstd",
-        "zstd", "xz  ", "wj96", "wavp", "ppmd", "u###"
+        "zstd", "rptr", "xz  ", "wj96", "wavp", "ppmd", "u###"
     };
 
 

@@ -104,6 +104,12 @@
 #  endif
 #endif
 
+/* WinZip duplicate-content references, disabled by default in SFX. */
+#if !defined(FUNZIP) && !defined(NO_REFPTR) && \
+    (!defined(SFX) || defined(REFPTR_SFX))
+#  define USE_REFPTR
+#endif
+
 /* ZIP method 96 uses liblzma for metadata */
 #if defined(USE_LZMA) && !defined(NO_WZJPEG) && !defined(FUNZIP)
 #  define USE_WZJPEG
@@ -1766,12 +1772,13 @@
 #define IBMTERSED        18
 #define IBMLZ77ED        19
 #define ZSTD_OLD         20
+#define REFPTR           92
 #define ZSTDED           93
 #define XZED             95
 #define WZJPEGED         96
 #define WAVPACKED        97
 #define PPMDED           98
-#define NUM_METHODS      21     /* number of known method IDs */
+#define NUM_METHODS      22     /* number of known method IDs */
 /* don't forget to update list.c (list_files()), extract.c and zipinfo.c
  * appropriately if NUM_METHODS changes */
 
@@ -2093,6 +2100,15 @@ typedef struct iztimes {
        char buf[1];             /* data/name/link buffer */
    } slinkentry;
 #endif /* SYMLINKS */
+
+#ifdef USE_REFPTR
+typedef struct refptr_candidate {
+    zoff_t offset;
+    zusz_t compressed, uncompressed;
+    ulg crc;
+    ush method, flags;
+} refptr_candidate;
+#endif
 
 typedef struct min_info {
     zoff_t offset;

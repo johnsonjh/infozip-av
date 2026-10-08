@@ -10,6 +10,7 @@ typedef struct {
     unsigned char block[64];
     unsigned used;
 } iz_sha1;
+#define IZ_SHA1_TYPE_DEFINED 1
 typedef struct {
     iz_sha1 inner, outer;
 } iz_hmac;
