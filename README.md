@@ -34,7 +34,7 @@ This project adds extensive new algorithm support, full
 [FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
 ([MD5](https://en.wikipedia.org/wiki/MD5)), and
 [AES cryptography](https://www.winzip.com/en/support/aes-encryption/)
-(**AE‑1**, **AE‑2**, and **AE‑3**) to
+(**AE‑1**, **AE‑2**, and the quantum‑resistant **AE‑3**) to
 [Info‑ZIP](https://infozip.sourceforge.net/).
 
 The ability to *both compress and decompress* archives using **Zstandard**
@@ -48,7 +48,7 @@ decompression‑only support for **Shrink** (method&nbsp;1), **Reduce** (methods
 (method&nbsp;92) is supported.  The usual **Store** (method&nbsp;0) and
 **Deflate** (method&nbsp;8) algorithms remain supported.  Additionally, new
 [Zopfli](https://github.com/google/zopfli)‑enhanced **Deflate** (method&nbsp;8)
-support is available (when compressing using `zip -11`).
+support is available (when compressing using `zip ‑11`).
 
 These changes are built using Fedora's current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (3.0‑46,&nbsp;2026‑07‑17), and
@@ -259,6 +259,7 @@ If errors are encountered when testing or extracting an archive, an FWKCS
 archive provides additional information:
 
 ```
+$ unzip -t pkstuff.zip
 Archive:  pkstuff.zip
     testing: makeav.com               bad CRC 982e9e5e  (should be 431fa9a2)
         FWKCS MD5 mismatch: makeav.com
