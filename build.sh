@@ -8,7 +8,7 @@ WLB="-Wl,-z,relro"
 
 # "-DNOMEMCPY -DIZ_HAVE_UXUIDGID -DNO_LCHMOD" are "important" RHEL flags, do not remove!
 CF_NOOPT="${LTO:-} -I. -DUNIX ${RPM_OPT_FLAGS:--O3} -DNOMEMCPY -DIZ_HAVE_UXUIDGID -DNO_LCHMOD"
-GLDFLAGS="${LTO:-} ${WLB:-}"
+GLDFLAGS="${LTO:-} ${WLB:-} ${LOCAL_GLDFLAGS:-}"
 
 # Enable LZMA-enabled unzipsfx
 D_USE_LZMA_SFX="-DLZMA_SFX"
