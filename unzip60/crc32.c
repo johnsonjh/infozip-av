@@ -645,6 +645,8 @@ void free_crc_table()
 #ifndef CRC_TABLE_ONLY
 #ifndef ASM_CRC
 
+#include "crc32_pclmul.h"
+
 #define DO1(crc, buf)  crc = CRC32(crc, *buf++, crc_32_tab)
 #define DO2(crc, buf)  DO1(crc, buf); DO1(crc, buf)
 #define DO4(crc, buf)  DO2(crc, buf); DO2(crc, buf)
@@ -689,6 +691,20 @@ ulg crc32(crc, buf, len)
   register ZCONST ulg near *crc_32_tab;
 
   if (buf == NULL) return 0L;
+
+#ifdef IZ_CRC32_PCLMUL
+  /* Do not execute a CRC instructions without checking CPUID first. Use the
+   * original implementation for short buffers and for the final 0..15 bytes. */
+  if (len >= 256 && (crc & ~((ulg)0xffffffffUL)) == 0 &&
+      iz_pclmul_available()) {
+    extent bulk = len & ~((extent)15);
+    crc = (ulg)iz_crc32_pclmul((z_uint4)crc, buf, bulk);
+    buf += bulk;
+    len -= bulk;
+    if (len == 0)
+      return crc;
+  }
+#endif
 
   crc_32_tab = get_crc_table();
 
