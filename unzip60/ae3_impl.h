@@ -39,6 +39,14 @@ ae3_sha_block (ae3_sha *s, const unsigned char *p)
   unsigned long w[64], a, b, c, d, e, f, g, h, x, y, z;
   unsigned i;
 
+#ifdef IZ_SHA256_NI_ENABLED
+  if (iz_sha256_ni_available ())
+    {
+      iz_sha256_ni_block (s->h, p, ae3_k);
+      return;
+    }
+#endif
+
   for (i = 0; i < 16; i++)
     {
       w[i] = ((unsigned long)p[4 * i] << 24)
@@ -312,6 +320,14 @@ ae3_ghash_block (iz_ae3 *c, const unsigned char p[16])
   unsigned char v[16], z[16];
   unsigned i, j, k;
   unsigned carry;
+
+#ifdef IZ_GHASH_PCLMUL_ENABLED
+  if (iz_ghash_pclmul_available ())
+    {
+      iz_ghash_pclmul_block (c->acc, c->h, p);
+      return;
+    }
+#endif
 
   memcpy (v, c->h, 16);
   memset (z, 0, sizeof (z));

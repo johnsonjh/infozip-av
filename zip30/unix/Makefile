@@ -98,7 +98,7 @@ zip.o zipup.o zipfile.o fileio.o crypt.o: crc32.h
 crc32.o: crc32.h crc32_pclmul.h
 zipcloak.o zipfile_.o fileio_.o crc32_.o crypt_.o: crc32.h
 zip.o zipup.o crypt.o ttyio.o zipcloak.o crypt_.o: crypt.h
-crypt.o crypt_.o: wzaes.c wzaes.h izsha1_ni.h
+crypt.o crypt_.o: wzaes.c wzaes.h izsha1_ni.h iz_aes_x86.h ae3_impl.h
 zip.o zipup.o zipnote.o zipcloak.o zipsplit.o: revision.h
 zip.o crypt.o ttyio.o zipcloak.o crypt_.o: ttyio.h
 zipup.o: unix/zipup.h deflate64.c deflate64.h d64opt.inc d64split.inc d64joint.inc

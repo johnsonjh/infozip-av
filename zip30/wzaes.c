@@ -12,6 +12,7 @@
 #include "wzaes.h"
 #ifndef NO_AES
 #include <string.h>
+#include "iz_aes_x86.h"
 #include "izsha1_ni.h"
 #include <stdio.h>
 #if defined(_WIN32) || defined(WIN32)
@@ -154,6 +155,12 @@ static void aes_expand(iz_wzaes *c,const unsigned char *key,unsigned nk) {
     iz_aes_wipe(temp,sizeof(temp));
 }
 static void aes_encrypt_block(const iz_wzaes *c,const unsigned char *src,unsigned char *dst) {
+#ifdef IZ_AES_NI_ENABLED
+    if (iz_aes_ni_available()) {
+        iz_aes_ni_block(c->expanded,c->rounds,src,dst);
+        return;
+    }
+#endif
     unsigned char s[16],t[16];unsigned i,r,j;unsigned char x,a,b,d,e;
     memcpy(s,src,16);
     for(i=0;i<16;i++) s[i]^=c->expanded[i];

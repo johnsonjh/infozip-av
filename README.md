@@ -30,7 +30,7 @@
 ## Overview
 
 **Xtro‑ZIP** adds extensive new algorithm support, security hardening,
-data de‑duplication, CRC‑32 and SHA‑1 hardware acceleration, full
+data de‑duplication, CRC/SHA/AES hardware acceleration, full
 [PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification)
 (create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x),
 [FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
