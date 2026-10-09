@@ -28,7 +28,7 @@
 
 ## Overview
 
-This project adds extensive new algorithm support, security hardening, full
+**Xtro‑ZIP** adds extensive new algorithm support, security hardening, full
 [PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification)
 (create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x),
 [FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
@@ -36,6 +36,9 @@ This project adds extensive new algorithm support, security hardening, full
 [AES cryptography](https://www.winzip.com/en/support/aes-encryption/)
 (**AE‑1**, **AE‑2**, and “quantum‑resistant” **AE‑3**) to
 [Info‑ZIP](https://infozip.sourceforge.net/).
+
+**Xtro‑ZIP** is the **only** permissively‑licensed open‑source ZIP software
+that supports many of these advanced features.
 
 The ability to compress and decompress archive members using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**
