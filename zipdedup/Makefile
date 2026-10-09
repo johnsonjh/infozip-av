@@ -14,7 +14,7 @@ all: zipdedup
 unzip-objects:
 	$(MAKE) -B -C $(UZDIR) -f unix/Makefile objsdll CC="gcc -std=gnu89" CFLAGS="$(UZFLAGS)"
 zipdedup: zipdedup.c refptr9903.c unzip-objects
-	$(CC) $(CFLAGS) $(ZD_METHODS) -DUNIX -DDLL -I$(UZDIR) zipdedup.c refptr9903.c $(UZOBJECTS) -o $@ $(LDLIBS)
+	$(CC) $(CFLAGS) $(ZD_METHODS) -DUNIX -DDLL -I$(UZDIR) zipdedup.c refptr9903.c $(UZOBJECTS) -o $@ $(LDLIBS) $(LOCAL_GLDFLAGS)
 clean:
 	rm -f zipdedup test-refptr9903
 .PHONY: all clean unzip-objects
