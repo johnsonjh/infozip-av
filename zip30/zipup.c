@@ -417,9 +417,10 @@ local int fwkcs_add_extra(z, digest)
 {
   char *p;
   unsigned oldlen = z->cext;
-  unsigned newlen = oldlen + 23;
+  unsigned newlen;
 
-  if (newlen > EF_SIZE_MAX) return ZE_BIG;
+  if (oldlen > EF_SIZE_MAX - 23U) return ZE_BIG;
+  newlen = oldlen + 23U;
   if ((p = (char *)malloc(newlen)) == NULL) return ZE_MEM;
   if (oldlen) memcpy(p, z->cextra, oldlen);
   p[oldlen] = (char)(EF_MD5 & 0xff);
@@ -1303,7 +1304,7 @@ struct zlist far *z;    /* zip entry to compress */
   pkav_sum16 = 0;
   pkav_xor8 = 0;
 
-  if (fwkcs_md5) fwkcs_md5_init(&fwkcs_ctx);
+  if (fwkcs_md5 && !isdir) fwkcs_md5_init(&fwkcs_ctx);
   if (isdir) {
     /* nothing to write */
   }
@@ -1488,7 +1489,7 @@ struct zlist far *z;    /* zip entry to compress */
 #endif /* !VMS && !CMS_MVS && !__mpexl */
 #endif /* (!MSDOS || OS2) */
 
-  if (fwkcs_md5) {
+  if (fwkcs_md5 && !isdir) {
     uch digest[16];
     int fr;
     fwkcs_md5_final(digest, &fwkcs_ctx);
