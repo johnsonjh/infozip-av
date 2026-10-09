@@ -29,6 +29,13 @@
   version without encryption capabilities).
  */
 
+/* Import compiler intrinsics before legacy Info-ZIP __G macro expands. */
+#if defined(__GNUC__) && (defined(__x86_64__) || defined(__amd64__)) \
+    && !defined(NO_SHA1_NI) && !defined(IZ_NO_SHA1_NI) \
+    && (defined(__clang__) || (__GNUC__ >= 5))
+# include <immintrin.h>
+#endif
+
 #define ZCRYPT_INTERNAL
 #include "zip.h"
 #include "crypt.h"

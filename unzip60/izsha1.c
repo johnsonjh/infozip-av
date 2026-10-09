@@ -6,6 +6,7 @@
 
 #include "izsha1.h"
 #include <string.h>
+#include "izsha1_ni.h"
 
 static void
 iz_sha1_wipe (void *ptr, size_t n)
@@ -26,6 +27,13 @@ iz_sha1_transform (iz_sha1 *s, const unsigned char *p)
 {
   unsigned long w[80], a, b, c, d, e, t, k, f;
   unsigned i;
+#ifdef IZ_SHA1_NI_ENABLED
+  if (iz_sha1_ni_available())
+    {
+      iz_sha1_ni_transform(s, p);
+      return;
+    }
+#endif
 
   for (i = 0; i < 16; i++)
     {

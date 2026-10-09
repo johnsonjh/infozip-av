@@ -12,6 +12,7 @@
 #include "wzaes.h"
 #ifndef NO_AES
 #include <string.h>
+#include "izsha1_ni.h"
 #include <stdio.h>
 #if defined(_WIN32) || defined(WIN32)
 #include <windows.h>
@@ -50,6 +51,12 @@ void iz_aes_wipe(void *ptr, size_t n) {
 static void sha_transform(iz_sha1 *s, const unsigned char *p) {
     unsigned long w[80], a,b,c,d,e,t,k,f;
     unsigned i;
+#ifdef IZ_SHA1_NI_ENABLED
+    if (iz_sha1_ni_available()) {
+        iz_sha1_ni_transform(s, p);
+        return;
+    }
+#endif
     for (i=0;i<16;i++) w[i] = ((unsigned long)p[i*4]<<24)|
         ((unsigned long)p[i*4+1]<<16)|((unsigned long)p[i*4+2]<<8)|p[i*4+3];
     for (i=16;i<80;i++) w[i]=ROL(w[i-3]^w[i-8]^w[i-14]^w[i-16],1);

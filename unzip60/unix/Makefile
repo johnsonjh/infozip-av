@@ -331,7 +331,7 @@ $(IZ_OUR_BZIP2_DIR)/libbz2.a:
 
 
 crc32$O:	crc32.c $(UNZIP_H) zip.h crc32.h crc32_pclmul.h
-crypt$O:	crypt.c izsha1.c izsha1.h $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h
+crypt$O:	crypt.c izsha1.c izsha1.h izsha1_ni.h $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h
 envargs$O:	envargs.c $(UNZIP_H)
 explode$O:	explode.c $(UNZIP_H)
 extract$O:	extract.c refptr.c wavpackzip.c wzmp3.c wzmp3.h $(UNZIP_H) crc32.h crypt.h
@@ -356,7 +356,7 @@ unzipsfx$O:	unzip.c $(UNZIP_H) crypt.h unzvers.h consts.h
 crc32_$O:	crc32.c $(UNZIP_H) zip.h crc32.h crc32_pclmul.h
 	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ crc32.c
 
-crypt_$O:	crypt.c izsha1.c izsha1.h $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h
+crypt_$O:	crypt.c izsha1.c izsha1.h izsha1_ni.h $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h
 	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ crypt.c
 
 extract_$O:	extract.c refptr.c wavpackzip.c wzmp3.c wzmp3.h $(UNZIP_H) crc32.h crypt.h
