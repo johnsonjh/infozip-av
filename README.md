@@ -58,7 +58,7 @@ support is available (when compressing using `zip ‑11`):
 |  **`3`** | Reduce&nbsp;(level&nbsp;2)                |     ✅     |    ✅    |
 |  **`4`** | Reduce&nbsp;(level&nbsp;3)                |     ✅     |    ✅    |
 |  **`5`** | Reduce&nbsp;(level&nbsp;4)                |     ✅     |    ✅    |
-|  **`6`** | ZIP&nbsp;Implode                          |     ✅     |          |
+|  **`6`** | ZIP&nbsp;Implode                          |     ✅     |    ✅    |
 |  **`8`** | DEFLATE&nbsp;(Zopfli&nbsp;optional)       |     ✅     |    ✅    |
 |  **`9`** | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)   |     ✅     |    ✅    |
 | **`10`** | DCL&nbsp;Implode                          |     ✅     |    ✅    |

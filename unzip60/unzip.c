@@ -573,7 +573,7 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif
 #  ifdef PKAV_SUPPORT
      static ZCONST char Far PkavSupport[] =
-       "PKAV (PKWARE Authenticity Verification, with AVEXTRA support)";
+       "PKAV (PKWARE Authenticity Verification, AVEXTRA support)";
 #  endif
      static ZCONST char Far FwkcsSupport[] =
        "FWKCS (Frederick W. Kantor Contents Signatures, using MD5)";

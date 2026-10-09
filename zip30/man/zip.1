@@ -2460,7 +2460,7 @@ The comment can be taken from a file:
 .PD
 .B \-\-compression\-method\ \fRcm
 Set the default compression method.  The main methods supported by
-\fIzip\fP are \fBstore\fP, \fBshrink\fP, \fBreduce\fP, \fBdeflate\fP, \fBdcl-implode\fP,
+\fIzip\fP are \fBstore\fP, \fBshrink\fP, \fBreduce\fP, \fBimplode\fP, \fBdeflate\fP, \fBdcl-implode\fP,
 \fBlzma\fP, \fBxz\fP, \fBzstd\fP, and \fBppmd\fP (with methods requiring external libraries
 available only when compiled in).
 Compression method can be set to:
@@ -2488,6 +2488,12 @@ Small files may be stored instead when that uses fewer bytes.
 \fB-5/-6\fP factor 3, and \fB-7/-8/-9\fP factor 4
 (also used by \fB-11\fP). Define \fBNO_REDUCE\fP to exclude
 it.  The encoder uses a writable temporary file to build follower sets.
+
+\fBimplode\fP \- Use ZIP Implode (method 6).  Levels
+\fB-1/-2\fP select 4K/2 trees, \fB-3/-4\fP 4K/3 trees,
+\fB-5/-6/-7\fP 8K/2 trees, and \fB-8/-9/-11\fP 8K/3 trees.
+Define \fBNO_IMPLODE\fP to omit the encoder.  A writable temporary
+file is needed to generate the per-file Shannon-Fano trees.
 
 \fBdeflate64\fP \- ZIP method 9 uses a 64 KiB history.  Levels
 \fB-8\fP and \fB-9\fP use bounded semi-optimal parser.  Level

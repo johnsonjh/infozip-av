@@ -49,17 +49,22 @@ extern int iz_zip_aes_active;
 # include "zopfli.c"
 #endif
 
-/* PKZIP Shrink encoder (standalone C89). */
+/* PKZIP Shrink, method 1 */
 #ifdef SHRINK_SUPPORT
 # include "shrink.c"
 #endif
 
-/* PKZIP Reduce methods 2-5 (standalone ANSI C89). */
+/* PKZIP Reduce, methods 2-5 */
 #ifdef REDUCE_SUPPORT
 # include "reduce.c"
 #endif
 
-/* Deflate64 encoder */
+/* PKZIP Implode, method 6 */
+#ifdef IMPLODE_SUPPORT
+# include "implode6.c"
+#endif
+
+/* Deflate64, method 9 */
 #ifdef DEFLATE64_SUPPORT
 # include "deflate64.h"
 # include "deflate64.c"
@@ -201,6 +206,9 @@ local zoff_t shrinkfilecompress OF((struct zlist far *z_entry, int *cmpr_method)
 #endif
 #ifdef REDUCE_SUPPORT
 local zoff_t reducefilecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#endif
+#ifdef IMPLODE_SUPPORT
+local zoff_t implodefilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
 #ifdef ZOPFLI_SUPPORT
 local zoff_t zopflifilecompress OF((struct zlist far *z_entry, int *cmpr_method));
@@ -1149,7 +1157,7 @@ struct zlist far *z;    /* zip entry to compress */
       z->vem = (ush)(Z_MAJORVER * 10 + Z_MINORVER);
     z->dosflag = 1;
   }
-  z->ver = (ush)(m == STORE || (m >= SHRINK && m <= REDUCE4) ? 10 : 20); /* legacy PKZIP 1.0 */
+  z->ver = (ush)(m == STORE || (m >= SHRINK && m <= IMPLODE) ? 10 : 20); /* legacy PKZIP 1.0 */
 #ifdef DEFLATE64_SUPPORT
   if (method == DEFLATE64)
       z->ver = (ush)(m == STORE ? 10 : 21);
@@ -1196,6 +1204,13 @@ struct zlist far *z;    /* zip entry to compress */
     /* More than pretend.  File is encrypted using crypt header with that. */
   }
 #endif /* CRYPT || AES */
+  /* ZIP method 6: bit 1 selects 8K; bit 2 selects 3 trees. */
+#ifdef IMPLODE_SUPPORT
+  if (m == IMPLODE) {
+    if (level >= 5) z->flg |= 2;
+    if ((level >= 3 && level <= 4) || level >= 8) z->flg |= 4;
+  }
+#endif
   z->lflg = z->flg;
   z->how = (ush)m;                              /* may be changed later  */
   z->siz = (zoff_t)(m == STORE && q >= 0 ? q : 0); /* will be changed later */
@@ -1306,6 +1321,11 @@ struct zlist far *z;    /* zip entry to compress */
 #ifdef REDUCE_SUPPORT
     else if (m >= REDUCE1 && m <= REDUCE4) {
       s = reducefilecompress(z, &m);
+    }
+#endif
+#ifdef IMPLODE_SUPPORT
+    else if (m == IMPLODE) {
+      s = implodefilecompress(z, &m);
     }
 #endif
 #ifdef DEFLATE64_SUPPORT
@@ -1593,6 +1613,7 @@ struct zlist far *z;    /* zip entry to compress */
       case REDUCE2:
       case REDUCE3:
       case REDUCE4:
+      case IMPLODE:
         z->ver = 10; break;
       /* Need PKUNZIP 2.0 for DEFLATE */
       case DEFLATE:
@@ -1702,6 +1723,8 @@ struct zlist far *z;    /* zip entry to compress */
     else if (m == DEFLATE64)
       fprintf(mesg, " (deflate64 %d%%)\n", percent(isize, s));
 #endif
+    else if (m == IMPLODE)
+      fprintf(mesg, " (imploded %d%%)\n", percent(isize, s));
     else if (m == DCLIMPLODE)
       fprintf(mesg, " (DCL imploded %d%%)\n", percent(isize, s));
 #ifdef PPMD_SUPPORT
@@ -1744,6 +1767,8 @@ struct zlist far *z;    /* zip entry to compress */
     else if (m == DEFLATE64)
       fprintf(logfile, " (deflate64 %d%%)\n", percent(isize, s));
 #endif
+    else if (m == IMPLODE)
+      fprintf(logfile, " (imploded %d%%)\n", percent(isize, s));
     else if (m == DCLIMPLODE)
       fprintf(logfile, " (DCL imploded %d%%)\n", percent(isize, s));
 #ifdef PPMD_SUPPORT
@@ -3266,6 +3291,58 @@ local zoff_t reducefilecompress(z_entry, cmpr_method)
     return result;
 }
 #endif /* REDUCE_SUPPORT */
+
+#ifdef IMPLODE_SUPPORT
+struct im6_zip_state {
+    struct small_store_state *store_test;
+    zoff_t written;
+    int error;
+};
+static unsigned im6_zip_read(void *opaque, unsigned char *buf, unsigned n)
+{
+    struct im6_zip_state *s = (struct im6_zip_state *)opaque;
+    unsigned got = small_store_read(s->store_test, (char *)buf, n);
+    if (got != (unsigned)EOF && got != 0U && !file_binary_final &&
+        !is_text_buf((char *)buf, got)) file_binary_final = 1;
+    return got;
+}
+static int im6_zip_write(void *opaque, const unsigned char *buf, unsigned n)
+{
+    struct im6_zip_state *s = (struct im6_zip_state *)opaque;
+    if (s->error) return 1;
+    if (n && small_store_write(s->store_test, (zvoid *)buf, n) != n) {
+        s->error = 1;
+        return 1;
+    }
+    s->written += (zoff_t)n;
+    return 0;
+}
+local zoff_t implodefilecompress(z_entry, cmpr_method)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+{
+    struct small_store_state store_test;
+    struct im6_zip_state state;
+    unsigned window = level >= 5 ? 8192U : 4096U;
+    unsigned trees = ((level >= 3 && level <= 4) || level >= 8) ? 3U : 2U;
+    int r;
+    zoff_t result;
+    small_store_init(&store_test, (size_t)SBSZ);
+    state.store_test = &store_test;
+    state.written = 0;
+    state.error = 0;
+    r = im6_encode(im6_zip_read, im6_zip_write, &state, window, trees);
+    if (r != 0 || state.error) {
+        small_store_discard(&store_test);
+        if (r == 1) ziperr(ZE_TEMP, "allocating Implode workspace or temporary file");
+        ziperr(ZE_TEMP, "Implode compression I/O failure");
+    }
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    result = small_store_finish(&store_test, cmpr_method, state.written);
+    if (*cmpr_method == STORE) z_entry->flg &= ~6;
+    return result;
+}
+#endif /* IMPLODE_SUPPORT */
 
 /* ===========================================================================
  * Compression to archive file.

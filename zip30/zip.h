@@ -335,6 +335,7 @@ extern int scanimage;           /* Scan through image files */
 #define REDUCE2 3               /* Reduce factor 2 (method 3) */
 #define REDUCE3 4               /* Reduce factor 3 (method 4) */
 #define REDUCE4 5               /* Reduce factor 4 (method 5) */
+#define IMPLODE 6               /* PKZIP Implode, ZIP method 6 */
 #define DEFLATE 8               /* Deflation method*/
 #define DEFLATE64 9             /* Deflate64 method */
 #define DCLIMPLODE 10           /* PKWARE DCL Implode method */
@@ -352,14 +353,21 @@ extern int scanimage;           /* Scan through image files */
 # define SHRINK_SUPPORT
 #endif
 
-/* Reduce uses ANSI C89 tmpfile and bounded segment allocations */
+/* Reduce uses ANSI tmpfile and bounded segment allocations */
 #if !defined(NO_REDUCE) && !defined(NO_PROTO) && !defined(NO_CONST) && \
     !defined(NO_STDLIB_H) && !defined(NO_STDDEF_H) && \
     !defined(NO_SIZE_T) && !defined(NO_VOID)
 # define REDUCE_SUPPORT
 #endif
 
-/* PPMd needs a flat space large enough for 1MB! */
+/* Implode uses ANSI tmpfile and segment-sized allocations */
+#if !defined(NO_IMPLODE) && !defined(NO_PROTO) && !defined(NO_CONST) && \
+    !defined(NO_STDLIB_H) && !defined(NO_STDDEF_H) && \
+    !defined(NO_SIZE_T) && !defined(NO_VOID)
+# define IMPLODE_SUPPORT
+#endif
+
+/* PPMd needs a flat space large enough for 1MB minimum! */
 #if !defined(NO_PPMD) && !defined(MEMORY16)
 # define PPMD_SUPPORT
 #endif

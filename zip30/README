@@ -282,5 +282,12 @@ PKZIP Reduce compression (ZIP methods 2-5) is also built in by default.
 Select -Z reduce with -1/-2 for factor 1, -3/-4 for factor 2, -5/-6
 for factor 3, or -7/-8/-9 for factor 4.  -11 selects factor 4.
 Define NO_REDUCE to disable it.  reduce.c is included from zipup.c,
-requires a writable ANSI C temporary file to analyze follower sets,
+requires a writable temporary file to analyze follower sets,
 and does not require changes to OS-specific makefiles.
+
+PKZIP Implode (ZIP method 6) is enabled by default.  Use -Z implode:
+-1/-2 selects 4K/2 trees; -3/-4 selects 4K/3 trees; -5/-6/-7 selects
+8K/2 trees; -8/-9/-11 selects 8K/3 trees. Define NO_IMPLODE to omit
+the encoder.  The standalone implode6.c is included from zipup.c and
+uses a writable temporary file for the tokenizing pass, no
+OS-specific makefile changes needed.

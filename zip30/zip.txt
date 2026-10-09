@@ -1739,8 +1739,10 @@ OPTIONS
        -Z cm
        --compression-method cm
               Set the default compression method.  The main supported methods
-              are store, deflate, dcl-implode, lzma, xz, zstd, and ppmd (with methods
-              that require external libraries available only when compiled in).
+              are store, shrink, reduce, implode, deflate, dcl-implode, lzma,
+              xz, zstd, and ppmd (with methods that require external libraries
+              available only when compiled in).
+
               Compression method can be set to:
 
               store  -  Setting  the compression method to store forces zip to
@@ -1765,6 +1767,12 @@ OPTIONS
               factor 4 (-11 also uses factor 4).  Define NO_REDUCE to
               omit the encoder.  It needs a writable C temporary file
               for follower-set analysis; small inputs may use STORE.
+
+              implode - Use PKZIP Implode (ZIP method 6).  Levels -1/-2
+              use 4K/2 trees, -3/-4 use 4K/3 trees, -5/-6/-7 use
+              8K/2 trees, and -8/-9/-11 use 8K/3 trees.  Define
+              NO_IMPLODE to omit the encoder.  A writable temporary file
+              is required to train the Shannon-Fano codebooks.
 
               deflate64 - ZIP method 9 uses a 64 KiB history.  Levels -8 and
               -9 use bounded semi-optimal parsing.  Level -11 also evaluates

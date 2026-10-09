@@ -1536,6 +1536,9 @@ local void help_extended()
 #ifdef REDUCE_SUPPORT
 "              reduce      - PKZIP Reduce (methods 2-5; -1..-9 presets)",
 #endif
+#ifdef IMPLODE_SUPPORT
+"              implode     - PKZIP Implode (method 6; -1..-9 presets)",
+#endif
 "              deflate     - ZIP Deflate [default] (method 8; -1..-9 presets)",
 #ifdef DEFLATE64_SUPPORT
 "              deflate64   - ZIP Deflate64 (method 9; -1..-9 presets)",
@@ -1862,14 +1865,18 @@ local void version_info()
     "Zip64                (use Zip64 to store large files in archives)",
 #endif
 #ifdef SHRINK_SUPPORT
-    "Shrink               (ZIP method 1; PKZIP-compatible LZW encoder)",
+    "Shrink               (ZIP method 1; Shrink LZW supported)",
 #endif
 #ifdef REDUCE_SUPPORT
-    "Reduce               (ZIP methods 2-5; PKZIP-compatible LZ77-SCRNCH encoder)",
+    "Reduce               (ZIP methods 2-5; Reduce LZ77-SCRNCH supported)",
+#endif
+#ifdef IMPLODE_SUPPORT
+    "ZIP-Implode          (ZIP method 6; Implode LZSS–Shannon-Fano supported)",
 #endif
 #ifdef DEFLATE64_SUPPORT
-    "Deflate64            (ZIP method 9; PKZIP 4.x Deflate64(tm) supported)",
+    "Deflate64            (ZIP method 9; Deflate64(tm) supported)",
 #endif
+    "DCL-Implode          (ZIP method 10; DCL-Implode; using PKDCLX v1.1.2)",
 #ifdef LZMA_SUPPORT
     lzma_opt_ver,
     xz_opt_ver,
@@ -1889,7 +1896,7 @@ local void version_info()
 #ifdef UNICODE_SUPPORT
     "Unicode              (store and read UTF-8 Unicode paths)",
 #endif
-    "PKAV                 (PKWARE Authenticity Verification, with AVEXTRA support)",
+    "PKAV                 (PKWARE Authenticity Verification, AVEXTRA support)",
     "FWKCS                (Frederick W. Kantor Contents Signatures using MD5)",
 #ifdef UNIX
     "STORE_UNIX_UIDs_GIDs (store UID/GID sizes/values using new extra field)",
@@ -1968,7 +1975,7 @@ local void version_info()
 #endif
 #ifdef ZSTD_SUPPORT
   sprintf(zstd_opt_ver,
-    "Zstandard            (ZIP method 93; legacy method 20; using libzstd v%.32s)",
+    "Zstandard            (ZIP method 93; legacy 20; using libzstd v%.32s)",
     ZSTD_versionString());
 #endif
 
@@ -4252,6 +4259,12 @@ char **argv;            /* command line tokens */
 #else
             ZIPERR(ZE_COMPERR, "Compression method reduce not enabled");
 #endif
+          } else if (strcmp(value, "implode") == 0) {
+#ifdef IMPLODE_SUPPORT
+            method = IMPLODE;
+#else
+            ZIPERR(ZE_COMPERR, "Compression method implode not enabled");
+#endif
           } else if (strcmp(value, "dcl-implode") == 0) {
             /* PKWARE DCL Implode, ZIP method 10 */
             method = DCLIMPLODE;
@@ -4334,18 +4347,24 @@ char **argv;            /* command line tokens */
 #else
 #define RE_STR ""
 #endif
+#ifdef IMPLODE_SUPPORT
+#define IM_STR ", implode"
+#else
+#define IM_STR ""
+#endif
 #ifdef DEFLATE64_SUPPORT
 #define D64_STR ", deflate64"
 #else
 #define D64_STR ""
 #endif
-            zipwarn("valid compression methods include: store, dcl-implode, deflate" SH_STR RE_STR D64_STR BZ_STR LZ_STR PP_STR ZS_STR, "");
+            zipwarn("valid compression methods include: store, dcl-implode, deflate" SH_STR RE_STR IM_STR D64_STR BZ_STR LZ_STR PP_STR ZS_STR, "");
 #undef BZ_STR
 #undef LZ_STR
 #undef PP_STR
 #undef D64_STR
 #undef SH_STR
 #undef RE_STR
+#undef IM_STR
 #undef ZS_STR
             zipwarn("unknown compression method found:  ", value);
             free(value);
