@@ -45,13 +45,13 @@ de‑duplication, full
 
 The ability to compress and decompress archive members using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**
-(method&nbsp;95), **DCL**&nbsp;**Implode** (method&nbsp;10), **Deflate64**
-(method&nbsp;9), **Shrink** (method&nbsp;1), **Reduce** (methods 2 through 5),
-and **PPMd** (method&nbsp;98) has been added.
+(method&nbsp;95), **ZIP**&nbsp;**Implode** (method&nbsp;6),
+**DCL**&nbsp;**Implode** (method&nbsp;10), **Deflate64** (method&nbsp;9),
+**Shrink** (method&nbsp;1), **Reduce** (methods 2 through 5), and **PPMd**
+(method&nbsp;98) has been added.
 
-New decompression‑only support **ZIP**&nbsp;**Implode** (method&nbsp;6),
-**WZ‑MP3** (method&nbsp;94), **WZ‑JPEG** (method&nbsp;96), and **WavPack**
-(method&nbsp;97) has also been added.
+New decompression‑only support for **WZ‑MP3** (method&nbsp;94), **WZ‑JPEG**
+(method&nbsp;96), and **WavPack** (method&nbsp;97) has also been added.
 
 WinZip‑style de‑duplication **RefPtr** (method&nbsp;92) is supported.
 
