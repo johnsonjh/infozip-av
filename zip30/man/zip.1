@@ -2460,7 +2460,7 @@ The comment can be taken from a file:
 .PD
 .B \-\-compression\-method\ \fRcm
 Set the default compression method.  The main methods supported by
-\fIzip\fP are \fBstore\fP, \fBdeflate\fP, \fBdcl-implode\fP,
+\fIzip\fP are \fBstore\fP, \fBshrink\fP, \fBreduce\fP, \fBdeflate\fP, \fBdcl-implode\fP,
 \fBlzma\fP, \fBxz\fP, \fBzstd\fP, and \fBppmd\fP (with methods requiring external libraries
 available only when compiled in).
 Compression method can be set to:
@@ -2477,6 +2477,17 @@ optimizer and still writes ordinary ZIP method-8 Deflate data.  If Zopfli
 support is not enabled, \fB-11\fP with Deflate is an error rather than a
 silent fallback to \fB-9\fP.  If \fIzip\fP determines that storing is
 better than deflation, the entry will be stored instead.
+
+\fBshrink\fP \- Use the built-in legacy PKZIP Shrink compressor (ZIP
+method 1). It uses one fixed setting independent of compression level.
+The encoder can be omitted by defining \fBNO_SHRINK\fP when building.
+Small files may be stored instead when that uses fewer bytes.
+
+\fBreduce\fP \- Use PKZIP Reduce (ZIP methods 2-5).  Levels
+\fB-1/-2\fP select factor 1, \fB-3/-4\fP factor 2,
+\fB-5/-6\fP factor 3, and \fB-7/-8/-9\fP factor 4
+(also used by \fB-11\fP). Define \fBNO_REDUCE\fP to exclude
+it.  The encoder uses a writable temporary file to build follower sets.
 
 \fBdeflate64\fP \- ZIP method 9 uses a 64 KiB history.  Levels
 \fB-8\fP and \fB-9\fP use bounded semi-optimal parser.  Level

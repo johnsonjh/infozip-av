@@ -49,6 +49,16 @@ extern int iz_zip_aes_active;
 # include "zopfli.c"
 #endif
 
+/* PKZIP Shrink encoder (standalone C89). */
+#ifdef SHRINK_SUPPORT
+# include "shrink.c"
+#endif
+
+/* PKZIP Reduce methods 2-5 (standalone ANSI C89). */
+#ifdef REDUCE_SUPPORT
+# include "reduce.c"
+#endif
+
 /* Deflate64 encoder */
 #ifdef DEFLATE64_SUPPORT
 # include "deflate64.h"
@@ -186,6 +196,12 @@ local unsigned file_read OF((char *buf, unsigned size));
 
 /* zip64 support 08/29/2003 R.Nausedat */
 local zoff_t filecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#ifdef SHRINK_SUPPORT
+local zoff_t shrinkfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#endif
+#ifdef REDUCE_SUPPORT
+local zoff_t reducefilecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#endif
 #ifdef ZOPFLI_SUPPORT
 local zoff_t zopflifilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
@@ -1073,6 +1089,13 @@ struct zlist far *z;    /* zip entry to compress */
     m = STORE;
   if (m == BEST)
     m = DEFLATE;
+#ifdef REDUCE_SUPPORT
+  /* Resolve the selected factor BEFORE writing the local header.  A
+   * data-descriptor/streamed archive cannot rewrite its method later. */
+  if (m >= REDUCE1 && m <= REDUCE4)
+    m = level >= 7 ? REDUCE4 : (level >= 5 ? REDUCE3 :
+                               (level >= 3 ? REDUCE2 : REDUCE1));
+#endif
 
   /* Do not create STORED files with extended local headers if the
    * input size is not known, because such files could not be extracted.
@@ -1126,7 +1149,7 @@ struct zlist far *z;    /* zip entry to compress */
       z->vem = (ush)(Z_MAJORVER * 10 + Z_MINORVER);
     z->dosflag = 1;
   }
-  z->ver = (ush)(m == STORE ? 10 : 20); /* Need PKUNZIP 2.0 except for store */
+  z->ver = (ush)(m == STORE || (m >= SHRINK && m <= REDUCE4) ? 10 : 20); /* legacy PKZIP 1.0 */
 #ifdef DEFLATE64_SUPPORT
   if (method == DEFLATE64)
       z->ver = (ush)(m == STORE ? 10 : 21);
@@ -1275,6 +1298,16 @@ struct zlist far *z;    /* zip entry to compress */
     if (m == DCLIMPLODE) {
       s = dclfilecompress(z, &m);
     }
+#ifdef SHRINK_SUPPORT
+    else if (m == SHRINK) {
+      s = shrinkfilecompress(z, &m);
+    }
+#endif
+#ifdef REDUCE_SUPPORT
+    else if (m >= REDUCE1 && m <= REDUCE4) {
+      s = reducefilecompress(z, &m);
+    }
+#endif
 #ifdef DEFLATE64_SUPPORT
     else if (m == DEFLATE64) {
       s = deflate64filecompress(z, &m);
@@ -1555,6 +1588,11 @@ struct zlist far *z;    /* zip entry to compress */
       switch (m)
       {
       case STORE:
+      case SHRINK:
+      case REDUCE1:
+      case REDUCE2:
+      case REDUCE3:
+      case REDUCE4:
         z->ver = 10; break;
       /* Need PKUNZIP 2.0 for DEFLATE */
       case DEFLATE:
@@ -1652,6 +1690,14 @@ struct zlist far *z;    /* zip entry to compress */
 #endif
     if (m == DEFLATE)
       fprintf(mesg, " (deflated %d%%)\n", percent(isize, s));
+#ifdef SHRINK_SUPPORT
+    else if (m == SHRINK)
+      fprintf(mesg, " (shrunk %d%%)\n", percent(isize, s));
+#endif
+#ifdef REDUCE_SUPPORT
+    else if (m >= REDUCE1 && m <= REDUCE4)
+      fprintf(mesg, " (reduced factor %d, %d%%)\n", m - REDUCE1 + 1, percent(isize, s));
+#endif
 #ifdef DEFLATE64_SUPPORT
     else if (m == DEFLATE64)
       fprintf(mesg, " (deflate64 %d%%)\n", percent(isize, s));
@@ -1686,6 +1732,14 @@ struct zlist far *z;    /* zip entry to compress */
 #endif
     if (m == DEFLATE)
       fprintf(logfile, " (deflated %d%%)\n", percent(isize, s));
+#ifdef SHRINK_SUPPORT
+    else if (m == SHRINK)
+      fprintf(logfile, " (shrunk %d%%)\n", percent(isize, s));
+#endif
+#ifdef REDUCE_SUPPORT
+    else if (m >= REDUCE1 && m <= REDUCE4)
+      fprintf(logfile, " (reduced factor %d, %d%%)\n", m - REDUCE1 + 1, percent(isize, s));
+#endif
 #ifdef DEFLATE64_SUPPORT
     else if (m == DEFLATE64)
       fprintf(logfile, " (deflate64 %d%%)\n", percent(isize, s));
@@ -3093,6 +3147,125 @@ local zoff_t deflate64filecompress(z_entry, cmpr_method)
     return result;
 }
 #endif /* DEFLATE64_SUPPORT */
+
+#ifdef SHRINK_SUPPORT
+struct shk_zip_state {
+    struct small_store_state *store_test;
+    zoff_t written;
+    int error;
+};
+
+static unsigned shk_zip_read(void *opaque, unsigned char *buf, unsigned size)
+{
+    struct shk_zip_state *s;
+    unsigned n;
+    s = (struct shk_zip_state *)opaque;
+    n = small_store_read(s->store_test, (char *)buf, size);
+    if (n != (unsigned)EOF && n != 0U && file_binary_final == 0 &&
+        !is_text_buf((char *)buf, n)) file_binary_final = 1;
+    return n;
+}
+
+static int shk_zip_write(void *opaque, const unsigned char *buf, unsigned n)
+{
+    struct shk_zip_state *s;
+    s = (struct shk_zip_state *)opaque;
+    if (s->error) return 1;
+    if (n != 0U && small_store_write(s->store_test, (zvoid *)buf, n) != n) {
+        s->error = 1;
+        return 1;
+    }
+    s->written += (zoff_t)n;
+    return 0;
+}
+
+local zoff_t shrinkfilecompress(z_entry, cmpr_method)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+{
+    struct small_store_state store_test;
+    struct shk_zip_state state;
+    int r;
+    zoff_t result;
+
+    small_store_init(&store_test, (size_t)SBSZ);
+    state.store_test = &store_test;
+    state.error = 0;
+    state.written = 0;
+    r = shk_encode(shk_zip_read, shk_zip_write, &state);
+    if (r != 0 || state.error) {
+        small_store_discard(&store_test);
+        if (r == 1) ziperr(ZE_MEM, "allocating Shrink dictionary");
+        ziperr(ZE_TEMP, "Shrink compression I/O failure");
+    }
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    result = small_store_finish(&store_test, cmpr_method, state.written);
+    if (*cmpr_method == STORE) z_entry->flg &= ~6;
+    return result;
+}
+#endif /* SHRINK_SUPPORT */
+
+#ifdef REDUCE_SUPPORT
+struct red_zip_state {
+    struct small_store_state *store_test;
+    zoff_t written;
+    int error;
+};
+
+static unsigned red_zip_read(void *opaque, unsigned char *buf, unsigned size)
+{
+    struct red_zip_state *s;
+    unsigned n;
+    s = (struct red_zip_state *)opaque;
+    n = small_store_read(s->store_test, (char *)buf, size);
+    if (n != (unsigned)EOF && n != 0U && file_binary_final == 0 &&
+        !is_text_buf((char *)buf, n)) file_binary_final = 1;
+    return n;
+}
+
+static int red_zip_write(void *opaque, const unsigned char *buf, unsigned n)
+{
+    struct red_zip_state *s;
+    s = (struct red_zip_state *)opaque;
+    if (s->error) return 1;
+    if (n != 0U && small_store_write(s->store_test, (zvoid *)buf, n) != n) {
+        s->error = 1;
+        return 1;
+    }
+    s->written += (zoff_t)n;
+    return 0;
+}
+
+local zoff_t reducefilecompress(z_entry, cmpr_method)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+{
+    struct small_store_state store_test;
+    struct red_zip_state state;
+    int r;
+    unsigned factor;
+    zoff_t result;
+
+    /* -1/-2 => 1, -3/-4 => 2, -5/-6 => 3, -7/-8/-9 => 4.
+     * The extra -11 effort level uses factor 4, like other codecs. */
+    factor = level >= 7 ? 4U : (level >= 5 ? 3U : (level >= 3 ? 2U : 1U));
+    small_store_init(&store_test, (size_t)SBSZ);
+    state.store_test = &store_test;
+    state.written = 0;
+    state.error = 0;
+    r = red_encode(red_zip_read, red_zip_write, &state, factor);
+    if (r != 0 || state.error) {
+        small_store_discard(&store_test);
+        if (r == 1) ziperr(ZE_TEMP, "allocating Reduce workspace or temporary file");
+        ziperr(ZE_TEMP, "Reduce compression I/O failure");
+    }
+    *cmpr_method = (int)(REDUCE1 + factor - 1U);
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    result = small_store_finish(&store_test, cmpr_method, state.written);
+    if (*cmpr_method == STORE) z_entry->flg &= ~6;
+    return result;
+}
+#endif /* REDUCE_SUPPORT */
 
 /* ===========================================================================
  * Compression to archive file.

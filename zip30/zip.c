@@ -1530,23 +1530,29 @@ local void help_extended()
 "  -11       compress ultra (Zopfli Deflate; ultra Deflate64; Zstd level 22)",
 "  -Z cm     set compression method to cm:",
 "              store       - store without compression, same as option -0",
-#ifdef BZIP2_SUPPORT
-"              bzip2       - bzip2 (method 12; -1..-9 presets)",
+#ifdef SHRINK_SUPPORT
+"              shrink      - PKZIP Shrink (method 1)",
 #endif
-"              dcl-implode - PKWARE DCL Implode (method 10)",
+#ifdef REDUCE_SUPPORT
+"              reduce      - PKZIP Reduce (methods 2-5; -1..-9 presets)",
+#endif
 "              deflate     - ZIP Deflate [default] (method 8; -1..-9 presets)",
 #ifdef DEFLATE64_SUPPORT
 "              deflate64   - ZIP Deflate64 (method 9; -1..-9 presets)",
 #endif
+"              dcl-implode - PKWARE DCL Implode (method 10)",
+#ifdef BZIP2_SUPPORT
+"              bzip2       - bzip2 (method 12; -1..-9 presets)",
+#endif
 #ifdef LZMA_SUPPORT
 "              lzma        - LZMA (method 14; -1..-9 presets)",
+#ifdef ZSTD_SUPPORT
+"              zstd        - Zstandard (method 93; -1..-9 presets)",
+#endif
 "              xz          - XZ LZMA2 (method 95; -1..-9 presets)",
 #endif
 #ifdef PPMD_SUPPORT
 "              ppmd        - PPMd Variant I (method 98; -1..-9 presets)",
-#endif
-#ifdef ZSTD_SUPPORT
-"              zstd        - Zstandard (method 93; -1..-9 presets)",
 #endif
 "",
 "Compression tuning:",
@@ -1854,6 +1860,12 @@ local void version_info()
 #endif
 #ifdef ZIP64_SUPPORT
     "Zip64                (use Zip64 to store large files in archives)",
+#endif
+#ifdef SHRINK_SUPPORT
+    "Shrink               (ZIP method 1; PKZIP-compatible LZW encoder)",
+#endif
+#ifdef REDUCE_SUPPORT
+    "Reduce               (ZIP methods 2-5; PKZIP-compatible LZ77-SCRNCH encoder)",
 #endif
 #ifdef DEFLATE64_SUPPORT
     "Deflate64            (ZIP method 9; PKZIP 4.x Deflate64(tm) supported)",
@@ -4228,7 +4240,19 @@ char **argv;            /* command line tokens */
           break;
 
         case 'Z':   /* Compression method */
-          if (strcmp(value, "dcl-implode") == 0) {
+          if (strcmp(value, "shrink") == 0) {
+#ifdef SHRINK_SUPPORT
+            method = SHRINK;
+#else
+            ZIPERR(ZE_COMPERR, "Compression method shrink not enabled");
+#endif
+          } else if (strcmp(value, "reduce") == 0) {
+#ifdef REDUCE_SUPPORT
+            method = REDUCE4; /* actual factor selected in zipup from lev */
+#else
+            ZIPERR(ZE_COMPERR, "Compression method reduce not enabled");
+#endif
+          } else if (strcmp(value, "dcl-implode") == 0) {
             /* PKWARE DCL Implode, ZIP method 10 */
             method = DCLIMPLODE;
           } else if (strcmp(value, "deflate64") == 0) {
@@ -4300,16 +4324,28 @@ char **argv;            /* command line tokens */
 #else
 #define ZS_STR ""
 #endif
+#ifdef SHRINK_SUPPORT
+#define SH_STR ", shrink"
+#else
+#define SH_STR ""
+#endif
+#ifdef REDUCE_SUPPORT
+#define RE_STR ", reduce"
+#else
+#define RE_STR ""
+#endif
 #ifdef DEFLATE64_SUPPORT
 #define D64_STR ", deflate64"
 #else
 #define D64_STR ""
 #endif
-            zipwarn("valid compression methods include: store, dcl-implode, deflate" D64_STR BZ_STR LZ_STR PP_STR ZS_STR, "");
+            zipwarn("valid compression methods include: store, dcl-implode, deflate" SH_STR RE_STR D64_STR BZ_STR LZ_STR PP_STR ZS_STR, "");
 #undef BZ_STR
 #undef LZ_STR
 #undef PP_STR
 #undef D64_STR
+#undef SH_STR
+#undef RE_STR
 #undef ZS_STR
             zipwarn("unknown compression method found:  ", value);
             free(value);

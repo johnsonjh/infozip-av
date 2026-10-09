@@ -271,3 +271,16 @@ A. Yes, as long as the conditions in the Info-ZIP license are met.  We
    recommend you include in your product documentation an acknowledgment
    and note that the original compression sources are available at
    www.Info-ZIP.org. If you have special requirements contact us.
+
+PKZIP Shrink compression (ZIP method 1) is built in by default.  Select it
+with -Z shrink.  It uses a single fixed LZW setting and is intended for
+compatibility with legacy PKUNZIP.  Define NO_SHRINK to omit the encoder.
+The implementation is contained in shrink.c and included from zipup.c, so
+no per-platform makefile changes are needed.
+
+PKZIP Reduce compression (ZIP methods 2-5) is also built in by default.
+Select -Z reduce with -1/-2 for factor 1, -3/-4 for factor 2, -5/-6
+for factor 3, or -7/-8/-9 for factor 4.  -11 selects factor 4.
+Define NO_REDUCE to disable it.  reduce.c is included from zipup.c,
+requires a writable ANSI C temporary file to analyze follower sets,
+and does not require changes to OS-specific makefiles.

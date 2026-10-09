@@ -330,6 +330,11 @@ extern int scanimage;           /* Scan through image files */
 
 #define BEST -1                 /* Use best method (deflation or store) */
 #define STORE 0                 /* Store method */
+#define SHRINK 1                /* PKZIP Shrink method */
+#define REDUCE1 2               /* Reduce factor 1 (method 2) */
+#define REDUCE2 3               /* Reduce factor 2 (method 3) */
+#define REDUCE3 4               /* Reduce factor 3 (method 4) */
+#define REDUCE4 5               /* Reduce factor 4 (method 5) */
 #define DEFLATE 8               /* Deflation method*/
 #define DEFLATE64 9             /* Deflate64 method */
 #define DCLIMPLODE 10           /* PKWARE DCL Implode method */
@@ -339,6 +344,20 @@ extern int scanimage;           /* Scan through image files */
 #define ZSTD 93                 /* Zstandard method */
 #define XZ 95                   /* XZ/LZMA2 method */
 #define PPMD 98                 /* PPMd Variant I, ZIP method 98 */
+
+/* Shrink is ANSI C and its allocations fit 16-bit memory segments */
+#if !defined(NO_SHRINK) && !defined(NO_PROTO) && !defined(NO_CONST) && \
+    !defined(NO_STDLIB_H) && !defined(NO_STDDEF_H) && \
+    !defined(NO_SIZE_T) && !defined(NO_VOID)
+# define SHRINK_SUPPORT
+#endif
+
+/* Reduce uses ANSI C89 tmpfile and bounded segment allocations */
+#if !defined(NO_REDUCE) && !defined(NO_PROTO) && !defined(NO_CONST) && \
+    !defined(NO_STDLIB_H) && !defined(NO_STDDEF_H) && \
+    !defined(NO_SIZE_T) && !defined(NO_VOID)
+# define REDUCE_SUPPORT
+#endif
 
 /* PPMd needs a flat space large enough for 1MB! */
 #if !defined(NO_PPMD) && !defined(MEMORY16)

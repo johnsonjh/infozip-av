@@ -37,27 +37,27 @@ This project adds extensive new algorithm support, security hardening, full
 (**AE‑1**, **AE‑2**, and “quantum‑resistant” **AE‑3**) to
 [Info‑ZIP](https://infozip.sourceforge.net/).
 
-The ability to *both compress and decompress* archives using **Zstandard**
+The ability to compress and decompress archive members using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**
 (method&nbsp;95), **DCL**&nbsp;**Implode** (method&nbsp;10), **Deflate64**
-(method&nbsp;9), and **PPMd** (method&nbsp;98) has been added.  New
-decompression‑only support for **Shrink** (method&nbsp;1), **Reduce** (methods
-2 through 5), **ZIP**&nbsp;**Implode** (method&nbsp;6),
-**WZ‑MP3** (method&nbsp;94), **WZ‑JPEG** (method&nbsp;96), and **WavPack**
-(method&nbsp;97) has also been added.  WinZip‑style de‑duplication **RefPtr**
-(method&nbsp;92) is supported.  The usual **Store** (method&nbsp;0) and
-**Deflate** (method&nbsp;8) algorithms remain supported.  Additionally, new
+(method&nbsp;9), **Shrink** (method&nbsp;1), **Reduce** (methods 2 through 5),
+and **PPMd** (method&nbsp;98) has been added.  New decompression‑only support
+**ZIP**&nbsp;**Implode** (method&nbsp;6), **WZ‑MP3** (method&nbsp;94),
+**WZ‑JPEG** (method&nbsp;96), and **WavPack** (method&nbsp;97) has also been
+added.  WinZip‑style de‑duplication **RefPtr** (method&nbsp;92) is supported.
+The usual **Store** (method&nbsp;0) and **Deflate** (method&nbsp;8) algorithms
+remain supported.  Additionally, new
 [Zopfli](https://github.com/google/zopfli)‑enhanced **Deflate** (method&nbsp;8)
 support is available (when compressing using `zip ‑11`):
 
 |   Method | Description                               | Decompress | Compress |
 |---------:|:------------------------------------------|:----------:|:--------:|
 |  **`0`** | Store&nbsp;(no&nbsp;compression)          |     ✅     |    ✅    |
-|  **`1`** | Shrink                                    |     ✅     |          |
-|  **`2`** | Reduce&nbsp;(level&nbsp;1)                |     ✅     |          |
-|  **`3`** | Reduce&nbsp;(level&nbsp;2)                |     ✅     |          |
-|  **`4`** | Reduce&nbsp;(level&nbsp;3)                |     ✅     |          |
-|  **`5`** | Reduce&nbsp;(level&nbsp;4)                |     ✅     |          |
+|  **`1`** | Shrink                                    |     ✅     |    ✅    |
+|  **`2`** | Reduce&nbsp;(level&nbsp;1)                |     ✅     |    ✅    |
+|  **`3`** | Reduce&nbsp;(level&nbsp;2)                |     ✅     |    ✅    |
+|  **`4`** | Reduce&nbsp;(level&nbsp;3)                |     ✅     |    ✅    |
+|  **`5`** | Reduce&nbsp;(level&nbsp;4)                |     ✅     |    ✅    |
 |  **`6`** | ZIP&nbsp;Implode                          |     ✅     |          |
 |  **`8`** | DEFLATE&nbsp;(Zopfli&nbsp;optional)       |     ✅     |    ✅    |
 |  **`9`** | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)   |     ✅     |    ✅    |
@@ -473,7 +473,7 @@ No errors detected in compressed data of pkz110.exe.
 
 ## Licenses
 
-* The **Deflate64** compressor, **WZ‑JPEG** decompressor, **WZ‑MP3**
+* The **Shrink** and **Deflate64** compressors, **WZ‑JPEG** decompressor, **WZ‑MP3**
   decompressor, and the **PKAV** and **FWKCS** additions to Info‑ZIP are
   provided under the [MIT‑0](LICENSE) license, or, at your option, the
   [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
