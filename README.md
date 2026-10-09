@@ -45,9 +45,9 @@ and **PPMd** (method&nbsp;98) has been added.  New decompression‑only support
 **ZIP**&nbsp;**Implode** (method&nbsp;6), **WZ‑MP3** (method&nbsp;94),
 **WZ‑JPEG** (method&nbsp;96), and **WavPack** (method&nbsp;97) has also been
 added.  WinZip‑style de‑duplication **RefPtr** (method&nbsp;92) is supported.
-The usual **Store** (method&nbsp;0) and **Deflate** (method&nbsp;8) algorithms
+The usual **Store** (method&nbsp;0) and **DEFLATE** (method&nbsp;8) algorithms
 remain supported.  Additionally, new
-[Zopfli](https://github.com/google/zopfli)‑enhanced **Deflate** (method&nbsp;8)
+[Zopfli](https://github.com/google/zopfli)‑enhanced **DEFLATE** (method&nbsp;8)
 support is available (when compressing using `zip ‑11`):
 
 |   Method | Description                               | Decompress | Compress |
