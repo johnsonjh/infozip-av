@@ -83,7 +83,7 @@ support is available (when compressing using `zip ‑11`):
 | **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;Rev&nbsp;1              |     ✅     |    ✅    |
 
 > [!NOTE]
-> **NB**: Methods 1 through 6 are legacy algorithms and are no longer
+> Methods 1 through 6 are legacy algorithms and are no longer
 > recommended for use.  <sup>**1**</sup>&nbsp;bzip2 support requires
 > [`libbz2`](https://sourceware.org/bzip2/). <sup>**2**</sup>&nbsp;LZMA,
 > XZ/LZMA2, and WZ‑JPEG support requires [`liblzma`](https://tukaani.org/xz/).
