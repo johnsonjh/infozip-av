@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: CC0-1.0 */
+/* SPDX-License-Identifier: CC0-1.0 or MIT-0 */
 #include "wzmp3_codebooks.h"
 #include <string.h>
 

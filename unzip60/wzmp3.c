@@ -2286,7 +2286,7 @@ cleanup:
 }
 /* ===== END wzmp3_decode.c ===== */
 /* ===== BEGIN wzmp3_codebooks.c ===== */
-/* SPDX-License-Identifier: CC0-1.0 */
+/* SPDX-License-Identifier: CC0-1.0 or MIT-0 */
 #include <string.h>
 
 typedef struct wzmp3_cc0code_s {unsigned short symbol; unsigned char length; unsigned long bits;} wzmp3_cc0code;

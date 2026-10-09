@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: CC0-1.0
+/* SPDX-License-Identifier: CC0-1.0 or MIT-0
  * Derived from the independently published minimp3.h by lieff and contributors.
  * https://github.com/lieff/minimp3
  * This is an inverse representation of its MPEG Layer III decoder tables.

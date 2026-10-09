@@ -18,7 +18,7 @@ Only decoding is provided. Supports the tested packMP3 stream version 1.0,
 MPEG-1 Layer III mono/stereo. The output is the original MP3 bitstream, not
 a PCM audio render. The ZIP layer checks the final CRC-32 and output sizes.
 
-License: new decoder code MIT-0; MPEG Huffman data from CC0 minimp3.
+License: new decoder code MIT-0; MPEG Huffman data CC0 (or MIT-0) minimp3.
 
 RefPtr (Method 92) is updated to permit Method 94 as a source where both
 features are enabled; it re-decompresses the source directly from the ZIP.

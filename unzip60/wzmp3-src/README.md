@@ -8,8 +8,8 @@ compress files, link to packMP3, or depend on any system MP3 decoder.
 The decoder source is independently written and **MIT-0** licensed. The MPEG
 Huffman codebook data in `wzmp3_codebooks.c` is derived solely from the
 user-supplied [`minimp3.h`](https://github.com/lieff/minimp3) (CC0-1.0,
-public-domain dedication). CC0 data can be distributed alongside MIT-0 code.
-No LGPL packMP3 source, object, or Huffman table is included.
+public-domain dedication), or MIT-0 at your option.  No LGPL packMP3
+source code, objects, or Huffman tables were used.
 
 ## Building
 

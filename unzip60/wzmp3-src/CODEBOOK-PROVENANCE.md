@@ -3,7 +3,7 @@
 The codewords in `wzmp3_codebooks.c` were generated exclusively from the
 supplied `minimp3.h`, by the lieff/minimp3 authors. Its introductory notice
 dedicates the source under Creative Commons Zero (CC0-1.0). The codebook data
-in this file remains CC0; the new WZ-MP3 decoder logic is separately MIT-0.
+is CC0 or MIT-0 at your option; the WZ-MP3 decoder is MIT-0.
 
 Source data inside `L3_huffman` in minimp3:
 
