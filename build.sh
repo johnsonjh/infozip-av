@@ -44,7 +44,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
 (
   cd "${UNZIPDIR:?}" \
     && "${MAKE:-make}" -j "${CPUS:?}" -f unix/Makefile generic_gcc \
-      CF_NOOPT="${CF_NOOPT:?}" \
+      CF_NOOPT="${CF_NOOPT:?} ${LOCAL_UNZIP:-}" \
       LFLAGS2="${GLDFLAGS:?}" \
       D_USE_LZMA_SFX="${D_USE_LZMA_SFX:-}" \
       L_LZMA_SFX="${L_LZMA_SFX:-}" \
@@ -61,7 +61,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
 (
   cd "${ZIPDIR:?}" \
     && "${MAKE:-make}" -j "${CPUS:?}" -f unix/Makefile generic_gcc \
-      CFLAGS_NOOPT="${CF_NOOPT:?}" \
+      CFLAGS_NOOPT="${CF_NOOPT:?} ${LOCAL_ZIP:-}" \
       LFLAGS2="${GLDFLAGS:?}" \
       LOCAL_ZIP="${LOCAL_ZIP:-}" \
       PREFIX="${PREFIX:?}"
