@@ -47,4 +47,4 @@
   was generated using AI/LLM assistance but does seem sound!  `make test`
   only after the rest of the project is built or errors are expected.
 
-- Similarly AI/LLM was used for making the man page so that probably sucks.
+- Similarly AI/LLM was used for making the man page (so it probably sucks).
