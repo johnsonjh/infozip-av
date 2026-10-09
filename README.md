@@ -89,7 +89,8 @@ XZ/LZMA2, and WZ‑JPEG support requires [`liblzma`](https://tukaani.org/xz/).
 <sup>**3**</sup>&nbsp;Zstandard support requires
 [`libzstd`](https://facebook.github.io/zstd/). <sup>**4**</sup>&nbsp;WavPack
 support requires [`libwavpack`](https://www.wavpack.com/).
-<sup>**5**</sup>&nbsp;De‑duplicated archives supported via `zipdedup`.
+<sup>**5**</sup>&nbsp;De‑duplicated archive creation supported via
+[`zipdedup`](#de-duplication-zipdedup).
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
