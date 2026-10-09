@@ -1575,7 +1575,7 @@ int huft_build(__G__ b, n, s, d, e, t, m)
   register unsigned i;          /* counter, current code */
   register unsigned j;          /* counter */
   register int k;               /* number of bits in current code */
-  int lx[BMAX+1];               /* memory for l[-1..BMAX-1] */
+  int lx[BMAX+1] = {0};         /* memory for l[-1..BMAX-1] */
   int *l = lx+1;                /* stack of bits per table */
   register unsigned *p;         /* pointer into c[], b[], or v[] */
   register struct huft *q;      /* points to current table */

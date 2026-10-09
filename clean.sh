@@ -4,6 +4,7 @@ set -e
 
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
+ZIPDEDUPDIR="zipdedup"
 
 PREFIX="$(pwd -P 2> /dev/null || :)/build"
 
@@ -21,6 +22,13 @@ test "${PREFIX:?}" = "/build" && {
   cd "${ZIPDIR:?}" \
     && make -f unix/Makefile clean
 )
+
+(
+  cd "${ZIPDEDUPDIR:?}" \
+    && make clean
+)
+
+rm -f "${UNZIPDIR:?}/"*.pic.o
 
 rm -f "${UNZIPDIR:?}/conftest"
 rm -f "${UNZIPDIR:?}/conftest.c"

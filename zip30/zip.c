@@ -601,6 +601,94 @@ ulg acc;
   }
 }
 
+/* RefPtr references are content dependencies, not independent compressed
+ * members.  A Zip rewrite mustnever silently replace/delete a source. */
+typedef struct zip_refptr_guard {
+  struct zlist far *member;
+  uzoff_t original_size;
+  struct zip_refptr_guard *next;
+} zip_refptr_guard;
+
+local zip_refptr_guard *refptr_guard_snapshot = NULL;
+
+local int zip_refptr_uuid(struct zlist far *z, uch uuid[16])
+{
+  unsigned p = 0, n;
+  const uch *e = (const uch *)z->cextra;
+  if (z->cext && e == NULL) return -1;
+  while (p < z->cext) {
+    if ((unsigned)z->cext - p < 4) return -1;
+    n = (unsigned)e[p + 2] | ((unsigned)e[p + 3] << 8);
+    if (n > (unsigned)z->cext - p - 4) return -1;
+    if (e[p] == 3 && e[p + 1] == 0x99) {
+      if (n != 20) return -1;
+      memcpy(uuid, e + p + 8, 16);
+      return 1;
+    }
+    p += 4 + n;
+  }
+  return 0;
+}
+
+local int zip_refptr_take_snapshot(void)
+{
+  struct zlist far *z;
+  zip_refptr_guard *node;
+  /* Clear stale state when an embedding calls Zip more than once. */
+  while (refptr_guard_snapshot != NULL) {
+    node = refptr_guard_snapshot;
+    refptr_guard_snapshot = node->next;
+    free(node);
+  }
+  /* Non-RefPtr archives must not incur allocation or validation overhead. */
+  for (z = zfiles; z != NULL && z->how != 92; z = z->nxt)
+    ;
+  if (z == NULL) return ZE_OK;
+  for (z = zfiles; z != NULL; z = z->nxt) {
+    node = (zip_refptr_guard *)malloc(sizeof(*node));
+    if (node == NULL) return ZE_MEM;
+    node->member = z;
+    node->original_size = z->len;
+    node->next = refptr_guard_snapshot;
+    refptr_guard_snapshot = node;
+  }
+  return ZE_OK;
+}
+
+local int zip_refptr_check_mutation(void)
+{
+  zip_refptr_guard *r, *s;
+  uch ruuid[16], suuid[16];
+  int rhas, shas, candidates;
+  int rrem, schanged;
+  for (r = refptr_guard_snapshot; r != NULL; r = r->next) {
+    if (r->member->how != 92) continue;
+    rrem = (action == DELETE && r->member->mark);
+    if (rrem) continue;
+    /* Updating a reference in place is also destructive to its meaning. */
+    if (action != DELETE && r->member->mark) return ZE_PARMS;
+    if (action == ARCHIVE) return ZE_PARMS;
+    rhas = zip_refptr_uuid(r->member, ruuid);
+    if (rhas < 0) return ZE_FORM;
+    candidates = 0;
+    for (s = refptr_guard_snapshot; s != NULL; s = s->next) {
+      if (s->member->how == 92 || s->member->crc != r->member->crc ||
+          s->original_size != r->original_size) continue;
+      shas = zip_refptr_uuid(s->member, suuid);
+      if (shas < 0) return ZE_FORM;
+      /* A UUID-bearing WinZip group uses the UUID to associate members.
+       * Without a UUID, use conservative CRC/size candidates. */
+      if (rhas && shas && memcmp(ruuid, suuid, 16)) continue;
+      candidates++;
+      schanged = (action == DELETE) ? s->member->mark :
+                 (s->member->mark && action != ARCHIVE);
+      if (schanged) return ZE_PARMS;
+    }
+    if (!candidates) return ZE_FORM;
+  }
+  return ZE_OK;
+}
+
 local int pkav_scan_source_archive()
 {
   struct zlist far *z;
@@ -5169,6 +5257,9 @@ char **argv;            /* command line tokens */
   if ((r = pkav_scan_source_archive()) != ZE_OK)
     ZIPERR(r, "scanning source PKAV authenticity information");
 
+  if ((r = zip_refptr_take_snapshot()) != ZE_OK)
+    ZIPERR(r, "recording original reference dependencies");
+
 #ifndef UTIL
   if (split_method == -1) {
     split_method = 0;
@@ -5640,6 +5731,9 @@ char **argv;            /* command line tokens */
 #ifdef MACOS
   PrintStatProgress("done");
 #endif
+
+  if ((r = zip_refptr_check_mutation()) != ZE_OK)
+    ZIPERR(r, "RefPtr source/reference modification would break existing references");
 
   pkav_adjust_only = adjust && k == 0 && found == NULL;
 

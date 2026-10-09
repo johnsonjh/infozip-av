@@ -2118,8 +2118,13 @@ typedef struct refptr_candidate {
     zoff_t offset;
     zusz_t compressed, uncompressed;
     ulg crc;
+    ulg dos_datetime;              /* unaltered central-directory DOS timestamp */
+    ulg uuid_crc_stored, uuid_crc_expected;
+    uch uuid[16];
     ush method, flags;
     int supported;
+    /* 0 absent, 1 valid, 2 incorrect CRC, 3 malformed, 4 duplicate. */
+    int uuid_status;
 } refptr_candidate;
 #endif
 

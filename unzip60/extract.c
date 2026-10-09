@@ -3623,6 +3623,10 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 #endif
     register int b;
     int r, error=PK_COOL, fwkcs_error=PK_COOL, crc_bad;
+#ifdef USE_REFPTR
+    int refptr_metadata_warning = FALSE;
+    int refptr_decode_error = PK_COOL;
+#endif
     uch fwkcs_digest[16];
     char fwkcs_actual_hex[33], fwkcs_expected_hex[33];
 
@@ -3716,7 +3720,11 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
                   (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
                   uO.cflag ? NEWLINE : ""));
             error = refptr_extract(__G);
-            if (error != PK_COOL) {
+            if (error == PK_WARN)
+                refptr_metadata_warning = TRUE;
+            if (error > PK_WARN) {
+                /* close_outfile() below resets error: retain RefPtr failures. */
+                refptr_decode_error = error;
                 if (G.refptr_missing_method)
                     Info(slide, 0x401, ((char *)slide,
                       "error: RefPtr possible source uses unavailable ZIP compression method %u (size/CRC candidate only): %s\n",
@@ -4220,6 +4228,10 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
         }
     }
 
+#ifdef USE_REFPTR
+    if (refptr_decode_error > error)
+        error = refptr_decode_error;
+#endif
     if (error > PK_WARN) {/* don't print redundant CRC error if error already */
         undefer_input(__G);
         return error;
@@ -4457,6 +4469,12 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             G.inptr -= back;
         }
     }
+#ifdef USE_REFPTR
+    /* close_outfile() may reset error to PK_COOL.  Preserve advisory
+     * metadata warnings without downgrading CRC, FWKCS or I/O failures. */
+    if (refptr_metadata_warning && error == PK_COOL)
+        error = PK_WARN;
+#endif
     return error;
 
 } /* end function extract_or_test_member() */

@@ -14,6 +14,7 @@
     + [FWKCS archive testing (`unzip`)](#fwkcs-archive-testing-unzip)
     + [FWKCS archive extraction (`unzip`)](#fwkcs-archive-extraction-unzip)
     + [FWKCS self-extractor creation (`unzipsfx`)](#fwkcs-self-extractor-creation-unzipsfx)
+  * [De-duplication (`zipdedup`)](#de-duplication-zipdedup)
   * [PKWARE compatibility](#pkware-compatibility)
     + [PKAV](#pkav-1)
     + [FWKCS](#fwkcs-1)
@@ -37,8 +38,8 @@
 (**AE‑1**, **AE‑2**, and “quantum‑resistant” **AE‑3**) to
 [Info‑ZIP](https://infozip.sourceforge.net/).
 
-**Xtro‑ZIP** is the **only** permissively‑licensed open‑source ZIP software
-that supports many of these advanced features.
+> **Xtro‑ZIP** is the **only** permissively‑licensed open‑source ZIP software
+> that even comes close to fully supporting the complete ZIP specification.
 
 The ability to compress and decompress archive members using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**
@@ -53,31 +54,31 @@ remain supported.  Additionally, new
 [Zopfli](https://github.com/google/zopfli)‑enhanced **DEFLATE** (method&nbsp;8)
 support is available (when compressing using `zip ‑11`):
 
-|   Method | Description                               | Decompress | Compress |
-|---------:|:------------------------------------------|:----------:|:--------:|
-|  **`0`** | Store&nbsp;(no&nbsp;compression)          |     ✅     |    ✅    |
-|  **`1`** | Shrink                                    |     ✅     |    ✅    |
-|  **`2`** | Reduce&nbsp;(level&nbsp;1)                |     ✅     |    ✅    |
-|  **`3`** | Reduce&nbsp;(level&nbsp;2)                |     ✅     |    ✅    |
-|  **`4`** | Reduce&nbsp;(level&nbsp;3)                |     ✅     |    ✅    |
-|  **`5`** | Reduce&nbsp;(level&nbsp;4)                |     ✅     |    ✅    |
-|  **`6`** | ZIP&nbsp;Implode                          |     ✅     |    ✅    |
-|  **`8`** | DEFLATE&nbsp;(Zopfli&nbsp;optional)       |     ✅     |    ✅    |
-|  **`9`** | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)   |     ✅     |    ✅    |
-| **`10`** | DCL&nbsp;Implode                          |     ✅     |    ✅    |
-| **`12`** | bzip2<sup>1</sup>                         |     ✅     |    ✅    |
-| **`14`** | LZMA<sup>2</sup>                          |     ✅     |    ✅    |
-| **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                  |            |          |
-| **`18`** | IBM&nbsp;TERSE                            |            |          |
-| **`19`** | IBM&nbsp;LZ77&nbsp;(z/Architecture)       |            |          |
-| **`20`** | Zstandard<sup>3</sup>&nbsp;(deprecated)   |     ✅     |          |
-| **`92`** | Reference&nbsp;Link&nbsp;(de‑duplication) |     ✅     |          |
-| **`93`** | Zstandard<sup>3</sup>                     |     ✅     |    ✅    |
-| **`94`** | WZ‑MP3                                    |     ✅     |          |
-| **`95`** | XZ/LZMA2<sup>2</sup>                      |     ✅     |    ✅    |
-| **`96`** | WZ‑JPEG<sup>2</sup>                       |     ✅     |          |
-| **`97`** | WavPack<sup>4</sup>                       |     ✅     |          |
-| **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;Rev&nbsp;1  |     ✅     |    ✅    |
+|   Method | Description                                           | Decompress | Compress |
+|---------:|:------------------------------------------------------|:----------:|:--------:|
+|  **`0`** | Store&nbsp;(no&nbsp;compression)                      |     ✅     |    ✅    |
+|  **`1`** | Shrink                                                |     ✅     |    ✅    |
+|  **`2`** | Reduce&nbsp;(level&nbsp;1)                            |     ✅     |    ✅    |
+|  **`3`** | Reduce&nbsp;(level&nbsp;2)                            |     ✅     |    ✅    |
+|  **`4`** | Reduce&nbsp;(level&nbsp;3)                            |     ✅     |    ✅    |
+|  **`5`** | Reduce&nbsp;(level&nbsp;4)                            |     ✅     |    ✅    |
+|  **`6`** | ZIP&nbsp;Implode                                      |     ✅     |    ✅    |
+|  **`8`** | DEFLATE&nbsp;(Zopfli&nbsp;optional)                   |     ✅     |    ✅    |
+|  **`9`** | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)               |     ✅     |    ✅    |
+| **`10`** | DCL&nbsp;Implode                                      |     ✅     |    ✅    |
+| **`12`** | bzip2<sup>1</sup>                                     |     ✅     |    ✅    |
+| **`14`** | LZMA<sup>2</sup>                                      |     ✅     |    ✅    |
+| **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                              |            |          |
+| **`18`** | IBM&nbsp;TERSE                                        |            |          |
+| **`19`** | IBM&nbsp;LZ77&nbsp;(z/Architecture)                   |            |          |
+| **`20`** | Zstandard<sup>3</sup>&nbsp;(deprecated)               |     ✅     |          |
+| **`92`** | Reference&nbsp;Link<sup>5</sup>&nbsp;(de‑duplication) |     ✅     |    ✅    |
+| **`93`** | Zstandard<sup>3</sup>                                 |     ✅     |    ✅    |
+| **`94`** | WZ‑MP3                                                |     ✅     |          |
+| **`95`** | XZ/LZMA2<sup>2</sup>                                  |     ✅     |    ✅    |
+| **`96`** | WZ‑JPEG<sup>2</sup>                                   |     ✅     |          |
+| **`97`** | WavPack<sup>4</sup>                                   |     ✅     |          |
+| **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;Rev&nbsp;1              |     ✅     |    ✅    |
 
 **NB**: Methods 1 through 6 are legacy algorithms and are no longer recommended
 for use.  <sup>**1**</sup>&nbsp;bzip2 support requires
@@ -86,6 +87,7 @@ XZ/LZMA2, and WZ‑JPEG support requires [`liblzma`](https://tukaani.org/xz/).
 <sup>**3**</sup>&nbsp;Zstandard support requires
 [`libzstd`](https://facebook.github.io/zstd/). <sup>**4**</sup>&nbsp;WavPack
 support requires [`libwavpack`](https://www.wavpack.com/).
+<sup>**5**</sup>&nbsp;De‑duplicated archives supported via `zipdedup`.
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
@@ -331,6 +333,22 @@ UnZipSFX 6.00 of 20 April 2009, by Info-ZIP (http://www.info-zip.org).
     testing: putav.c                  OK
 FWKCS MD5 checksums verified for 4 entries.
 No errors detected in compressed data of ./pkstuff.sfx.
+```
+
+### De-duplication (`zipdedup`)
+
+The new `zipdedup` tool creates WinZip‑compatible (“ZIPX” method&nbsp;92)
+de‑duplicated archives from existing ZIP source archives.
+
+It hashes all archived files and retains the first (compressed) source file,
+without recompressing it, and smartly de‑duplicates entries only if the
+operation would result in a *smaller* output archive (*i.e.*, very small files
+will be skipped).
+
+```
+$ zipdedup --dry-run original.zip dedup.zip
+$ zipdedup -v original.zip dedup.zip
+$ unzip -t dedup.zip
 ```
 
 ### PKWARE compatibility

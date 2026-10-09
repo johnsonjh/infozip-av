@@ -1140,7 +1140,7 @@ int close_outfile(__G)
         iztimes t3;             /* mtime, atime, ctime */
         ztimbuf t2;             /* modtime, actime */
     } zt;
-    ulg z_uidgid[2];
+    ulg z_uidgid[2] = {0, 0};
     int have_uidgid_flg;
     int errval = PK_OK;
 

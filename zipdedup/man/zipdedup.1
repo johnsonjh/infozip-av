@@ -1,0 +1,46 @@
+.TH ZIPDEDUP 1 "October 2026" "Xtro-ZIP" "User Commands"
+.SH NAME
+zipdedup \- convert duplicate ZIP members into WinZip Method 92 references
+.SH SYNOPSIS
+.B zipdedup
+.RI [ options ] " input.zip output.zip"
+.SH DESCRIPTION
+.B zipdedup
+reads a single-disk ZIP archive, hashes original entries' decompressed
+content using SHA-1, and converts later identical members to Method 92 RefPtr
+records if and only if the archive size decreases. Existing compressed streams
+are not recompressed. It writes to a distinct new archive, never mutating input.
+The first physical copy is retained as the canonical source.
+.SH OPTIONS
+.TP
+.B --dry-run
+Analyze and report expected savings; do not create an output archive.
+.TP
+.BR -v , " --verbose"
+Show which member is retained for each duplicate.
+.TP
+.BR -q , " --quiet"
+Suppress ordinary summary output.
+.TP
+.BR -h , " --help"
+Display command syntax.
+.TP
+.B --version
+Display program version.
+.SH COMPATIBILITY
+Reference compressed data are the 20-byte SHA-1 digest of the uncompressed
+content. Both source and reference use the WinZip 0x9903 central-directory
+UUID/checksum extra field. Metadata, FWKCS MD5 fields, comments, and retained
+compressed streams are preserved. Method 92 extraction needs a compatible
+UnZip/WinZip implementation.
+.SH LIMITATIONS
+Encrypted, split, PKAV-authenticated, signed, or otherwise non-preservable
+archives are rejected. Supported codecs depend on the linked UnZip build.
+The current utility is a POSIX program written in strictly ANSI C89 syntax.
+ZIP64 offsets exceeding the platform's C long file-position range are refused.
+An existing output archive is never overwritten.
+.SH EXIT STATUS
+0 for success (including dry run and no duplicate files); 1 for archive or
+I/O errors; 2 for invalid arguments.
+.SH LICENSE
+MIT-0. See the repository LICENSE for the project's broader licensing.

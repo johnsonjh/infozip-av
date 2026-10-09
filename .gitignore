@@ -26,3 +26,6 @@ pvsreport/
 /zip30/zipcloak
 /zip30/zipnote
 /zip30/zipsplit
+/zipdedup/test-refptr9903
+/zipdedup/tests/__pycache__/
+/zipdedup/zipdedup

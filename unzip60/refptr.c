@@ -17,6 +17,154 @@
 # include <stdlib.h>
 # include <string.h>
 
+/* WinZip 0x9903 occurs in the CENTRAL directory, NOT necessarily in
+ * local headers!  The checksum is IEEE CRC-32 of a 28-byte, fixed-layout
+ * record.  No filename, relative offset or extended timestamp is included.
+ * Keep this calculation local to the decoder (no new link dependencies). */
+static ulg
+refptr_uuid_crc (ush method, ulg dos_datetime, ulg file_crc,
+                 const uch uuid[16])
+{
+  uch buf[28];
+  unsigned j;
+
+  buf[0] = (uch)(method & 255U);
+  buf[1] = (uch)((method >> 8) & 255U);
+  buf[2] = buf[3] = 0;
+  for (j = 0; j < 4; ++j)
+    {
+      buf[4 + j] = (uch)((dos_datetime >> (j * 8)) & 255UL);
+      buf[8 + j] = (uch)((file_crc >> (j * 8)) & 255UL);
+    }
+  memcpy (buf + 12, uuid, 16);
+  return crc32 (CRCVAL_INITIAL, buf, (extent)sizeof (buf)) & 0xffffffffUL;
+}
+
+/* Check all bounded extra-field records.  A missing WinZip field is distinct
+ * from a malformed one; unrelated well-formed fields do not matter.  Never
+ * read past the central-directory extra-field buffer. */
+static void
+refptr_parse_uuid (refptr_candidate *c, const uch *extra, unsigned len)
+{
+  unsigned off = 0;
+  int seen = FALSE;
+
+  c->uuid_status = 0;
+  c->uuid_crc_stored = c->uuid_crc_expected = 0;
+  memset (c->uuid, 0, sizeof (c->uuid));
+  /* Difference test avoids 16-bit unsigned wrap at the ZIP limit 65535. */
+  while (off <= len && len - off >= 4U)
+    {
+      unsigned id = (unsigned)extra[off]
+                    | ((unsigned)extra[off + 1] << 8);
+      unsigned size = (unsigned)extra[off + 2]
+                      | ((unsigned)extra[off + 3] << 8);
+      off += 4;
+      if (id == 0x9903U)
+        {
+          if (seen)
+            {
+              c->uuid_status = 4;
+              return;
+            }
+          seen = TRUE;
+          if (size != 20U || size > len - off)
+            {
+              c->uuid_status = 3;
+              return;
+            }
+          c->uuid_crc_stored = (ulg)extra[off]
+              | ((ulg)extra[off + 1] << 8)
+              | ((ulg)extra[off + 2] << 16)
+              | ((ulg)extra[off + 3] << 24);
+          memcpy (c->uuid, extra + off + 4, 16);
+          c->uuid_crc_expected = refptr_uuid_crc (
+              c->method, c->dos_datetime, c->crc, c->uuid);
+          c->uuid_status = c->uuid_crc_stored == c->uuid_crc_expected ? 1 : 2;
+        }
+      if (size > len - off)
+        {
+          /* An unrelated malformed record is the core parser's concern. */
+          return;
+        }
+      off += size;
+    }
+}
+
+/* The reference is looked up by its central-directory local-header offset,
+ * so callers are independent of filename filters and extraction ordering. */
+static const refptr_candidate *
+refptr_find_entry (__G__ offset) __GDEF zoff_t offset;
+{
+  size_t j;
+  for (j = 0; j < G.refptr_count; ++j)
+    if (G.refptr_index[j].offset == offset
+        && G.refptr_index[j].method == REFPTR)
+      return &G.refptr_index[j];
+  return (const refptr_candidate *)NULL;
+}
+
+static int
+refptr_uuid_match (const refptr_candidate *a, const refptr_candidate *b)
+{
+  return a != NULL && a->uuid_status == 1 && b->uuid_status == 1
+         && memcmp (a->uuid, b->uuid, 16) == 0;
+}
+
+/* Emit diagnostics only for a reference which has passed the SHA-1/CRC/size
+ * verification.  This keeps metadata errors nonfatal without concealing a
+ * content-integrity error.  0x401 directs diagnostics to the normal error
+ * stream even when output is otherwise quiet or redirected to stdout. */
+static int
+refptr_warn_uuid (__G__ reference, source) __GDEF
+    const refptr_candidate *reference;
+    const refptr_candidate *source;
+{
+  int warn = FALSE;
+  const refptr_candidate *m[2];
+  unsigned j;
+  m[0] = reference;
+  m[1] = source;
+  for (j = 0; j < 2; ++j)
+    {
+      const char *part = j ? "physical source" : "reference";
+      int status = m[j] == NULL ? 0 : m[j]->uuid_status;
+      if (status == 1) continue;
+      warn = TRUE;
+      if (status == 0)
+        Info (slide, 0x401, ((char *)slide,
+              "warning: RefPtr %s missing central 0x9903: %s\n",
+              part, FnFilter1 (G.filename)));
+      else if (status == 2)
+        Info (slide, 0x401, ((char *)slide,
+              "warning: RefPtr %s 0x9903 CRC mismatch: %s"
+              " (stored %08lx, expected %08lx)\n",
+              part, FnFilter1 (G.filename),
+              (unsigned long)m[j]->uuid_crc_stored,
+              (unsigned long)m[j]->uuid_crc_expected));
+      else
+        Info (slide, 0x401, ((char *)slide,
+              "warning: RefPtr %s %s 0x9903: %s\n",
+              part, status == 4 ? "duplicate" : "malformed",
+              FnFilter1 (G.filename)));
+    }
+  if (reference != NULL && source != NULL
+      && reference->uuid_status >= 1 && reference->uuid_status <= 2
+      && source->uuid_status >= 1 && source->uuid_status <= 2
+      && memcmp (reference->uuid, source->uuid, 16) != 0)
+    {
+      warn = TRUE;
+      Info (slide, 0x401, ((char *)slide,
+            "warning: RefPtr source/reference UUID mismatch: %s\n",
+            FnFilter1 (G.filename)));
+    }
+  if (warn)
+    Info (slide, 0x401, ((char *)slide,
+          "warning: RefPtr metadata inconsistent; decoded data verified: %s\n",
+          FnFilter1 (G.filename)));
+  return warn;
+}
+
 /* Check only methods supported in this build.  No recursive RefPtr targets. */
 static int
 refptr_method_supported (unsigned method)
@@ -31,6 +179,14 @@ refptr_method_supported (unsigned method)
     case DCLIMPLODED:
     case IMPLODED:
       return TRUE;
+#  ifdef USE_OLDUNZIP
+    case SHRUNK:
+    case REDUCED1:
+    case REDUCED2:
+    case REDUCED3:
+    case REDUCED4:
+      return TRUE;
+#  endif
 # endif /* ifndef SFX */
 
 # ifdef USE_DEFLATE64
@@ -92,7 +248,9 @@ refptr_method_recognized (unsigned method)
 {
   switch (method)
     {
-    case STORED: case DEFLATED: case ENHDEFLATED:
+    case STORED: case DEFLATED: case ENHDEFLATED: case REFPTR:
+    case SHRUNK: case REDUCED1: case REDUCED2:
+    case REDUCED3: case REDUCED4:
     case IMPLODED: case DCLIMPLODED: case BZIPPED:
     case LZMAED: case XZED: case ZSTD_OLD: case ZSTDED:
     case PPMDED: case WZJPEGED: case WZMP3ED: case WAVPACKED:
@@ -190,9 +348,11 @@ refptr_build_index (__G) __GDEF
       c.compressed = G.crec.csize;
       c.uncompressed = G.crec.ucsize;
       c.crc = G.crec.crc32;
+      c.dos_datetime = G.crec.last_mod_dos_datetime;
       c.method = G.crec.compression_method;
       c.flags = G.crec.general_purpose_bit_flag;
       c.supported = refptr_method_supported (c.method);
+      refptr_parse_uuid (&c, G.extra_field, G.crec.extra_field_length);
 
       if (G.refptr_count == G.refptr_capacity)
         {
@@ -378,6 +538,15 @@ refptr_decode_source (__G) __GDEF
       return r == 0 ? PK_COOL : (r == 3 ? PK_MEM3 : PK_ERR);
 
 # ifndef SFX
+#  ifdef USE_OLDUNZIP
+    case SHRUNK:
+      return unshrink (__G);
+    case REDUCED1:
+    case REDUCED2:
+    case REDUCED3:
+    case REDUCED4:
+      return unreduce (__G);
+#  endif
     case IMPLODED:
       r = explode (__G);
       return r == 0 ? PK_COOL : (r == 3 ? PK_MEM3 : PK_ERR);
@@ -443,6 +612,8 @@ refptr_extract (__G) __GDEF
   uch expected[20], actual[20];
   zoff_t end_of_ref;
   size_t i;
+  int pass, passes;
+  const refptr_candidate *ref_meta;
   iz_sha1 sh;
   int r = PK_ERR, found = FALSE;
   ush missing_codec = 0;
@@ -452,6 +623,7 @@ refptr_extract (__G) __GDEF
   zusz_t source_bytes;
 
   G.refptr_missing_method = 0;
+  ref_meta = refptr_find_entry (__G__ G.pInfo->offset);
   if ((reference.general_purpose_bit_flag & 1) || G.pInfo->encrypted
       || reference.csize != 20 || G.csize < 0 || G.incnt < 0
       || (zusz_t)G.csize + (zusz_t)G.incnt != 20)
@@ -489,16 +661,24 @@ refptr_extract (__G) __GDEF
   G.fwkcs_active = FALSE;
   G.refptr_probe = TRUE;
 
+  /* Prefer a checksum-valid matching UUID when available.  In a damaged
+   * archive, fall back to any digest-verified physical source so contents
+   * remain recoverable with a warning instead of becoming unextractable. */
+  passes = ref_meta != NULL && ref_meta->uuid_status == 1 ? 2 : 1;
+  for (pass = 0; pass < passes && !found; ++pass)
   for (i = 0; i < G.refptr_count; ++i)
     {
       const refptr_candidate *candidate = &G.refptr_index[i];
 
-      if (candidate->uncompressed != reference.ucsize
+      if (candidate->method == REFPTR
+          || candidate->uncompressed != reference.ucsize
           || candidate->crc != reference.crc32)
         {
           continue;
         }
-
+      if (passes == 2
+          && (refptr_uuid_match (ref_meta, candidate) != (pass == 0)))
+        continue;
       if (!candidate->supported)
         {
           if (!missing_codec) missing_codec = candidate->method;
@@ -579,19 +759,26 @@ refptr_extract (__G) __GDEF
   source_bytes = G.refptr_bytes;
   iz_sha1_finish (&sh, actual);
 
+  /* Only a successfully decoded reference may return our advisory PK_WARN.
+   * A codec warning from the source decoder is not a validated reference. */
+  if (r == PK_WARN)
+    r = PK_ERR;
   if (r == PK_COOL
       && (source_bytes != reference.ucsize || source_crc != reference.crc32
           || memcmp (expected, actual, sizeof (expected)) != 0))
     {
       r = PK_ERR;
     }
+  if (r == PK_COOL
+      && refptr_warn_uuid (__G__ ref_meta, &G.refptr_index[i]))
+    r = PK_WARN;
 
 restore:
   /* The caller's overlap accounting must cover the 20-byte RefPtr
    * payload, not the source compressed bytes read during either pass. */
   undefer_input (__G);
 
-  if (seek_zipf (__G__ end_of_ref) != PK_COOL && r == PK_COOL)
+  if (seek_zipf (__G__ end_of_ref) != PK_COOL && r <= PK_WARN)
     {
       r = PK_ERR;
     }

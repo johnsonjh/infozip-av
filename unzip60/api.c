@@ -423,7 +423,7 @@ int redirect_outfile(__G)
      __GDEF
 {
 #ifdef ZIP64_SUPPORT
-    __int64 check_conversion;
+    zusz_t check_conversion;
 #endif
 
     if (G.redirect_size != 0 || G.redirect_buffer != NULL)
@@ -446,12 +446,12 @@ int redirect_outfile(__G)
     {
         G.redirect_size = (ulg)G.lrec.ucsize;
 #ifdef ZIP64_SUPPORT
-        check_conversion = (__int64)G.lrec.ucsize;
+        check_conversion = (zusz_t)G.lrec.ucsize;
 #endif
     }
 
 #ifdef ZIP64_SUPPORT
-    if ((__int64)G.redirect_size != check_conversion)
+    if ((zusz_t)G.redirect_size != check_conversion)
         return FALSE;
 #endif
 

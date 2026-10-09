@@ -30,6 +30,7 @@ D_USE_WZMP3_SFX="-DWZMP3_SFX"
 
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
+ZIPDEDUPDIR="zipdedup"
 
 PREFIX="$(pwd -P 2> /dev/null && :)/build"
 
@@ -38,7 +39,7 @@ test "${PREFIX:?}" = "/build" && {
   exit 1
 }
 
-mkdir -p "${PREFIX:?}/man1"
+mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
 
 (
   cd "${UNZIPDIR:?}" \
@@ -79,6 +80,13 @@ mkdir -p "${PREFIX:?}/man1"
       prefix="${PREFIX:?}" \
       MANDIR="${PREFIX:?}/man1" \
       install
+)
+
+(
+  cd "${ZIPDEDUPDIR:?}" \
+    && "${MAKE:-make}" -j "${CPUS:?}" all \
+    && cp -p "zipdedup" "${PREFIX:?}/bin/zipdedup" \
+    && cp -p "man/zipdedup.1" "${PREFIX:?}/man1/zipdedup.1"
 )
 
 "${STRIP:-strip}" "${PREFIX:?}"/bin/* 2> /dev/null || :
