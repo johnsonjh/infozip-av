@@ -204,7 +204,7 @@ int main()
   return 0;
 }
 _EOF_
-      $CC $CFLAGS -o conftest conftest.c -lbz2 > /dev/null 2>/dev/null
+      $CC $CFLAGS -o conftest conftest.c $LFLAGS2 -lbz2 > /dev/null 2>/dev/null
       if test $? -eq 0; then
         echo "-- OS supports bzip2 - linking in bzip2"
         CFLAGS="${CFLAGS} -DBZIP2_SUPPORT"
@@ -243,7 +243,7 @@ int main()
   return 0;
 }
 _EOF_
-$CC $CFLAGS -o conftest conftest.c -llzma > /dev/null 2>/dev/null
+$CC $CFLAGS -o conftest conftest.c $LFLAGS2 -llzma > /dev/null 2>/dev/null
 if test $? -eq 0; then
   echo "-- OS supports liblzma >= 5.4.0 - enabling LZMA method 14 and XZ method 95"
   CFLAGS="${CFLAGS} -DLZMA_SUPPORT"
@@ -280,7 +280,7 @@ int main()
   return ZSTD_isError(r) ? 1 : 0;
 }
 _EOF_
-$CC $CFLAGS -o conftest conftest.c -lzstd > /dev/null 2>/dev/null
+$CC $CFLAGS -o conftest conftest.c $LFLAGS2 -lzstd > /dev/null 2>/dev/null
 if test $? -eq 0; then
   echo "-- OS supports libzstd >= 1.4.0 - enabling Zstandard method 93"
   CFLAGS="${CFLAGS} -DZSTD_SUPPORT"
