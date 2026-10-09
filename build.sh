@@ -54,6 +54,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
       L_WAVPACK_SFX="${L_WAVPACK_SFX:-}" \
       D_USE_REFPTR_SFX="${D_USE_REFPTR_SFX:-}" \
       D_USE_WZMP3_SFX="${D_USE_WZMP3_SFX:-}" \
+      LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
       PREFIX="${PREFIX:?}"
 )
 
@@ -62,6 +63,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
     && "${MAKE:-make}" -j "${CPUS:?}" -f unix/Makefile generic_gcc \
       CFLAGS_NOOPT="${CF_NOOPT:?}" \
       LFLAGS2="${GLDFLAGS:?}" \
+      LOCAL_ZIP="${LOCAL_ZIP:-}" \
       PREFIX="${PREFIX:?}"
 )
 
