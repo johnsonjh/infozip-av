@@ -473,9 +473,10 @@ No errors detected in compressed data of pkz110.exe.
 
 ## Licenses
 
-* The **Shrink** and **Deflate64** compressors, **WZ‑JPEG** decompressor, **WZ‑MP3**
-  decompressor, and the **PKAV** and **FWKCS** additions to Info‑ZIP are
-  provided under the [MIT‑0](LICENSE) license, or, at your option, the
+* The **Shrink**, **Reduce**, **ZIP**&nbsp;**Implode**, and **Deflate64**
+  compressors, **WZ‑JPEG** decompressor, **WZ‑MP3** decompressor, and the
+  **PKAV** and **FWKCS** additions to Info‑ZIP are provided under the
+  [MIT‑0](LICENSE) license, or, at your option, the
   [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
   [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
 
