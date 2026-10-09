@@ -30,6 +30,11 @@
 #include "ttyio.h"
 #include <ctype.h>
 #include <errno.h>
+#ifdef UNIX
+#  include <sys/types.h>
+#  include <sys/wait.h>
+#  include <unistd.h>
+#endif
 #ifdef VMS
 #  include <stsdef.h>
 #  include "vms/vmsmunch.h"
@@ -2287,6 +2292,83 @@ local void check_zipfile(zipname, zippath)
   if (status != 0) {
 
 #else /* (MSDOS && !__GO32__) || __human68k__ */
+#ifdef UNIX
+  int result;
+  char *command = NULL;
+  char *safe_name = NULL;
+  const char *argument = zipname;
+  pid_t child, waited;
+  int status;
+
+  /* An archive name is always an argv parameter, never shell source.
+   * The user-specified -TT command retains its shell syntax; the first
+   * {} is replaced by "$1" and otherwise "$1" is appended. */
+  if (unzip_path != NULL) {
+    const char *here = strstr(unzip_path, "{}");
+    size_t n = strlen(unzip_path);
+    size_t before;
+
+    /* Replacing {} adds 4 bytes (two spaces and "$1" minus {}).
+     * Appending a name adds 5 bytes (one space and "$1"). */
+    if (n > ((size_t)-1) - 6)
+      ziperr(ZE_MEM, "building command for testing archive");
+    command = malloc(n + 6);
+    if (command == NULL)
+      ziperr(ZE_MEM, "building command for testing archive");
+    if (here != NULL) {
+      before = (size_t)(here - unzip_path);
+      memcpy(command, unzip_path, before);
+      command[before] = '\0';
+      strcat(command, " ");
+      strcat(command, "\"$1\"");
+      strcat(command, " ");
+      strcat(command, here + 2);
+    } else {
+      strcpy(command, unzip_path);
+      strcat(command, " \"$1\"");
+    }
+    free(unzip_path);
+    unzip_path = NULL;
+  } else if (check_unzip_version("unzip") == 0) {
+    ZIPERR(ZE_TEST, zipfile);
+  }
+
+  /* Prevent filenames starting with '-' from becoming UnZip options. */
+  if (zipname[0] == '-') {
+    if (strlen(zipname) > ((size_t)-1) - 3)
+      ziperr(ZE_MEM, "building archive path for testing");
+    safe_name = malloc(strlen(zipname) + 3);
+    if (safe_name == NULL)
+      ziperr(ZE_MEM, "building archive path for testing");
+    strcpy(safe_name, "./");
+    strcat(safe_name, zipname);
+    argument = safe_name;
+  }
+
+  child = fork();
+  if (child == 0) {
+    if (command != NULL)
+      execl("/bin/sh", "sh", "-c", command, "zip-test", argument,
+            (char *)NULL);
+    else if (verbose)
+      execlp("unzip", "unzip", "-t", argument, (char *)NULL);
+    else
+      execlp("unzip", "unzip", "-t", "-qq", argument, (char *)NULL);
+    _exit(127);
+  }
+  free(command);
+  free(safe_name);
+  if (child < 0) {
+    result = -1;
+  } else {
+    do {
+      waited = waitpid(child, &status, 0);
+    } while (waited < 0 && errno == EINTR);
+    result = waited == child && WIFEXITED(status)
+             ? WEXITSTATUS(status) : -1;
+  }
+  if (result) {
+#else /* !UNIX */
   char *cmd;
   int result;
 
@@ -2365,6 +2447,7 @@ local void check_zipfile(zipname, zippath)
   free(cmd);
   cmd = NULL;
   if (result) {
+#endif /* !UNIX */
 #endif /* ?((MSDOS && !__GO32__) || __human68k__) */
 
     fprintf(mesg, "test of %s FAILED\n", zipfile);
