@@ -1502,6 +1502,11 @@ struct zlist far *z;    /* zip entry to compress */
     z->siz = 0;
     z->len = 0;
     z->how = STORE;
+#ifdef ZIP64_SUPPORT
+    if (zip64_entry)
+      zip64_archive = 1;
+    else
+#endif
     z->ver = 10;
     /* never encrypt directory so don't need extended local header */
     z->flg &= ~8;

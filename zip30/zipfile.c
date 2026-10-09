@@ -5894,13 +5894,15 @@ int putend( OFT( uzoff_t) n,
   /* zip64 end of central directory locator                                       */
   /* end of central directory record                                              */
 
-  /* check zip64_archive instead of force_zip64 3/19/05 */
+  /* -fz must produce Zip64 end records even if zip64_archive was not
+     set by entry processing.  The ordinary end record below uses the
+     Zip64 0xffffffff offset marker when -fz is active. */
 
   zip64_eocd_disk = current_disk;
   zip64_eocd_offset = bytes_this_split;
 
   if( n > ZIP_UWORD16_MAX || s > ZIP_UWORD32_MAX || c > ZIP_UWORD32_MAX ||
-      zip64_archive )
+      zip64_archive || force_zip64 == 1 )
   {
     ++iNeedZip64;
     /* write zip64 central dir tail:  */
