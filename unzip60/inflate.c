@@ -976,8 +976,8 @@ unsigned bl, bd;        /* number of bits decoded by tl[] and td[] */
           if ((UINT_D64)e > n) e = (unsigned)n;
           n -= e;
 #ifndef NOMEMCPY
-          if ((unsigned)w - d >= e)
-          /* (this test assumes unsigned comparison) */
+          if (((unsigned)w >= d) ? ((unsigned)w - d >= e)
+                                 : (d - (unsigned)w >= e))
           {
             memcpy(redirSlide + (unsigned)w, redirSlide + d, e);
             w += e;
