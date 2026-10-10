@@ -95,6 +95,7 @@ $(OBJN): $(ZIP_H)
 $(OBJS): $(ZIP_H)
 $(OBJC): $(ZIP_H)
 zip.o zipup.o zipfile.o fileio.o crypt.o: crc32.h
+zip.o: iz_accel_status.h iz_arm_caps.h
 crc32.o: crc32.h crc32_pclmul.h crc32_arm.h iz_arm_caps.h
 zipcloak.o zipfile_.o fileio_.o crc32_.o crypt_.o: crc32.h
 zip.o zipup.o crypt.o ttyio.o zipcloak.o crypt_.o: crypt.h

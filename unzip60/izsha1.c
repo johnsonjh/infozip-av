@@ -23,6 +23,20 @@ iz_sha1_wipe (void *ptr, size_t n)
 #define IZ_SHA1_M32(v) ((v) & 0xffffffffUL)
 #define IZ_SHA1_ROL(v, n) IZ_SHA1_M32 (((v) << (n)) | ((v) >> (32 - (n))))
 
+int
+iz_sha1_hardware_active (void)
+{
+#ifdef IZ_SHA1_NI_ENABLED
+  if (iz_sha1_ni_available ())
+    return 1;
+#endif
+#ifdef IZ_ARM_SHA1_ENABLED
+  if (iz_arm_has (IZ_ARM_SHA1_BIT))
+    return 1;
+#endif
+  return 0;
+}
+
 static void
 iz_sha1_transform (iz_sha1 *s, const unsigned char *p)
 {

@@ -15,7 +15,7 @@
 #  define IZ_ARM_CRC_BIT (1UL << 7)
 #  if defined(__linux__)
 #   include <sys/auxv.h>
-#  elif defined(__FreeBSD__)
+#  elif defined(__FreeBSD__) || defined(__OpenBSD__)
 #   include <sys/auxv.h>
 #  elif defined(__APPLE__) && defined(__MACH__)
 #   include <sys/sysctl.h>
@@ -27,7 +27,7 @@ iz_arm_capabilities (void)
 #  if defined(__linux__)
   return getauxval (AT_HWCAP);
 
-#  elif defined(__FreeBSD__)
+#  elif defined(__FreeBSD__) || (defined(__OpenBSD__) && (OpenBSD >= 202409))
   unsigned long caps = 0;
   if (elf_aux_info (AT_HWCAP, &caps, sizeof (caps)) != 0)
     {

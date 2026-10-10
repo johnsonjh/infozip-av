@@ -23,5 +23,6 @@ typedef struct
 void iz_sha1_init (iz_sha1 *s);
 void iz_sha1_update (iz_sha1 *s, const unsigned char *p, size_t n);
 void iz_sha1_finish (iz_sha1 *s, unsigned char out[20]);
+int iz_sha1_hardware_active (void);
 
 #endif /* IZ_SHA1_H */

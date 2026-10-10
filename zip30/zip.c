@@ -1860,6 +1860,8 @@ local void help_extended()
 #endif
 }
 
+#include "iz_accel_status.h"
+
 /*
  * XXX version_info() in a separate file
  */
@@ -2080,6 +2082,12 @@ local void version_info()
   for (i = 0; (int)i < (int)(sizeof(comp_opts)/sizeof(char *) - 1); i++)
   {
     printf("\t%s\n",comp_opts[i]);
+  }
+  {
+    const char *accelerators = iz_accel_status_list();
+    if (accelerators != NULL)
+      printf("\tAcceleration         (Hardware accelerated %s supported)\n",
+             accelerators);
   }
 #ifdef USE_ZLIB
   if (strcmp(ZLIB_VERSION, zlibVersion()) == 0)

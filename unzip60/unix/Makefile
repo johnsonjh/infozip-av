@@ -346,7 +346,7 @@ ttyio$O:	ttyio.c $(UNZIP_H) zip.h crypt.h ttyio.h
 ubz2err$O:	ubz2err.c $(UNZIP_H)
 unreduce$O:	unreduce.c $(UNZIP_H)
 unshrink$O:	unshrink.c $(UNZIP_H)
-unzip$O:	unzip.c $(UNZIP_H) crypt.h unzvers.h consts.h
+unzip$O:	unzip.c $(UNZIP_H) crypt.h unzvers.h consts.h iz_accel_status.h iz_arm_caps.h
 zipinfo$O:	zipinfo.c $(UNZIP_H)
 
 # unzipsfx compilation section

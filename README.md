@@ -101,7 +101,8 @@ support is available (when compressing using `zip ‑11`):
 > <sup>**5**</sup>&nbsp;De‑duplicated archive creation supported via
 > [`zipdedup`](#de-duplication-zipdedup). <sup>**†**</sup>&nbsp;CRC/SHA/AES
 > hardware acceleration is automatically detected at runtime and is currently
-> supported on AMD64 and ARM64 systems running Linux, FreeBSD, and macOS.
+> supported on AMD64 and ARM64 systems running Linux, FreeBSD, OpenBSD, and
+> macOS.
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),

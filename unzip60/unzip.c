@@ -2475,6 +2475,11 @@ extern char *getenv();
 #endif
 #endif
 
+#ifndef SFX
+#define IZ_UNZIP_ACCEL_STATUS 1
+#include "iz_accel_status.h"
+#endif
+
 /********************************/
 /* Function show_version_info() */
 /********************************/
@@ -2784,6 +2789,16 @@ static void show_version_info(__G)
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
           LoadFarStringSmall(FwkcsSupport)));
         ++numopts;
+        {
+            const char *accelerators = iz_accel_status_list();
+            if (accelerators != (const char *)NULL)
+                {
+                    Info(slide, 0, ((char *)slide,
+                      "        Acceleration (Hardware accelerated %s supported)\n",
+                      accelerators));
+                    ++numopts;
+                }
+        }
 #if CRYPT
 # ifdef PASSWD_FROM_STDIN
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),

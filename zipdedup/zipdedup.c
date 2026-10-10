@@ -1534,7 +1534,9 @@ main (int argc, char **argv)
 
       if (!strcmp (argv[i], "--version"))
         {
-          fprintf (stdout, "zipdedup v%s (%s)\n", ZD_VER, ZD_DATE);
+          fprintf (stdout, "zipdedup v%s (%s)%s\n", ZD_VER, ZD_DATE,
+                   iz_sha1_hardware_active ()
+                       ? " [Hardware SHA acceleration enabled]" : "");
           return 0;
         }
 
