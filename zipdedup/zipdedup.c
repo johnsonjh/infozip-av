@@ -3,6 +3,12 @@
  * Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>
  */
 
+#undef ZD_VER
+#define ZD_VER "0.1"
+
+#undef ZD_DATE
+#define ZD_DATE "2026-10-09"
+
 #ifndef _POSIX_C_SOURCE
 # define _POSIX_C_SOURCE 200809L
 #endif /* ifndef _POSIX_C_SOURCE */
@@ -542,7 +548,7 @@ zd_load (struct zd_archive *a)
 
       if (e->method == ZD_REFPTR && e->csize != 20)
         {
-          zd_fail ("Method 92 member must have a 20-byte SHA-1 payload");
+          zd_fail ("method 92 members must have a 20-byte SHA-1 payload");
           return 0;
         }
 
@@ -674,7 +680,7 @@ zd_load (struct zd_archive *a)
 
       if (e->method == ZD_REFPTR && !e->has_ref)
         {
-          zd_fail ("existing Method 92 member missing 0x9903 extra");
+          zd_fail ("existing method 92 member missing 0x9903 extra");
           return 0;
         }
     }
@@ -1478,11 +1484,14 @@ zd_cleanup (struct zd_archive *a)
 static void
 zd_usage (FILE *out)
 {
-  fprintf (out, "zipdedup 0.1\n"
-                "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>\n\n"
-                "Usage: zipdedup [--dry-run] [-v|--verbose] [-q|--quiet] "
-                "INPUT.zip OUTPUT.zip\n"
-                "       zipdedup --help | --version\n");
+(void)fprintf (out,
+/******************************************************************************/
+"Xtro-ZIP - zipdedup - WinZip-compatible (\"ZIPX\" method 92) de-duplication\n"
+"Release %s - %s - https://github.com/johnsonjh/infozip-av\n"
+"Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>\n\n"
+"Usage: zipdedup [--dry-run] [-v|--verbose] [-q|--quiet] <in.zip> <out.zip>\n"
+"       zipdedup --help | --version\n", ZD_VER, ZD_DATE);
+/******************************************************************************/
 }
 
 int
@@ -1525,7 +1534,7 @@ main (int argc, char **argv)
 
       if (!strcmp (argv[i], "--version"))
         {
-          puts ("zipdedup 0.1");
+          fprintf (stdout, "zipdedup v%s (%s)\n", ZD_VER, ZD_DATE);
           return 0;
         }
 
@@ -1568,7 +1577,7 @@ main (int argc, char **argv)
   if (!a.quiet)
     {
       printf (
-          "%lu new Method 92 references; estimated net savings: %lu bytes\n",
+          "%lu new references; approximate savings: %lu bytes\n",
           count, saved);
     }
 
