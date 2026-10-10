@@ -480,6 +480,8 @@ int decrypt(__G__ passwrd)
          */
         if ((b = NEXTBYTE) == (ush)EOF)
         {
+            undefer_input(__G);
+            GLOBAL(pInfo->encrypted) = TRUE;
             return PK_ERR;
         }
         h[n] = (uch)b;
