@@ -87,7 +87,9 @@ typedef unsigned long ulg;      /* unsigned 32-bit value */
 /* Set up portability */
 #include "tailor.h"
 
-#ifdef USE_ZLIB
+#if defined(USE_ZLIB_NG)
+#  include "iz_native_zlibng.h"
+#elif defined(USE_ZLIB)
 #  include "zlib.h"
 #endif
 

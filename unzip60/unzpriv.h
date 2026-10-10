@@ -62,6 +62,21 @@
 #  endif
 #endif
 
+/* Explicitly selecting both external backends is a build error, including
+ * self-extractor targets. */
+#if defined(USE_ZLIB_NG) && defined(USE_ZLIB)
+# error USE_ZLIB_NG and USE_ZLIB are mutually exclusive
+#endif
+
+/* Keep SFX dependency-free unless native zlib-ng is explicitly selected. */
+#if defined(SFX) && !defined(ZLIBNG_SFX)
+# undef USE_ZLIB_NG
+#endif
+#ifdef USE_ZLIB_NG
+# define USE_ZLIB 1 /* external method-8 path, native ABI */
+# define USE_OWN_CRCTAB 1
+#endif
+
 /* Method 9 always uses Info-ZIP's built-in Deflate64 decoder. */
 
 #ifdef NO_DEFLATE64

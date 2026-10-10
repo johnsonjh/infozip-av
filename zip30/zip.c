@@ -2090,8 +2090,13 @@ local void version_info()
              accelerators);
   }
 #ifdef USE_ZLIB
+# ifdef USE_ZLIB_NG
+      printf("\tExternal zlib-ng     (External zlib-ng v%s in use)\n",
+             zlibng_version());
+# else
       printf("\tExternal zlib        (External zlib v%s in use)\n",
       zlibVersion());
+# endif
   i++;  /* zlib use means there IS at least one compilation option */
 #endif
 #if CRYPT

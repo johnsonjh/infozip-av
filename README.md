@@ -501,6 +501,23 @@ Thank you for using PKWARE!  PKWARE Support BBS (414) 352-7176
 No errors detected in compressed data of pkz110.exe.
 ```
 
+## Developer notes
+
+* Usage of AI (artificial intelligence) tools by contributors is permitted,
+  subject to the same terms and conditions as the
+  [LLVM AI Tool Use Policy](https://llvm.org/docs/AIToolPolicy.html), but
+  this permission may be withdrawn at any time and without notice.
+
+## Security
+
+* The canonical home of this software is
+  [`https://github.com/johnsonjh/infozip-av`](https://github.com/johnsonjh/infozip-av),
+  with a mirror on [GitLab](https://gitlab.com/johnsonjh/infozip-av).
+* This software is intended to be **secure** 🛡️.
+* If you find any security‑related problems, please don’t hesitate to
+  [open a GitHub Issue](https://github.com/johnsonjh/infozip-av/issues/new/choose)
+  (or send an [email](mailto:johnsonjh.dev@gmail.com) to the maintainer).
+
 ## Availability
 
 * [GitHub](https://github.com/johnsonjh/infozip-av)

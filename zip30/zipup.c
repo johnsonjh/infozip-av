@@ -71,7 +71,9 @@ extern int iz_zip_aes_active;
 #endif
 
 #ifdef USE_ZLIB
+# ifndef USE_ZLIB_NG
 #  include "zlib.h"
+# endif
 #endif
 
 #ifdef LZMA_SUPPORT
@@ -3418,9 +3420,9 @@ local zoff_t filecompress(z_entry, cmpr_method)
     {
         zstrm.next_in = (Bytef *)f_ibuf;
     }
-    zstrm.avail_in = file_read(zstrm.next_in, ibuf_sz);
+    zstrm.avail_in = file_read((char *)(void *)zstrm.next_in, ibuf_sz);
     if (zstrm.avail_in < ibuf_sz) {
-        unsigned more = file_read(zstrm.next_in + zstrm.avail_in,
+        unsigned more = file_read((char *)(void *)(zstrm.next_in + zstrm.avail_in),
                                   (ibuf_sz - zstrm.avail_in));
         if (more == EOF || more == 0) {
             maybe_stored = TRUE;
@@ -3480,7 +3482,7 @@ local zoff_t filecompress(z_entry, cmpr_method)
 #else
             zstrm.next_in = (Bytef *)f_ibuf;
 #endif
-            zstrm.avail_in = file_read(zstrm.next_in, ibuf_sz);
+            zstrm.avail_in = file_read((char *)(void *)zstrm.next_in, ibuf_sz);
         }
     }
 

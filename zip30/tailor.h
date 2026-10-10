@@ -160,6 +160,14 @@
 #endif
 
 
+#if defined(USE_ZLIB_NG) && defined(USE_ZLIB)
+# error USE_ZLIB_NG and USE_ZLIB are mutually exclusive
+#endif
+#ifdef USE_ZLIB_NG
+# define USE_ZLIB 1 /* reuse external Deflate path, using native zng_* */
+# define USE_OWN_CRCTAB 1 /* ZipCrypto retains its own lookup table */
+#endif
+
 #if (defined(USE_ZLIB) && defined(ASM_CRC))
 #  undef ASM_CRC
 #endif

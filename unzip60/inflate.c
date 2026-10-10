@@ -355,13 +355,21 @@
 
 #if USE_ZLIB_INFLATCB
 
+#ifdef USE_ZLIB_NG
+static unsigned zlib_inCB OF((void FAR *pG, const unsigned char **pInbuf));
+#else
 static unsigned zlib_inCB OF((void FAR *pG, unsigned char FAR * FAR * pInbuf));
+#endif
 static int zlib_outCB OF((void FAR *pG, unsigned char FAR *outbuf,
                           unsigned outcnt));
 
 static unsigned zlib_inCB(pG, pInbuf)
     void FAR *pG;
+#ifdef USE_ZLIB_NG
+    const unsigned char **pInbuf;
+#else
     unsigned char FAR * FAR * pInbuf;
+#endif
 {
     *pInbuf = G.inbuf;
     return fillinbuf(__G);

@@ -28,7 +28,7 @@
 #ifdef DYNALLOC_CRCTAB
    void     free_crc_table  OF((void));
 #endif
-#ifndef USE_ZLIB
+#if !defined(USE_ZLIB) || defined(USE_ZLIB_NG)
    ZCONST ulg near *get_crc_table  OF((void));
 #endif
 #if (defined(USE_ZLIB) || defined(CRC_TABLE_ONLY))

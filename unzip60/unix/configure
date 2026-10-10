@@ -20,6 +20,61 @@ LFLAGS1=""
 LFLAGS2="${LFLAGS2}"
 LN="ln -s"
 
+# Native zlib-ng is an independent, optional backend.  No build-time
+# dependency is introduced when the compile-and-link probe fails.
+# Explicit standard USE_ZLIB wins over automatic discovery; explicitly
+# selecting both backends is an error.
+ZNG_REQUEST=auto
+case " ${CFLAGS} " in
+  *" -DUSE_ZLIB "*|*" -DUSE_ZLIB="*) ZNG_REQUEST=standard ;;
+esac
+case " ${CFLAGS} " in
+  *" -DUSE_ZLIB_NG "*|*" -DUSE_ZLIB_NG="*)
+    if test "$ZNG_REQUEST" = standard; then
+      echo 'USE_ZLIB_NG and USE_ZLIB are mutually exclusive' >&2
+      exit 1
+    fi
+    ZNG_REQUEST=explicit ;;
+  *" -DNO_ZLIB_NG "*|*" -DNO_ZLIB_NG="*)
+    if test "$ZNG_REQUEST" = auto; then ZNG_REQUEST=disabled; fi ;;
+esac
+if test "$ZNG_REQUEST" = auto || test "$ZNG_REQUEST" = explicit; then
+  ZNG_CFLAGS=${IZ_ZLIBNG_CFLAGS-}
+  ZNG_LIBS=${IZ_ZLIBNG_LIBS-}
+  if command -v pkg-config > /dev/null 2>&1 && pkg-config --exists zlib-ng; then
+    if test -z "$ZNG_CFLAGS"; then ZNG_CFLAGS=`pkg-config --cflags zlib-ng`; fi
+    if test -z "$ZNG_LIBS"; then ZNG_LIBS=`pkg-config --libs zlib-ng`; fi
+  fi
+  if test -z "$ZNG_LIBS"; then ZNG_LIBS=-lz-ng; fi
+  cat > conftest.c << '_EOF_ZNG_'
+#include <zlib-ng.h>
+int main(void) {
+    zng_stream s = {0};
+    const char *v = zlibng_version();
+    if (v == 0) return 1;
+    return (int)(zng_crc32_z(0, (const uint8_t *)0, 0) |
+        (uint32_t)(zng_deflateInit2(&s, 1, Z_DEFLATED, -15, 8, 0) != Z_OK));
+}
+_EOF_ZNG_
+  if $CC $CFLAGS $ZNG_CFLAGS -o conftest conftest.c $LFLAGS2 $ZNG_LIBS >/dev/null 2>&1; then
+    echo '-- native zlib-ng found: enabling method 8 and external CRC'
+    case "`uname -s 2>/dev/null`" in
+      Linux) CFLAGS="${CFLAGS} -D_GNU_SOURCE"
+             CFLAGSR="${CFLAGSR} -D_GNU_SOURCE"
+             ;;
+    esac
+    CFLAGS="${CFLAGS} ${ZNG_CFLAGS} -DUSE_ZLIB_NG"
+    CFLAGSR="${CFLAGSR} ${ZNG_CFLAGS} -DUSE_ZLIB_NG"
+    ZNG_LINK_LIBS="${ZNG_LIBS}"
+  elif test "$ZNG_REQUEST" = explicit; then
+    echo 'USE_ZLIB_NG requested but native zlib-ng headers/library unavailable' >&2
+    exit 1
+  else
+    echo '-- native zlib-ng unavailable: using internal Deflate and CRC'
+  fi
+  rm -f conftest conftest.c conftest.o
+fi
+
 # Enable modern zlib's large-file header declarations before any of
 # the autoconfigure probes run, to avoid incorrect NO_* feature results.
 case " ${CFLAGS} " in
@@ -807,8 +862,17 @@ _EOF_
     ;;
 esac
 
+# If explicitly requested (ZLIBNG_SFX), allow the zlib-ng for SFX as well.
+SFX_LFLAGS2="${LFLAGS2}"
+if test -n "${ZNG_LINK_LIBS:-}"; then
+  LFLAGS2="${LFLAGS2} ${ZNG_LINK_LIBS}"
+  case " ${CFLAGS} " in
+    *" -DZLIBNG_SFX "*|*" -DZLIBNG_SFX="*) SFX_LFLAGS2="${LFLAGS2}" ;;
+  esac
+fi
+
 echo CC=\"${CC}\" CF=\"${CFLAGSR} ${D_USE_BZ2} ${D_USE_LZMA} ${D_USE_ZSTD} ${D_USE_WAVPACK}\" CRCA_O=\"${CRC32OA}\" \
-       AS=\"${CC} -c\" LFLAGS1=\"${LFLAGS1}\" LF2=\"${LFLAGS2}\" \
+       AS=\"${CC} -c\" LFLAGS1=\"${LFLAGS1}\" LF2=\"${LFLAGS2}\" SL2=\"${SFX_LFLAGS2}\" \
        CC_BZ=\"${CC_BZ}\" CFLAGS_BZ=\"${CFLAGS_BZ}\" \
        IZ_BZIP2=\"${IZ_BZIP2}\" D_USE_BZ2=\"${D_USE_BZ2}\" \
        L_BZ2=\"${L_BZ2}\" LIBBZ2=\"${LIBBZ2}\" \

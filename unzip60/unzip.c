@@ -523,7 +523,11 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  ifdef USE_VFAT
      static ZCONST char Far Use_VFAT_support[] = "USE_VFAT";
 #  endif
-#  ifdef USE_ZLIB
+#  ifdef USE_ZLIB_NG
+     static ZCONST char Far UseZlibNg[] =
+     "External zlib-ng (External zlib-ng v%s in use)";
+#  endif
+#  if defined(USE_ZLIB) && !defined(USE_ZLIB_NG)
      static ZCONST char Far UseZlib[] =
      "External zlib (External zlib v%s in use)";
 #  endif
@@ -2690,8 +2694,13 @@ static void show_version_info(__G)
         ++numopts;
 #endif
 #ifdef USE_ZLIB
+# ifdef USE_ZLIB_NG
+        sprintf((char *)(slide+256), LoadFarStringSmall(UseZlibNg),
+          zlibng_version());
+# else
         sprintf((char *)(slide+256), LoadFarStringSmall(UseZlib),
           zlibVersion());
+# endif
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
           (char *)(slide+256)));
         ++numopts;

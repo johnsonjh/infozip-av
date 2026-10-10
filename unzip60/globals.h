@@ -142,7 +142,11 @@
 #define __globals_h
 
 #ifdef USE_ZLIB
+# if defined(USE_ZLIB_NG)
+#  include "iz_native_zlibng.h"
+# else
 #  include "zlib.h"
+# endif
 #  ifdef zlib_version           /* This name is used internally in unzip */
 #    undef zlib_version         /*  and must not be defined as a macro. */
 #  endif
