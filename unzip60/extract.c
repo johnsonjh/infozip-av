@@ -3208,12 +3208,14 @@ static int extract_or_test_entrylist(__G__ numchunk,
                 } else
 #endif
                 if (csiz_decrypted < 12) {
-                    /* handle the error now to prevent unsigned overflow */
+                    /* The encrypted header is incomplete.  Reject this
+                     * member without aborting the remaining entry list. */
                     Info(slide, 0x401, ((char *)slide,
-                      LoadFarStringSmall(ErrUnzipNoFile),
-                      LoadFarString(InvalidComprData),
-                      LoadFarStringSmall2(Inflate)));
-                    return PK_ERR;
+                      "   skipping: %-22s  invalid encrypted STORED size (< 12 bytes)\n",
+                      FnFilter1(G.filename)));
+                    if (error_in_archive < PK_ERR)
+                        error_in_archive = PK_ERR;
+                    continue;
                 }
 #ifndef NO_AES
                 if(!G.pInfo->aes_strength)
