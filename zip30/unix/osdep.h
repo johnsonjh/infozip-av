@@ -21,10 +21,20 @@
   /* The following Large File Summit (LFS) defines turn on large file support on
      Linux (probably 2.4 or later kernel) and many other unixen */
 
-# define _LARGEFILE_SOURCE      /* some OSes need this for fseeko */
-# define _LARGEFILE64_SOURCE
+# ifndef _LARGEFILE_SOURCE
+#  define _LARGEFILE_SOURCE      /* some OSes need this for fseeko */
+# endif
+
+# ifndef _LARGEFILE64_SOURCE
+#  define _LARGEFILE64_SOURCE
+# endif
+
+# undef _FILE_OFFSET_BITS
 # define _FILE_OFFSET_BITS 64   /* select default interface as 64 bit */
-# define _LARGE_FILES           /* some OSes need this for 64-bit off_t */
+
+# ifndef _LARGE_FILES
+#  define _LARGE_FILES           /* some OSes need this for 64-bit off_t */
+# endif
 #endif
 
 #include <sys/types.h>

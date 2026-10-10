@@ -137,7 +137,7 @@ jmp_buf zipdll_error_return;
 # if (!defined(USE_ZLIB) || defined(USE_OWN_CRCTAB))
 ZCONST ulg near *crc_32_tab;
 # else
-ZCONST uLongf *crc_32_tab;
+ZCONST z_crc_t *crc_32_tab;
 # endif
 #endif /* CRYPT */
 
@@ -2090,11 +2090,8 @@ local void version_info()
              accelerators);
   }
 #ifdef USE_ZLIB
-  if (strcmp(ZLIB_VERSION, zlibVersion()) == 0)
-    printf("\tUSE_ZLIB [zlib version %s]\n", ZLIB_VERSION);
-  else
-    printf("\tUSE_ZLIB [compiled with version %s, using version %s]\n",
-      ZLIB_VERSION, zlibVersion());
+      printf("\tExternal zlib        (External zlib v%s in use)\n",
+      zlibVersion());
   i++;  /* zlib use means there IS at least one compilation option */
 #endif
 #if CRYPT

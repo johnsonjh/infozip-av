@@ -583,6 +583,9 @@ void free_G_buffers(__G)     /* releases all memory allocated in global vars */
     SYSTEM_SPECIFIC_DTOR(__G);
 #endif
 
+#if defined(USE_ZLIB) && defined(USE_DEFLATE64)
+    iz_inflate64_free(__G);
+#endif
     inflate_free(__G);
     checkdir(__G__ (char *)NULL, END);
 

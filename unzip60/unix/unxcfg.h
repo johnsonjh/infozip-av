@@ -42,11 +42,24 @@
   /* These have to be before any include that sets types so the large file
      versions of the types are set in the includes */
 
+# ifndef _LARGEFILE_SOURCE
 # define _LARGEFILE_SOURCE      /* some OSes need this for fseeko */
-# define _LARGEFILE64_SOURCE
+#endif
+
+# ifndef _LARGEFILE64_SOURCE
+#  define _LARGEFILE64_SOURCE
+# endif
+
+# undef _FILE_OFFSET_BITS
 # define _FILE_OFFSET_BITS 64   /* select default interface as 64 bit */
-# define _LARGE_FILES           /* some OSes need this for 64-bit off_t */
-# define __USE_LARGEFILE64
+
+# ifndef _LARGE_FILES
+#  define _LARGE_FILES          /* some OSes need this for 64-bit off_t */
+# endif
+
+# ifndef __USE_LARGEFILE64
+#  define __USE_LARGEFILE64
+# endif
 #endif /* LARGE_FILE_SUPPORT */
 
 

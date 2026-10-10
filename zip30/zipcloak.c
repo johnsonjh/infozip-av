@@ -48,7 +48,7 @@ local FILE *tempzf;
 #if (!defined(USE_ZLIB) || defined(USE_OWN_CRCTAB))
 ZCONST ulg near *crc_32_tab;
 #else
-ZCONST uLongf *crc_32_tab;
+ZCONST z_crc_t *crc_32_tab;
 #endif
 
 int set_filetype(out_path)

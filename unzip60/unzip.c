@@ -525,7 +525,7 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif
 #  ifdef USE_ZLIB
      static ZCONST char Far UseZlib[] =
-     "USE_ZLIB (compiled with version %s; using version %s)";
+     "External zlib (External zlib v%s in use)";
 #  endif
 #  ifdef USE_BZIP2
      static ZCONST char Far UseBZip2[] =
@@ -2691,7 +2691,7 @@ static void show_version_info(__G)
 #endif
 #ifdef USE_ZLIB
         sprintf((char *)(slide+256), LoadFarStringSmall(UseZlib),
-          ZLIB_VERSION, zlibVersion());
+          zlibVersion());
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
           (char *)(slide+256)));
         ++numopts;

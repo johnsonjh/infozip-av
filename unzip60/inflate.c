@@ -350,18 +350,8 @@
 #  define USE_ZLIB_INFLATCB 0
 #endif
 
-/* Check for incompatible combinations of zlib and Deflate64 support. */
-#if defined(USE_DEFLATE64)
-# if !USE_ZLIB_INFLATCB
-  #error Deflate64 is incompatible with traditional (pre-1.2.x) zlib interface!
-# else
-   /* The Deflate64 callback function in the framework of zlib 1.2.x requires
-      the inclusion of the unsupported infback9 header file:
-    */
-#  include "infback9.h"
-# endif
-#endif /* USE_DEFLATE64 */
-
+/* Method 9 always uses the built-in decoder below.  Method 8 uses
+ * the external library (with or without its callback interface) */
 
 #if USE_ZLIB_INFLATCB
 
@@ -411,6 +401,17 @@ int UZinflate(__G__ is_defl64)
 {
     int retval = 0;     /* return code: 0 = "no error" */
     int err=Z_OK;
+#if !USE_ZLIB_INFLATCB
+    int repeated_buf_err;
+#endif
+
+#ifdef USE_DEFLATE64
+    if (is_defl64)
+        return iz_inflate64(__G__ 1);
+#else
+    if (is_defl64)
+        return 2;
+#endif
 #if USE_ZLIB_INFLATCB
 
 #if (defined(DLL) && !defined(NO_SLIDE_REDIR))
@@ -442,58 +443,6 @@ int UZinflate(__G__ is_defl64)
         G.inflInit = 1;
     }
 
-#ifdef USE_DEFLATE64
-    if (is_defl64)
-    {
-        Trace((stderr, "initializing inflate9()\n"));
-        err = inflateBack9Init(&G.dstrm, redirSlide);
-
-        if (err == Z_MEM_ERROR)
-            return 3;
-        else if (err != Z_OK) {
-            Trace((stderr, "oops!  (inflateBack9Init() err = %d)\n", err));
-            return 2;
-        }
-
-        G.dstrm.next_in = G.inptr;
-        G.dstrm.avail_in = G.incnt;
-
-        err = inflateBack9(&G.dstrm, zlib_inCB, &G, zlib_outCB, &G);
-        if (err != Z_STREAM_END) {
-            if (err == Z_DATA_ERROR || err == Z_STREAM_ERROR) {
-                Trace((stderr, "oops!  (inflateBack9() err = %d)\n", err));
-                retval = 2;
-            } else if (err == Z_MEM_ERROR) {
-                retval = 3;
-            } else if (err == Z_BUF_ERROR) {
-                Trace((stderr, "oops!  (inflateBack9() err = %d)\n", err));
-                if (G.dstrm.next_in == Z_NULL) {
-                    /* input failure */
-                    Trace((stderr, "  inflateBack9() input failure\n"));
-                    retval = 2;
-                } else {
-                    /* output write failure */
-                    retval = (G.disk_full != 0 ? PK_DISK : IZ_CTRLC);
-                }
-            } else {
-                Trace((stderr, "oops!  (inflateBack9() err = %d)\n", err));
-                retval = 2;
-            }
-        }
-        if (G.dstrm.next_in != NULL) {
-            G.inptr = (uch *)G.dstrm.next_in;
-            G.incnt = G.dstrm.avail_in;
-        }
-
-        err = inflateBack9End(&G.dstrm);
-        if (err != Z_OK) {
-            Trace((stderr, "oops!  (inflateBack9End() err = %d)\n", err));
-            if (retval == 0)
-                retval = 2;
-        }
-    }
-    else
-#endif /* USE_DEFLATE64 */
     {
         /* For the callback interface, inflate initialization has to
            be called before each decompression call.
@@ -538,7 +487,11 @@ int UZinflate(__G__ is_defl64)
                     retval = 2;
                 } else {
                     /* output write failure */
+#ifdef FUNZIP
+                    retval = 2;
+#else
                     retval = (G.disk_full != 0 ? PK_DISK : IZ_CTRLC);
+#endif
                 }
             } else {
                 Trace((stderr, "oops!  (inflateBack() err = %d)\n", err));
@@ -559,7 +512,6 @@ int UZinflate(__G__ is_defl64)
     }
 
 #else /* !USE_ZLIB_INFLATCB */
-    int repeated_buf_err;
 
 #if (defined(DLL) && !defined(NO_SLIDE_REDIR))
     if (G.redirect_slide)
@@ -713,8 +665,9 @@ uzinflate_cleanup_exit:
 
 
 /*---------------------------------------------------------------------------*/
-#else /* !USE_ZLIB */
+#endif /* USE_ZLIB */
 
+#if !defined(USE_ZLIB) || defined(USE_DEFLATE64)
 
 /* Function prototypes */
 #ifndef OF
@@ -1434,7 +1387,11 @@ cleanup_and_exit:
 
 
 
+#ifdef USE_ZLIB
+int iz_inflate64(__G__ is_defl64)
+#else
 int inflate(__G__ is_defl64)
+#endif
     __GDEF
     int is_defl64;
 /* decompress an inflated entry */
@@ -1522,7 +1479,11 @@ int inflate(__G__ is_defl64)
 
 
 
+#ifdef USE_ZLIB
+int iz_inflate64_free(__G)
+#else
 int inflate_free(__G)
+#endif
     __GDEF
 {
   if (G.fixed_tl != (struct huft *)NULL)
@@ -1534,7 +1495,7 @@ int inflate_free(__G)
   return 0;
 }
 
-#endif /* ?USE_ZLIB */
+#endif /* internal Deflate64/Deflate decoder */
 
 
 /*

@@ -22,6 +22,17 @@ LFLAGS1=''
 LFLAGS2=''
 LN="ln -s"
 
+# Feature-test macros must precede all configure header probes.  They
+# enable the off64_t declarations needed by modern zlib on glibc.
+case " ${CFLAGS} " in
+  *" -DUSE_ZLIB "*|*" -DUSE_ZLIB="*)
+    case "`uname -s 2>/dev/null`" in
+      Linux) CFLAGS="${CFLAGS} -D_GNU_SOURCE" ;;
+    esac
+    CFLAGS="${CFLAGS} ${IZ_ZLIB_CFLAGS}"
+    ;;
+esac
+
 CFLAGS_OPT=''
 
 # bzip2
@@ -763,6 +774,27 @@ rm -f a.out conftest.c conftest.o conftest null
 case " ${CFLAGS} " in
   *" -DNO_CRYPT "*) ZIPS_NOCRYPT=' ZIPS="zip$(E) zipnote$(E) zipsplit$(E)"' ;;
   *) ZIPS_NOCRYPT='' ;;
+esac
+
+# External zlib is optional.  Its headers and library must be selected as
+# one pair (e.g. zlib-ng compiled with ZLIB_COMPAT=ON).
+case " ${CFLAGS} " in
+  *" -DUSE_ZLIB "*|*" -DUSE_ZLIB="*)
+    case "`uname -s 2>/dev/null`" in
+      Linux) : ;;
+    esac
+    ZLIB_LINK_LIBS=${IZ_ZLIB_LIBS:--lz}
+    cat > conftest.c << '_EOF_'
+#include <zlib.h>
+int main(void) { return (int)crc32(0L, (const Bytef *)0, 0); }
+_EOF_
+    if ! $CC $CFLAGS -o conftest conftest.c ${LFLAGS2} ${ZLIB_LINK_LIBS} > /dev/null 2>&1; then
+      echo 'USE_ZLIB: cannot compile/link against selected zlib; check IZ_ZLIB_CFLAGS and IZ_ZLIB_LIBS' >&2
+      exit 1
+    fi
+    LFLAGS2="${LFLAGS2} ${ZLIB_LINK_LIBS}"
+    rm -f conftest conftest.c conftest.o
+    ;;
 esac
 
 echo CC=\"${CC}\" CFLAGS=\"${CFLAGS}\"  CPP=\"${CPP}\" OBJA=\"${OBJA}\" \

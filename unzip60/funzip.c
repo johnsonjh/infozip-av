@@ -472,6 +472,9 @@ char **argv;
       else
         err(4, "invalid compressed data--format violated");
     }
+#if defined(USE_ZLIB) && defined(USE_DEFLATE64)
+    iz_inflate64_free(__G);
+#endif
     inflate_free(__G);
   }
   else

@@ -20,6 +20,19 @@ LFLAGS1=""
 LFLAGS2="${LFLAGS2}"
 LN="ln -s"
 
+# Enable modern zlib's large-file header declarations before any of
+# the autoconfigure probes run, to avoid incorrect NO_* feature results.
+case " ${CFLAGS} " in
+  *" -DUSE_ZLIB "*|*" -DUSE_ZLIB="*)
+    case "`uname -s 2>/dev/null`" in
+      Linux) CFLAGS="${CFLAGS} -D_GNU_SOURCE"
+             CFLAGSR="${CFLAGSR} -D_GNU_SOURCE" ;;
+    esac
+    CFLAGS="${CFLAGS} ${IZ_ZLIB_CFLAGS}"
+    CFLAGSR="${CFLAGSR} ${IZ_ZLIB_CFLAGS}"
+    ;;
+esac
+
 CFLAGS_OPT=''
 CFLAGS_BZ=''
 BZLF=''
@@ -772,6 +785,27 @@ else
 fi
 rm -f conftest conftest.c conftest.o
 
+
+# When USE_ZLIB is selected, verify its headers and linker library.
+# IZ_ZLIB_CFLAGS and IZ_ZLIB_LIBS may select a zlib-ng compatibility build.
+case " ${CFLAGS} " in
+  *" -DUSE_ZLIB "*|*" -DUSE_ZLIB="*)
+    case "`uname -s 2>/dev/null`" in
+      Linux) : ;;
+    esac
+    ZLIB_LINK_LIBS=${IZ_ZLIB_LIBS:--lz}
+    cat > conftest.c << '_EOF_'
+#include <zlib.h>
+int main(void) { return (int)crc32(0L, (const Bytef *)0, 0); }
+_EOF_
+    if ! $CC $CFLAGS -o conftest conftest.c ${LFLAGS2} ${ZLIB_LINK_LIBS} > /dev/null 2>&1; then
+      echo 'USE_ZLIB: cannot compile/link against selected zlib; check IZ_ZLIB_CFLAGS and IZ_ZLIB_LIBS' >&2
+      exit 1
+    fi
+    LFLAGS2="${LFLAGS2} ${ZLIB_LINK_LIBS}"
+    rm -f conftest conftest.c conftest.o
+    ;;
+esac
 
 echo CC=\"${CC}\" CF=\"${CFLAGSR} ${D_USE_BZ2} ${D_USE_LZMA} ${D_USE_ZSTD} ${D_USE_WAVPACK}\" CRCA_O=\"${CRC32OA}\" \
        AS=\"${CC} -c\" LFLAGS1=\"${LFLAGS1}\" LF2=\"${LFLAGS2}\" \

@@ -28,6 +28,13 @@ D_USE_REFPTR_SFX="-DREFPTR_SFX"
 # Enable WZ-MP3-enabled unzipsfx
 D_USE_WZMP3_SFX="-DWZMP3_SFX"
 
+# Uncomment to use external zlib
+# Recommended if zlib has hardware accel (e.g., zlib-ng)
+#EXTERNAL_ZLIB="-DUSE_ZLIB"
+
+LOCAL_UNZIP="${LOCAL_UNZIP:-} ${EXTERNAL_ZLIB:-}"
+LOCAL_ZIP="${LOCAL_ZIP:-} ${EXTERNAL_ZLIB:-}"
+
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
 ZIPDEDUPDIR="zipdedup"

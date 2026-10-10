@@ -308,7 +308,7 @@ extern ZCONST uch ebcdic[256];
 #if (!defined(USE_ZLIB) || defined(USE_OWN_CRCTAB))
   extern ZCONST ulg near *crc_32_tab;
 #else
-  extern ZCONST ulg Far *crc_32_tab;
+  extern ZCONST z_crc_t Far *crc_32_tab;
 #endif
 
 /* Are these ever used?  6/12/05 EG */

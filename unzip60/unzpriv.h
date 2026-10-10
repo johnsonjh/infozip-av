@@ -62,10 +62,7 @@
 #  endif
 #endif
 
-#if (defined(USE_ZLIB) && !defined(HAVE_ZL_INFLAT64) && !defined(NO_DEFLATE64))
-   /* zlib does not (yet?) provide Deflate64(tm) support */
-#  define NO_DEFLATE64
-#endif
+/* Method 9 always uses Info-ZIP's built-in Deflate64 decoder. */
 
 #ifdef NO_DEFLATE64
    /* disable support for Deflate64(tm) */
@@ -2574,6 +2571,10 @@ int    huft_build                OF((__GPRO__ ZCONST unsigned *b, unsigned n,
                                      struct huft **t, unsigned *m));
 #ifdef USE_ZLIB
    int    UZinflate              OF((__GPRO__ int is_defl64));  /* inflate.c */
+#  ifdef USE_DEFLATE64
+   int    iz_inflate64           OF((__GPRO__ int is_defl64));
+   int    iz_inflate64_free      OF((__GPRO));
+#  endif
 #  define inflate_free(x)        inflateEnd(&((Uz_Globs *)(&G))->dstrm)
 #else
    int    inflate                OF((__GPRO__ int is_defl64));  /* inflate.c */

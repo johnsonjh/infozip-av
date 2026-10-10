@@ -252,7 +252,7 @@ typedef struct Globals {
 #if (!defined(USE_ZLIB) || defined(USE_OWN_CRCTAB))
     ZCONST ulg near *crc_32_tab;
 #else
-    ZCONST ulg Far *crc_32_tab;
+    ZCONST z_crc_t Far *crc_32_tab;
 #endif
     ulg       crc32val;             /* CRC shift reg. (was static in funzip) */
 #ifdef PKAV_SUPPORT
@@ -389,7 +389,8 @@ typedef struct Globals {
 #ifdef USE_ZLIB
     int inflInit;             /* inflate static: zlib inflate() initialized */
     z_stream dstrm;           /* inflate global: decompression stream */
-#else
+#endif
+#if !defined(USE_ZLIB) || defined(USE_DEFLATE64)
     struct huft *fixed_tl;              /* inflate static */
     struct huft *fixed_td;              /* inflate static */
     unsigned fixed_bl, fixed_bd;        /* inflate static */
@@ -407,7 +408,7 @@ typedef struct Globals {
     unsigned wp;              /* inflate static: current position in slide */
     ulg bb;                   /* inflate static: bit buffer */
     unsigned bk;              /* inflate static: bits count in bit buffer */
-#endif /* ?USE_ZLIB */
+#endif /* internal Deflate64/Deflate state */
 
 #ifndef FUNZIP
     /* cylindric buffer space for formatting zoff_t values (fileio static) */
