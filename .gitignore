@@ -3,6 +3,7 @@ a.out
 /APPNOTE*.TXT
 *.bak*
 /build/
+/CMPSC-work/
 *.core
 core
 core-*
