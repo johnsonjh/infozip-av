@@ -29,13 +29,14 @@
 
 ## Overview
 
-**Xtro‑ZIP** adds extensive new algorithm support, security hardening,
-data de‑duplication, CRC/SHA/AES hardware acceleration (for AMD64 and ARM64),
-full [PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification)
+**Xtro‑ZIP** adds extensive support for **new algorithms**, **security**
+hardening, data **de‑duplication**, CRC/SHA/AES **hardware acceleration**
+(for AMD64 and ARM64), full
+[**PKAV**](https://github.com/johnsonjh/pkstuff#authenticity-verification)
 (create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x),
-[FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
+[**FWKCS**](http://justsolve.archiveteam.org/wiki/FWKCS)
 [MD5](https://en.wikipedia.org/wiki/MD5), and
-[AES cryptography](https://www.winzip.com/en/support/aes-encryption/)
+[**AES** cryptography](https://www.winzip.com/en/support/aes-encryption/)
 (**AE‑1**, **AE‑2**, and “quantum‑resistant” **AE‑3**) to
 [Info‑ZIP](https://infozip.sourceforge.net/).
 
@@ -56,7 +57,9 @@ New decompression‑only support for **WZ‑MP3** (method&nbsp;94), **WZ‑JPEG*
 WinZip‑style de‑duplication **RefPtr** (method&nbsp;92) is supported.
 
 The usual **Store** (method&nbsp;0) and **DEFLATE** (method&nbsp;8) algorithms
-remain supported.  Additionally, new
+remain supported.
+
+Additionally, new
 [Zopfli](https://github.com/google/zopfli)‑enhanced **DEFLATE** (method&nbsp;8)
 support is available (when compressing using `zip ‑11`):
 
