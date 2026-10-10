@@ -31,6 +31,7 @@ D_USE_WZMP3_SFX="-DWZMP3_SFX"
 # Uncomment to use external zlib
 # Recommended if zlib has hardware accel (e.g., zlib-ng)
 #EXTERNAL_ZLIB="-DUSE_ZLIB"
+#EXT_ZLIB_LIB="-lz"
 
 LOCAL_UNZIP="${LOCAL_UNZIP:-} ${EXTERNAL_ZLIB:-}"
 LOCAL_ZIP="${LOCAL_ZIP:-} ${EXTERNAL_ZLIB:-}"
@@ -94,6 +95,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
 (
   cd "${ZIPDEDUPDIR:?}" \
     && "${MAKE:-make}" -j "${CPUS:?}" all \
+      EXT_ZLIB_LIB="${EXT_ZLIB_LIB:-}" \
     && cp -p "zipdedup" "${PREFIX:?}/bin/zipdedup" \
     && cp -p "man/zipdedup.1" "${PREFIX:?}/man1/zipdedup.1"
 )
