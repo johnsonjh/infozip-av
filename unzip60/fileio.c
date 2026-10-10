@@ -82,6 +82,12 @@ static void fwkcs_md5_transform(state, block)
     z_uint4 *state;
     ZCONST uch *block;
 {
+#if defined(__GNUC__) && (defined(__x86_64__) || defined(__amd64__)) && \
+    defined(UINT_MAX) && (UINT_MAX == 0xffffffffUL) && \
+    !defined(NO_FWKCS_FAST_MD5)
+# include "fwkcs_fast_md5.inc"
+#else
+
   static ZCONST z_uint4 k[64] = {
     0xd76aa478UL, 0xe8c7b756UL, 0x242070dbUL, 0xc1bdceeeUL,
     0xf57c0fafUL, 0x4787c62aUL, 0xa8304613UL, 0xfd469501UL,
@@ -133,6 +139,7 @@ static void fwkcs_md5_transform(state, block)
   state[1] = (state[1] + b) & FWKCS_MASK;
   state[2] = (state[2] + c) & FWKCS_MASK;
   state[3] = (state[3] + d) & FWKCS_MASK;
+#endif
 }
 
 void fwkcs_md5_init(__G)

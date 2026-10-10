@@ -335,7 +335,7 @@ crypt$O:	crypt.c izsha1.c izsha1.h izsha1_ni.h wzaes.c wzaes.h ae3_impl.h iz_aes
 envargs$O:	envargs.c $(UNZIP_H)
 explode$O:	explode.c $(UNZIP_H)
 extract$O:	extract.c refptr.c wavpackzip.c wzmp3.c wzmp3.h $(UNZIP_H) crc32.h crypt.h
-fileio$O:	fileio.c $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h
+fileio$O:	fileio.c fwkcs_fast_md5.inc $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h
 funzip$O:	funzip.c $(UNZIP_H) crc32.h crypt.h ttyio.h
 globals$O:	globals.c $(UNZIP_H)
 inflate$O:	inflate.c inflate.h $(UNZIP_H)
@@ -362,7 +362,7 @@ crypt_$O:	crypt.c izsha1.c izsha1.h izsha1_ni.h wzaes.c wzaes.h ae3_impl.h iz_ae
 extract_$O:	extract.c refptr.c wavpackzip.c wzmp3.c wzmp3.h $(UNZIP_H) crc32.h crypt.h
 	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ extract.c
 
-fileio_$O:	fileio.c $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h
+fileio_$O:	fileio.c fwkcs_fast_md5.inc $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h
 	$(CC) -c $(CF) $(D_USE_LZMA_SFX) $(D_USE_ZSTD_SFX) $(D_USE_WAVPACK_SFX) $(D_USE_REFPTR_SFX) $(D_USE_WZMP3_SFX) -DSFX -o $@ fileio.c
 
 globals_$O:	globals.c $(UNZIP_H)

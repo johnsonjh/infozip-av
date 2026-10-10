@@ -101,7 +101,7 @@ zip.o zipup.o crypt.o ttyio.o zipcloak.o crypt_.o: crypt.h
 crypt.o crypt_.o: wzaes.c wzaes.h izsha1_ni.h iz_aes_x86.h ae3_impl.h
 zip.o zipup.o zipnote.o zipcloak.o zipsplit.o: revision.h
 zip.o crypt.o ttyio.o zipcloak.o crypt_.o: ttyio.h
-zipup.o: unix/zipup.h deflate64.c deflate64.h d64opt.inc d64split.inc d64joint.inc
+zipup.o: unix/zipup.h fwkcs_fast_md5.inc deflate64.c deflate64.h d64opt.inc d64split.inc d64joint.inc
 
 match.o: match.S
 	$(CPP) match.S > _match.s
