@@ -1640,6 +1640,9 @@ local void help_extended()
 #ifdef BZIP2_SUPPORT
 "              bzip2       - bzip2 (method 12; -1..-9 presets)",
 #endif
+#ifdef CMPSC16_SUPPORT
+"              cmpsc       - IBM z/OS CMPSC (method 16)",
+#endif
 #ifdef LZMA_SUPPORT
 "              lzma        - LZMA (method 14; -1..-9 presets)",
 #ifdef ZSTD_SUPPORT
@@ -1972,6 +1975,9 @@ local void version_info()
     "Deflate64            (ZIP method 9; Deflate64(tm) supported)",
 #endif
     "DCL-Implode          (ZIP method 10; DCL-Implode; using PKDCLX v1.1.2)",
+#ifdef CMPSC16_SUPPORT
+    "IBM CMPSC            (ZIP method 16; 11-bit ASCII dictionary)",
+#endif
 #ifdef LZMA_SUPPORT
     lzma_opt_ver,
     xz_opt_ver,
@@ -4456,6 +4462,12 @@ char **argv;            /* command line tokens */
 #else
             ZIPERR(ZE_COMPERR, "Compression method deflate64 not enabled");
 #endif
+          } else if (strcmp(value, "cmpsc") == 0) {
+#ifdef CMPSC16_SUPPORT
+            method = CMPSC16;
+#else
+            ZIPERR(ZE_COMPERR, "Compression method cmpsc not enabled");
+#endif
           } else if (abbrevmatch("deflate", value, 0, 1)) {
             /* deflate */
             method = DEFLATE;
@@ -4538,7 +4550,13 @@ char **argv;            /* command line tokens */
 #else
 #define D64_STR ""
 #endif
-            zipwarn("valid compression methods include: store, dcl-implode, deflate" SH_STR RE_STR IM_STR D64_STR BZ_STR LZ_STR PP_STR ZS_STR, "");
+#ifdef CMPSC16_SUPPORT
+#define CM_STR ", cmpsc"
+#else
+#define CM_STR ""
+#endif
+            zipwarn("valid compression methods include: store, dcl-implode, deflate" SH_STR RE_STR IM_STR D64_STR BZ_STR LZ_STR PP_STR ZS_STR CM_STR, "");
+#undef CM_STR
 #undef BZ_STR
 #undef LZ_STR
 #undef PP_STR

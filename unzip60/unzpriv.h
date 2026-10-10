@@ -756,6 +756,10 @@
 #  define USE_PPMD
 #endif
 
+#if !defined(NO_CMPSC16) && !defined(__16BIT__) && !defined(MEMORY16)
+# define USE_CMPSC16
+#endif
+
 #define UNZIP_BZ2VERS   46
 #define UNZIP_LZMAVERS  63
 #define UNZIP_ZSTDVERS  63  /* accept Python 3.14 method-93 version-needed */
@@ -1792,6 +1796,7 @@
 #define DCLIMPLODED      10
 #define BZIPPED          12
 #define LZMAED           14
+#define CMPSCED          16
 #define IBMTERSED        18
 #define IBMLZ77ED        19
 #define ZSTD_OLD         20
@@ -1802,7 +1807,7 @@
 #define WZJPEGED         96
 #define WAVPACKED        97
 #define PPMDED           98
-#define NUM_METHODS      23     /* number of known method IDs */
+#define NUM_METHODS      24     /* number of known method IDs */
 /* don't forget to update list.c (list_files()), extract.c and zipinfo.c
  * appropriately if NUM_METHODS changes */
 

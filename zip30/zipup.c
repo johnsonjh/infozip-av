@@ -38,6 +38,11 @@ extern int iz_zip_aes_active;
 /* Keep the PKDCLX engine source unchanged and compile it with zipup.c */
 #include "pkdcl.c"
 
+/* Source-only CMPSC codec, independently written ANSI C89. */
+#ifdef CMPSC16_SUPPORT
+# include "cmpsc16_encode.c"
+#endif
+
 /* Same with our custom ppmd */
 #ifdef PPMD_SUPPORT
 # include "ppmd8.c"
@@ -219,6 +224,9 @@ local zoff_t zopflifilecompress OF((struct zlist far *z_entry, int *cmpr_method)
 local zoff_t deflate64filecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
 local zoff_t dclfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#ifdef CMPSC16_SUPPORT
+local zoff_t cmpsc16filecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#endif
 #ifdef PPMD_SUPPORT
 local zoff_t ppmdfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
@@ -1343,6 +1351,15 @@ struct zlist far *z;    /* zip entry to compress */
       s = deflate64filecompress(z, &m);
     }
 #endif
+#ifdef CMPSC16_SUPPORT
+    else if (m == CMPSC16) {
+      s = cmpsc16filecompress(z, &m);
+    }
+#endif
+#ifdef CMPSC16_SUPPORT
+    else if (m == CMPSC16)
+      fprintf(mesg, " (CMPSC compressed %d%%)\n", percent(isize, s));
+#endif
 #ifdef PPMD_SUPPORT
     else if (m == PPMD) {
       s = ppmdfilecompress(z, &m);
@@ -1742,6 +1759,10 @@ struct zlist far *z;    /* zip entry to compress */
       fprintf(mesg, " (imploded %d%%)\n", percent(isize, s));
     else if (m == DCLIMPLODE)
       fprintf(mesg, " (DCL imploded %d%%)\n", percent(isize, s));
+#ifdef CMPSC16_SUPPORT
+    else if (m == CMPSC16)
+      fprintf(mesg, " (CMPSC compressed %d%%)\n", percent(isize, s));
+#endif
 #ifdef PPMD_SUPPORT
     else if (m == PPMD)
       fprintf(mesg, " (PPMd compressed %d%%)\n", percent(isize, s));
@@ -1786,6 +1807,10 @@ struct zlist far *z;    /* zip entry to compress */
       fprintf(logfile, " (imploded %d%%)\n", percent(isize, s));
     else if (m == DCLIMPLODE)
       fprintf(logfile, " (DCL imploded %d%%)\n", percent(isize, s));
+#ifdef CMPSC16_SUPPORT
+    else if (m == CMPSC16)
+      fprintf(logfile, " (CMPSC compressed %d%%)\n", percent(isize, s));
+#endif
 #ifdef PPMD_SUPPORT
     else if (m == PPMD)
       fprintf(logfile, " (PPMd compressed %d%%)\n", percent(isize, s));
@@ -2242,6 +2267,58 @@ local zoff_t dclfilecompress(z_entry, cmpr_method)
     z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
     return small_store_finish(&store_test, cmpr_method, s.output_size);
 }
+
+#ifdef CMPSC16_SUPPORT
+typedef struct {
+    zoff_t size;
+    int write_error;
+} iz_cmpsc_zip_ctx;
+
+static unsigned iz_cmpsc_zip_read(void *opaque, unsigned char *buf, unsigned count)
+{
+    (void)opaque;
+    return file_read((char *)buf,count);
+}
+static int iz_cmpsc_zip_write(void *opaque, const unsigned char *buf,
+                              unsigned count)
+{
+    iz_cmpsc_zip_ctx *ctx=(iz_cmpsc_zip_ctx *)opaque;
+    unsigned char writable[4096];
+    unsigned n;
+    if (ctx->write_error) return -1;
+    /* zfwrite() encrypts IN PLACE for ZipCrypto and AES, so source buffers
+     * including the immutable shipped dictionary MUST be copied first. */
+    while (count) {
+        n=count>sizeof writable ? sizeof writable : count;
+        memcpy(writable,buf,(size_t)n);
+        if (zfwrite(writable,1,(extent)n)!=(extent)n) {
+            ctx->write_error=1;
+            return -1;
+        }
+        ctx->size+=(zoff_t)n;
+        buf+=n;
+        count-=n;
+    }
+    return 0;
+}
+local zoff_t cmpsc16filecompress(z_entry,cmpr_method)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+{
+    iz_cmpsc_zip_ctx ctx;
+    int ret;
+    (void)cmpr_method;  /* all compression levels use the same dictionary */
+    ctx.size=0;
+    ctx.write_error=0;
+    ret=izcm_encode(iz_cmpsc_zip_read,iz_cmpsc_zip_write,&ctx);
+    if (ret) {
+        if (ctx.write_error) ziperr(ZE_TEMP,"error writing CMPSC data");
+        ziperr(ret == -2 ? ZE_MEM : ZE_READ, "CMPSC compression failed");
+    }
+    z_entry->att=(ush)(file_binary_final ? BINARY : ASCII);
+    return ctx.size;
+}
+#endif /* CMPSC16_SUPPORT */
 
 #ifdef PPMD_SUPPORT
 #define PPMD_ZIP_OUTBUF 16384U

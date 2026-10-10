@@ -343,6 +343,7 @@ extern int scanimage;           /* Scan through image files */
 #define DCLIMPLODE 10           /* PKWARE DCL Implode method */
 #define BZIP2 12                /* BZIP2 method */
 #define LZMA 14                 /* LZMA method */
+#define CMPSC16 16              /* IBM z/OS CMPSC method */
 #define ZSTD_OLD 20             /* deprecated Zstandard method (read only) */
 #define ZSTD 93                 /* Zstandard method */
 #define XZ 95                   /* XZ/LZMA2 method */
@@ -367,6 +368,13 @@ extern int scanimage;           /* Scan through image files */
     !defined(NO_STDLIB_H) && !defined(NO_STDDEF_H) && \
     !defined(NO_SIZE_T) && !defined(NO_VOID)
 # define IMPLODE_SUPPORT
+#endif
+
+/* IBM CMPSC requires a flat space for the dictionary phrase table. */
+#if !defined(NO_CMPSC16) && !defined(MEMORY16) && \
+    !defined(NO_PROTO) && !defined(NO_CONST) && !defined(NO_STDLIB_H) && \
+    !defined(NO_STDDEF_H) && !defined(NO_SIZE_T) && !defined(NO_VOID)
+# define CMPSC16_SUPPORT
 #endif
 
 /* PPMd needs a flat space large enough for 1MB minimum! */
@@ -394,7 +402,7 @@ extern int scanimage;           /* Scan through image files */
  * Keep this explicit: modern method numbers are sparse (14, 20, 93, 95, 98). */
 #define KNOWN_COMPMETHOD(m) \
     ((m) <= BZIP2 || (m) == LZMA || (m) == ZSTD_OLD || \
-     (m) == ZSTD || (m) == XZ || (m) == PPMD)
+     (m) == ZSTD || (m) == XZ || (m) == PPMD || (m) == CMPSC16)
 
 extern int method;              /* Restriction on compression method */
 

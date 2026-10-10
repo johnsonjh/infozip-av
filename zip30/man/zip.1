@@ -2461,7 +2461,7 @@ The comment can be taken from a file:
 .B \-\-compression\-method\ \fRcm
 Set the default compression method.  The main methods supported by
 \fIzip\fP are \fBstore\fP, \fBshrink\fP, \fBreduce\fP, \fBimplode\fP, \fBdeflate\fP, \fBdcl-implode\fP,
-\fBlzma\fP, \fBxz\fP, \fBzstd\fP, and \fBppmd\fP (with methods requiring external libraries
+\fBlzma\fP, \fBxz\fP, \fBzstd\fP, \fBcmpsc\fP, and \fBppmd\fP (with methods requiring external libraries
 available only when compiled in).
 Compression method can be set to:
 
@@ -2531,6 +2531,16 @@ following WinZip practice, and disables the optional Zstd frame checksum; the
 ZIP CRC-32 remains the integrity check.  Deprecated Zstandard method 20 is
 accepted by UnZip but is never created by Zip.  If compression is not
 beneficial, the normal store fallback is used.
+
+\fBcmpsc\fP \- Encode IBM z/OS CMPSC (ZIP method 16) using the
+shipped generic ASCII expansion dictionary, 2,048 symbols, and 11-bit
+CMPSC codes.  Compression uses independent longest-symbol matching;
+\fB-1\fP through \fB-9\fP and \fB-11\fP have identical behavior.
+The embedded expansion dictionary is stored uncompressed (header 0x80).
+UnZip also reads raw Deflate-compressed dictionaries (0xC0) and supports
+9-, 10-, 11-, 12-, and 13-bit symbols.  Deflate dictionary data is raw
+RFC 1951.  These archives require a method-16-capable
+extractor.  Use \fBNO_CMPSC16\fP at build time to omit the codec.
 
 \fBppmd\fP \- Use PPMd Variant I (ZIP method 98).  PPMd support is built
 in on non-16-bit targets unless disabled at compile time with \fBNO_PPMD\fP.

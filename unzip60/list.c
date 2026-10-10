@@ -145,7 +145,7 @@ int list_files(__G)    /* return PK-type error code */
     static ZCONST char Far method[NUM_METHODS+1][8] =
         {"Stored", "Shrunk", "Reduce1", "Reduce2", "Reduce3", "Reduce4",
          "Implode", "Token", "Defl:#", "Def64#", "ImplDCL", "BZip2",
-         "LZMA", "Terse", "IBMLZ77", "Zstd", "Zstd", "RefPtr", "WZ-MP3", "XZ", "WzJPEG", "WavPack", "PPMd",
+         "LZMA", "Terse", "IBMLZ77", "Zstd", "Zstd", "RefPtr", "WZ-MP3", "XZ", "WzJPEG", "WavPack", "PPMd", "CMPSC",
          "Unk:###"};
 
 
@@ -506,7 +506,7 @@ int list_files(__G)    /* return PK-type error code */
                     (char)((G.crec.general_purpose_bit_flag & 1) ? 'E' : ' '));
             }
 #else /* !WINDLL */
-            if (cfactor == 100)
+            if (cfactor == 100 && sgn != '-')
                 snprintf(cfactorstr, sizeof(cfactorstr), LoadFarString(CompFactor100));
             else
                 snprintf(cfactorstr, sizeof(cfactorstr), LoadFarString(CompFactorStr), sgn, cfactor);
@@ -596,7 +596,7 @@ int list_files(__G)    /* return PK-type error code */
         G.lpUserFunctions->NumMembers = members;
 
 #else /* !WINDLL */
-        if (cfactor == 100)
+        if (cfactor == 100 && sgn != '-')
             snprintf(cfactorstr, sizeof(cfactorstr), LoadFarString(CompFactor100));
         else
             snprintf(cfactorstr, sizeof(cfactorstr), LoadFarString(CompFactorStr), sgn, cfactor);

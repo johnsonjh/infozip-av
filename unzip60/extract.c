@@ -252,6 +252,57 @@ static int iz_ae3_authenticate(__G)
 }
 #endif /* !NO_AES */
 
+#ifdef USE_CMPSC16
+#include "cmpsc16.c"
+
+typedef struct {
+#ifdef REENTRANT
+    Uz_Globs *global;
+#endif
+    int flush_error;
+} uz_cmpsc16_context;
+
+static int uz_cmpsc16_read(void *opaque)
+{
+#ifdef REENTRANT
+    Uz_Globs *pG = ((uz_cmpsc16_context *)opaque)->global;
+#else
+    (void)opaque;
+#endif
+    return NEXTBYTE;
+}
+
+static int uz_cmpsc16_write(void *opaque, const unsigned char *data, size_t n)
+{
+    uz_cmpsc16_context *ctx = (uz_cmpsc16_context *)opaque;
+#ifdef REENTRANT
+    Uz_Globs *pG = ctx->global;
+#endif
+    /* flush() performs CRC, translation, output, and test-mode handling. */
+    if (ctx->flush_error == PK_COOL)
+        ctx->flush_error = flush(__G__ (uch *)data, (ulg)n, 0);
+    return ctx->flush_error != PK_COOL;
+}
+
+static int uz_cmpsc16_decompress(__G)
+    __GDEF
+{
+    uz_cmpsc16_context ctx;
+    int rc;
+    unsigned long hi, lo;
+    ctx.flush_error = PK_COOL;
+#ifdef REENTRANT
+    ctx.global = pG;
+#endif
+    lo = (unsigned long)(G.lrec.ucsize & 0xffffffffUL);
+    hi = (unsigned long)((G.lrec.ucsize >> 16) >> 16);
+    rc = cmpsc16_stream_decode(uz_cmpsc16_read,uz_cmpsc16_write,
+                               &ctx,hi,lo);
+    if (ctx.flush_error != PK_COOL) return ctx.flush_error;
+    return rc == 0 ? PK_COOL : (rc == -2 ? PK_MEM3 : PK_ERR);
+}
+#endif /* USE_CMPSC16 */
+
 #ifdef USE_PPMD
 #  include "ppmd8.c"
 #  include "ppmd8dec.c"
@@ -1682,17 +1733,18 @@ static ZCONST char Far ComprMsgNum[] =
    static ZCONST char Far CmprWinJPEG[]    = "WinZip JPEG";
    static ZCONST char Far CmprWavPack[]    = "WavPack";
    static ZCONST char Far CmprPPMd[]       = "PPMd";
+   static ZCONST char Far CmprCMPSC[]      = "IBM CMPSC";
    static ZCONST char Far *ComprNames[NUM_METHODS] = {
      CmprNone, CmprShrink, CmprReduce, CmprReduce, CmprReduce, CmprReduce,
      CmprImplode, CmprTokenize, CmprDeflate, CmprDeflat64, CmprDCLImplode,
      CmprBzip, CmprLZMA, CmprIBMTerse, CmprIBMLZ77, CmprZstd, CmprZstd,
-     CmprRefPtr, CmprWZMP3, CmprXZ, CmprWinJPEG, CmprWavPack, CmprPPMd
+     CmprRefPtr, CmprWZMP3, CmprXZ, CmprWinJPEG, CmprWavPack, CmprPPMd, CmprCMPSC
    };
    static ZCONST unsigned ComprIDs[NUM_METHODS] = {
      STORED, SHRUNK, REDUCED1, REDUCED2, REDUCED3, REDUCED4,
      IMPLODED, TOKENIZED, DEFLATED, ENHDEFLATED, DCLIMPLODED,
      BZIPPED, LZMAED, IBMTERSED, IBMLZ77ED, ZSTD_OLD, ZSTDED,
-     REFPTR, WZMP3ED, XZED, WZJPEGED, WAVPACKED, PPMDED
+     REFPTR, WZMP3ED, XZED, WZJPEGED, WAVPACKED, PPMDED, CMPSCED
    };
 #endif /* !SFX */
 static ZCONST char Far FilNamMsg[] =
@@ -2635,6 +2687,12 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #  define UNKN_PPMD TRUE      /* PPMd unknown */
 #endif
 
+#ifdef USE_CMPSC16
+#  define UNKN_CMPSC (G.crec.compression_method!=CMPSCED)
+#else
+#  define UNKN_CMPSC TRUE
+#endif
+
 #ifdef USE_REFPTR
 #  define UNKN_REFPTR (G.crec.compression_method!=REFPTR)
 #else
@@ -2646,11 +2704,11 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method<DEFLATED \
       && G.crec.compression_method>ENHDEFLATED \
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC)
 #  else
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method!=DEFLATED\
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC)
 #  endif
 #else
 #  ifdef USE_OLDUNZIP
@@ -2666,13 +2724,13 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>ENHDEFLATED && \
       G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD \
-      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD))
+      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC))
 #  else
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>DEFLATED && \
       G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD \
-      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD))
+      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC))
 #  endif
 #endif
 
@@ -4082,6 +4140,27 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             }
             break;
 #endif /* USE_ZSTD */
+
+#ifdef USE_CMPSC16
+        case CMPSCED:
+            if (!uO.tflag && QCOND2) {
+                Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
+                  "decod", FnFilter1(G.filename), avmark, avsep,
+                  (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
+                  uO.cflag ? NEWLINE : ""));
+            }
+            r = uz_cmpsc16_decompress(__G);
+            if (r != PK_COOL) {
+                if (r < PK_DISK) {
+                    Info(slide, 0x401, ((char *)slide,
+                      "   invalid CMPSC compressed data: %s\n",
+                      FnFilter1(G.filename)));
+                    error = r == PK_MEM3 ? PK_MEM3 : PK_ERR;
+                } else
+                    error = r;
+            }
+            break;
+#endif /* USE_CMPSC16 */
 
 #ifdef USE_PPMD
         case PPMDED:

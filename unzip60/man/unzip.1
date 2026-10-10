@@ -641,6 +641,15 @@ configuration from the registry, assuming it is correctly set in the
 Control Panel.  The TZ variable is ignored for this port.
 .PD
 .\" =========================================================================
+.SH IBM z/OS CMPSC
+ZIP compression method 16 is supported by the built-in IBM z/OS CMPSC
+decoder on flat-memory targets.  The decoder handles symbol widths 9
+through 13, embedded expansion dictionaries, and optionally raw RFC 1951
+Deflate-compressed dictionary data.  Zlib-wrapped dictionaries are not
+part of the method-16 format.  The ZIP member's uncompressed size
+identifies the end of the CMPSC symbol stream.  The codec uses bounded
+dictionary allocation and incremental output to the ordinary extraction,
+CRC-32, and encrypted-member paths.  Define NO_CMPSC16 to disable it.
 .SH DECRYPTION
 WinZip AES AE-1, AE-2 and AE-3 entries (ZIP method 99, extra field 0x9901)
 are supported by built-in ANSI C89 code, without a separate cryptographic

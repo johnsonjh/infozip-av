@@ -51,8 +51,8 @@ The ability to compress and decompress archive members using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**
 (method&nbsp;95), **ZIP**&nbsp;**Implode** (method&nbsp;6),
 **DCL**&nbsp;**Implode** (method&nbsp;10), **Deflate64** (method&nbsp;9),
-**Shrink** (method&nbsp;1), **Reduce** (methods 2 through 5), and **PPMd**
-(method&nbsp;98) has been added.
+**IBM&nbsp;CMPSC** (method&nbsp;16), **Shrink** (method&nbsp;1), **Reduce**
+(methods 2 through 5), and **PPMd** (method&nbsp;98) has been added.
 
 New decompression‑only support for **WZ‑MP3** (method&nbsp;94), **WZ‑JPEG**
 (method&nbsp;96), and **WavPack** (method&nbsp;97) has also been added.
@@ -80,7 +80,7 @@ support is available (when compressing using `zip ‑11`):
 | **`10`** | DCL&nbsp;Implode                                      |     ✅     |    ✅    |
 | **`12`** | bzip2<sup>1</sup>                                     |     ✅     |    ✅    |
 | **`14`** | LZMA<sup>2</sup>                                      |     ✅     |    ✅    |
-| **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                              |            |          |
+| **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC<sup>‡</sup>                  |     ✅     |    ✅    |
 | **`18`** | IBM&nbsp;TERSE                                        |            |          |
 | **`19`** | IBM&nbsp;LZ77&nbsp;(z/Architecture)                   |            |          |
 | **`20`** | Zstandard<sup>3</sup>&nbsp;(deprecated)               |     ✅     |          |
@@ -104,7 +104,8 @@ support is available (when compressing using `zip ‑11`):
 > [`zipdedup`](#de-duplication-zipdedup). <sup>**†**</sup>&nbsp;CRC/SHA/AES
 > hardware acceleration is automatically detected at runtime and is currently
 > supported on AMD64 and ARM64 systems running Linux, FreeBSD, OpenBSD, and
-> macOS.
+> macOS. <sup>**‡**</sup>IBM&nbsp;CMPSC *compression* is an inefficient and
+> experimental, but interoperable, work‑in‑progress.
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
@@ -528,10 +529,10 @@ No errors detected in compressed data of pkz110.exe.
 ## Licenses
 
 * The **Shrink**, **Reduce**, **ZIP**&nbsp;**Implode**, and **Deflate64**
-  compressors, **WZ‑JPEG** decompressor, **WZ‑MP3** decompressor, and the
-  **PKAV** and **FWKCS** additions to Info‑ZIP are provided under the
-  [MIT‑0](LICENSE) license, or, at your option, the
-  [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
+  compressors, **IBM**&nbsp;**CMPSC** decompressor, **WZ‑JPEG** decompressor,
+  **WZ‑MP3** decompressor, and the **PKAV** and **FWKCS** additions to
+  Info‑ZIP are provided under the [MIT‑0](LICENSE) license, or, at your
+  option, the [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
   [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
 
 * The **Shrink**, **Reduce**, and **ZIP Implode** decompression

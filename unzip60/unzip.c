@@ -559,6 +559,10 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
      static ZCONST char Far UseWZMP3[] =
      "WinZip WZ-MP3 (ZIP method 94; built-in decoder)";
 #  endif
+#  ifdef USE_CMPSC16
+     static ZCONST char Far UseCMPSC[] =
+     "IBM z/OS CMPSC (ZIP method 16; built-in C89 decoder)";
+#  endif
 #  ifdef USE_PPMD
      static ZCONST char Far UsePPMd[] =
      "PPMd Variant I Rev 1 (ZIP method 98; using public-domain PPMd sources)";
@@ -2763,6 +2767,11 @@ static void show_version_info(__G)
 #ifndef NO_AES
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
           "WinZip AES (WinZip-compatible AE-1/AE-2/AE-3; AES-128/192/256)"));
+        ++numopts;
+#endif
+#ifdef USE_CMPSC16
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+          LoadFarStringSmall(UseCMPSC)));
         ++numopts;
 #endif
 #ifdef USE_PPMD
