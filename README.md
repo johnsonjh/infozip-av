@@ -81,7 +81,7 @@ support is available (when compressing using `zip ‑11`):
 | **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                              |            |               |
 | **`18`** | IBM&nbsp;TERSE                                        |            |               |
 | **`19`** | IBM&nbsp;LZ77&nbsp;(z/Architecture)                   |            |               |
-| **`20`** | Zstandard<sup>3</sup>&nbsp;(deprecated)               |     ✅     | (use&nbsp;93) |
+| **`20`** | Zstandard<sup>3</sup>&nbsp;(deprecated)               |     ✅     | <sub>(use&nbsp;93)</sub> |
 | **`92`** | Reference&nbsp;Link<sup>5</sup>&nbsp;(de‑duplication) |     ✅     |    ✅         |
 | **`93`** | Zstandard<sup>3</sup>                                 |     ✅     |    ✅         |
 | **`94`** | WZ‑MP3                                                |     ✅     |               |
