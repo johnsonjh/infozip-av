@@ -30,8 +30,8 @@
 ## Overview
 
 **Xtro‑ZIP** adds extensive support for **new algorithms**, **security**
-hardening, data **de‑duplication**, CRC/SHA/AES **hardware acceleration**
-(for AMD64 and ARM64), full
+hardening, data **de‑duplication**, CRC/SHA/AES **hardware**
+**acceleration**<sup>†</sup>, full
 [**PKAV**](https://github.com/johnsonjh/pkstuff#authenticity-verification)
 (create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x),
 [**FWKCS**](http://justsolve.archiveteam.org/wiki/FWKCS)
@@ -39,6 +39,7 @@ hardening, data **de‑duplication**, CRC/SHA/AES **hardware acceleration**
 [**AES** cryptography](https://www.winzip.com/en/support/aes-encryption/)
 (**AE‑1**, **AE‑2**, and “quantum‑resistant” **AE‑3**) to
 [Info‑ZIP](https://infozip.sourceforge.net/).
+
 
 > [!TIP]
 > **Xtro‑ZIP** is the **only** permissively‑licensed open‑source ZIP software
@@ -99,6 +100,10 @@ support is available (when compressing using `zip ‑11`):
 > support requires [`libwavpack`](https://www.wavpack.com/).
 > <sup>**5**</sup>&nbsp;De‑duplicated archive creation supported via
 > [`zipdedup`](#de-duplication-zipdedup).
+
+<sup>**†**</sup>&nbsp;CRC/SHA/AES hardware acceleration is automatically
+detected at runtime and is currently supported on AMD64 and ARM64 systems
+running Linux, FreeBSD, and macOS.
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
