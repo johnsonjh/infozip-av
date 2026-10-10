@@ -21,6 +21,8 @@
 - [Historical examples](#historical-examples)
   * [PKAV 2.x](#pkav-2x)
   * [PKAV 1.x](#pkav-1x)
+- [Developer notes](#developer-notes)
+- [Security](#security)
 - [Availability](#availability)
 - [Licenses](#licenses)
 - [External links](#external-links)
