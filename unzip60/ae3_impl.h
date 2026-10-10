@@ -46,6 +46,13 @@ ae3_sha_block (ae3_sha *s, const unsigned char *p)
       return;
     }
 #endif
+#ifdef IZ_ARM_SHA256_ENABLED
+  if (iz_arm_has (IZ_ARM_SHA2_BIT))
+    {
+      iz_arm_sha256_block (s->h, p, ae3_k);
+      return;
+    }
+#endif
 
   for (i = 0; i < 16; i++)
     {
@@ -325,6 +332,13 @@ ae3_ghash_block (iz_ae3 *c, const unsigned char p[16])
   if (iz_ghash_pclmul_available ())
     {
       iz_ghash_pclmul_block (c->acc, c->h, p);
+      return;
+    }
+#endif
+#ifdef IZ_ARM_PMULL_ENABLED
+  if (iz_arm_has (IZ_ARM_PMULL_BIT))
+    {
+      iz_arm_ghash_block (c->acc, c->h, p);
       return;
     }
 #endif
