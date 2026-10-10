@@ -646,6 +646,7 @@ void free_crc_table()
 #ifndef ASM_CRC
 
 #include "crc32_pclmul.h"
+#include "crc32_arm.h"
 
 #define DO1(crc, buf)  crc = CRC32(crc, *buf++, crc_32_tab)
 #define DO2(crc, buf)  DO1(crc, buf); DO1(crc, buf)
@@ -704,6 +705,12 @@ ulg crc32(crc, buf, len)
     if (len == 0)
       return crc;
   }
+#endif
+
+#ifdef IZ_ARM_CRC32_ENABLED
+  if ((crc & ~((ulg)0xffffffffUL)) == 0 && len >= 128 &&
+      iz_arm_has(IZ_ARM_CRC_BIT))
+    return (ulg)iz_arm_crc32((unsigned int)crc,buf,(size_t)len);
 #endif
 
   crc_32_tab = get_crc_table();

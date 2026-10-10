@@ -13,6 +13,7 @@
 #ifndef NO_AES
 #include <string.h>
 #include "iz_aes_x86.h"
+#include "iz_arm_crypto.h"
 #include <stdio.h>
 #if defined(_WIN32) || defined(WIN32)
 #include <windows.h>
@@ -101,6 +102,12 @@ static void aes_encrypt_block(const iz_wzaes *c,const unsigned char *src,unsigne
 #ifdef IZ_AES_NI_ENABLED
     if (iz_aes_ni_available()) {
         iz_aes_ni_block(c->expanded,c->rounds,src,dst);
+        return;
+    }
+#endif
+#ifdef IZ_ARM_AES_ENABLED
+    if (iz_arm_has(IZ_ARM_AES_BIT)) {
+        iz_arm_aes_block(c->expanded,c->rounds,src,dst);
         return;
     }
 #endif

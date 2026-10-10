@@ -13,6 +13,7 @@
 #ifndef NO_AES
 #include <string.h>
 #include "iz_aes_x86.h"
+#include "iz_arm_crypto.h"
 #include "izsha1_ni.h"
 #include <stdio.h>
 #if defined(_WIN32) || defined(WIN32)
@@ -55,6 +56,12 @@ static void sha_transform(iz_sha1 *s, const unsigned char *p) {
 #ifdef IZ_SHA1_NI_ENABLED
     if (iz_sha1_ni_available()) {
         iz_sha1_ni_transform(s, p);
+        return;
+    }
+#endif
+#ifdef IZ_ARM_SHA1_ENABLED
+    if (iz_arm_has(IZ_ARM_SHA1_BIT)) {
+        iz_arm_sha1_block(s->h, p);
         return;
     }
 #endif
@@ -158,6 +165,12 @@ static void aes_encrypt_block(const iz_wzaes *c,const unsigned char *src,unsigne
 #ifdef IZ_AES_NI_ENABLED
     if (iz_aes_ni_available()) {
         iz_aes_ni_block(c->expanded,c->rounds,src,dst);
+        return;
+    }
+#endif
+#ifdef IZ_ARM_AES_ENABLED
+    if (iz_arm_has(IZ_ARM_AES_BIT)) {
+        iz_arm_aes_block(c->expanded,c->rounds,src,dst);
         return;
     }
 #endif

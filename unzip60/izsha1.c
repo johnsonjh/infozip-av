@@ -7,6 +7,7 @@
 #include "izsha1.h"
 #include <string.h>
 #include "izsha1_ni.h"
+#include "iz_arm_crypto.h"
 
 static void
 iz_sha1_wipe (void *ptr, size_t n)
@@ -31,6 +32,13 @@ iz_sha1_transform (iz_sha1 *s, const unsigned char *p)
   if (iz_sha1_ni_available())
     {
       iz_sha1_ni_transform(s, p);
+      return;
+    }
+#endif
+#ifdef IZ_ARM_SHA1_ENABLED
+  if (iz_arm_has(IZ_ARM_SHA1_BIT))
+    {
+      iz_arm_sha1_block(s->h, p);
       return;
     }
 #endif
