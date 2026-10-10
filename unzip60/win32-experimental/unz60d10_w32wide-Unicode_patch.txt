@@ -1189,7 +1189,7 @@ diff -ru2 unz60d10/fileio.c unz60d10_w32w/fileio.c
          G.outfile = zfopen(G.filename, FOPW);
 +#endif /* ?(UNICODE_SUPPORT && WIN32_WIDE) */
  #endif
- #if defined(ATH_BE_UNX) || defined(AOS_VS) || defined(QDOS) || defined(TANDEM)
+ #if defined(ATH_BEO_UNX) || defined(AOS_VS) || defined(QDOS) || defined(TANDEM)
 @@ -1984,4 +2006,115 @@
  } /* end function check_for_newer() */
  
