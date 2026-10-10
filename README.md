@@ -4,6 +4,7 @@
 
 - [Overview](#overview)
 - [Usage](#usage)
+  * [De-duplication (`zipdedup`)](#de-duplication-zipdedup)
   * [PKAV](#pkav)
     + [PKAV archive creation (`zip`)](#pkav-archive-creation-zip)
     + [PKAV archive testing (`unzip`)](#pkav-archive-testing-unzip)
@@ -14,7 +15,6 @@
     + [FWKCS archive testing (`unzip`)](#fwkcs-archive-testing-unzip)
     + [FWKCS archive extraction (`unzip`)](#fwkcs-archive-extraction-unzip)
     + [FWKCS self-extractor creation (`unzipsfx`)](#fwkcs-self-extractor-creation-unzipsfx)
-  * [De-duplication (`zipdedup`)](#de-duplication-zipdedup)
   * [PKWARE compatibility](#pkware-compatibility)
     + [PKAV](#pkav-1)
     + [FWKCS](#fwkcs-1)
@@ -30,8 +30,8 @@
 ## Overview
 
 **Xtro‑ZIP** adds extensive new algorithm support, security hardening,
-data de‑duplication, CRC/SHA/AES hardware acceleration, full
-[PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification)
+data de‑duplication, CRC/SHA/AES hardware acceleration (for AMD64 and ARM64),
+full [PKAV](https://github.com/johnsonjh/pkstuff#authenticity-verification)
 (create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x),
 [FWKCS](http://justsolve.archiveteam.org/wiki/FWKCS)
 [MD5](https://en.wikipedia.org/wiki/MD5), and
@@ -109,6 +109,21 @@ or clone the repo and compile it using “`./build.sh`” (on most Unix systems
 with GCC).
 
 ## Usage
+
+### De-duplication (`zipdedup`)
+
+The new `zipdedup` tool creates WinZip‑compatible (“ZIPX” method&nbsp;92)
+de‑duplicated archives from existing ZIP source archives.
+
+It hashes all archived files and retains the first (compressed) source file,
+without recompressing it, and smartly de‑duplicates entries only if the
+operation would result in a *smaller* output archive (*i.e.*, very small files
+will be skipped).
+
+```
+$ zipdedup original.zip dedup.zip
+449 new references; approximate savings: 9010081 bytes
+```
 
 ### PKAV
 
@@ -341,22 +356,6 @@ UnZipSFX 6.00 of 20 April 2009, by Info-ZIP (http://www.info-zip.org).
     testing: putav.c                  OK
 FWKCS MD5 checksums verified for 4 entries.
 No errors detected in compressed data of ./pkstuff.sfx.
-```
-
-### De-duplication (`zipdedup`)
-
-The new `zipdedup` tool creates WinZip‑compatible (“ZIPX” method&nbsp;92)
-de‑duplicated archives from existing ZIP source archives.
-
-It hashes all archived files and retains the first (compressed) source file,
-without recompressing it, and smartly de‑duplicates entries only if the
-operation would result in a *smaller* output archive (*i.e.*, very small files
-will be skipped).
-
-```
-$ zipdedup --dry-run original.zip dedup.zip
-$ zipdedup -v original.zip dedup.zip
-$ unzip -t dedup.zip
 ```
 
 ### PKWARE compatibility
