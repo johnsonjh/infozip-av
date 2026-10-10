@@ -33,9 +33,9 @@
 #include "unzip.h"
 
 #ifdef __EMX__          /* emx isspace() returns TRUE on extended ASCII !! */
-#  define ISspace(c) ((c) & 0x80 ? 0 : isspace((unsigned)c))
+#  define ISspace(c) ((c) & 0x80 ? 0 : isspace((unsigned char)(c)))
 #else
-#  define ISspace(c) isspace((unsigned)c)
+#  define ISspace(c) isspace((unsigned char)(c))
 #endif /* ?__EMX__ */
 
 #if (!defined(RISCOS) && (!defined(MODERN) || defined(NO_STDLIB_H)))

@@ -59,6 +59,10 @@ static int    get_cdir_ent       OF((__GPRO));
 #ifdef IZ_HAVE_UXUIDGID
 static int    read_ux3_value     OF((ZCONST uch *dbuf, unsigned uidgid_sz,
                                      ulg *p_uidgid));
+static int    read_ux3_varint    OF((ZCONST uch **pbuf,
+                                     unsigned *premaining, ulg *pvalue));
+static int    parse_ux3_buf      OF((ZCONST uch *buf, unsigned len,
+                                     ulg *z_uidgid));
 #endif /* IZ_HAVE_UXUIDGID */
 
 
@@ -2748,20 +2752,22 @@ zwchar *utf8_to_wide_string(utf8_string)
 #ifdef USE_EF_UT_TIME
 
 #ifdef IZ_HAVE_UXUIDGID
+/* Parse UX3 IDs only after validating the field's remaining length.
+ * Unsupported widths must not report success or leave an ID uninitialized. */
 static int read_ux3_value(dbuf, uidgid_sz, p_uidgid)
-    ZCONST uch *dbuf;   /* buffer a uid or gid value */
-    unsigned uidgid_sz; /* size of uid/gid value */
-    ulg *p_uidgid;      /* return storage: uid or gid value */
+    ZCONST uch *dbuf;
+    unsigned uidgid_sz;
+    ulg *p_uidgid;
 {
     zusz_t uidgid64;
 
     switch (uidgid_sz) {
       case 2:
         *p_uidgid = (ulg)makeword(dbuf);
-        break;
+        return TRUE;
       case 4:
         *p_uidgid = (ulg)makelong(dbuf);
-        break;
+        return TRUE;
       case 8:
         uidgid64 = makeint64(dbuf);
 #ifndef LARGE_FILE_SUPPORT
@@ -2769,10 +2775,46 @@ static int read_ux3_value(dbuf, uidgid_sz, p_uidgid)
             return FALSE;
 #endif
         *p_uidgid = (ulg)uidgid64;
-        if ((zusz_t)(*p_uidgid) != uidgid64)
-            return FALSE;
-        break;
+        return ((zusz_t)(*p_uidgid) == uidgid64);
+      default:
+        return FALSE;
     }
+}
+
+/* Consume one size-prefixed value without reading beyond the UX3 field. */
+static int read_ux3_varint(pbuf, premaining, pvalue)
+    ZCONST uch **pbuf;
+    unsigned *premaining;
+    ulg *pvalue;
+{
+    unsigned n;
+
+    if (*premaining < 1)
+        return FALSE;
+    n = (unsigned)(*pbuf)[0];
+    if (n > *premaining - 1 ||
+        !read_ux3_value(*pbuf + 1, n, pvalue))
+        return FALSE;
+    *pbuf += 1 + n;
+    *premaining -= 1 + n;
+    return TRUE;
+}
+
+static int parse_ux3_buf(buf, len, z_uidgid)
+    ZCONST uch *buf;
+    unsigned len;
+    ulg *z_uidgid;
+{
+    ulg parsed[2];
+
+    if (len < EB_UX3_MINLEN || *buf++ != 1)
+        return FALSE;
+    --len;
+    if (!read_ux3_varint(&buf, &len, &parsed[0]) ||
+        !read_ux3_varint(&buf, &len, &parsed[1]))
+        return FALSE;
+    z_uidgid[0] = parsed[0];
+    z_uidgid[1] = parsed[1];
     return TRUE;
 }
 #endif /* IZ_HAVE_UXUIDGID */
@@ -3099,26 +3141,9 @@ unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
         */
 
 #ifdef IZ_HAVE_UXUIDGID
-            if ((eb_len >= EB_UX3_MINLEN)
-                && (z_uidgid != NULL)
-                && ((*((EB_HEADSIZE + 0) + ef_buf) == 1)))
-                    /* only know about version 1 */
-            {
-                uch uid_size;
-                uch gid_size;
-
-                uid_size = *((EB_HEADSIZE + 1) + ef_buf);
-                gid_size = *((EB_HEADSIZE + uid_size + 2) + ef_buf);
-
-                if ( read_ux3_value((EB_HEADSIZE + 2) + ef_buf,
-                                    uid_size, &z_uidgid[0])
-                    &&
-                     read_ux3_value((EB_HEADSIZE + uid_size + 3) + ef_buf,
-                                    gid_size, &z_uidgid[1]) )
-                {
-                    flags |= EB_UX2_VALID;   /* signal success */
-                }
-            }
+            if (z_uidgid != NULL &&
+                parse_ux3_buf(ef_buf + EB_HEADSIZE, eb_len, z_uidgid))
+                flags |= EB_UX2_VALID;
 #endif /* IZ_HAVE_UXUIDGID */
             break;
 
