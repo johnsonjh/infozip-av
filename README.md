@@ -64,31 +64,31 @@ Additionally, new
 [Zopfli](https://github.com/google/zopfli)‑enhanced **DEFLATE** (method&nbsp;8)
 support is available (when compressing using `zip ‑11`):
 
-|   Method | Description                                           | Decompress | Compress |
-|---------:|:------------------------------------------------------|:----------:|:--------:|
-|  **`0`** | Store&nbsp;(no&nbsp;compression)                      |     ✅     |    ✅    |
-|  **`1`** | Shrink                                                |     ✅     |    ✅    |
-|  **`2`** | Reduce&nbsp;(level&nbsp;1)                            |     ✅     |    ✅    |
-|  **`3`** | Reduce&nbsp;(level&nbsp;2)                            |     ✅     |    ✅    |
-|  **`4`** | Reduce&nbsp;(level&nbsp;3)                            |     ✅     |    ✅    |
-|  **`5`** | Reduce&nbsp;(level&nbsp;4)                            |     ✅     |    ✅    |
-|  **`6`** | ZIP&nbsp;Implode                                      |     ✅     |    ✅    |
-|  **`8`** | DEFLATE&nbsp;(Zopfli&nbsp;optional)                   |     ✅     |    ✅    |
-|  **`9`** | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)               |     ✅     |    ✅    |
-| **`10`** | DCL&nbsp;Implode                                      |     ✅     |    ✅    |
-| **`12`** | bzip2<sup>1</sup>                                     |     ✅     |    ✅    |
-| **`14`** | LZMA<sup>2</sup>                                      |     ✅     |    ✅    |
-| **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                              |            |          |
-| **`18`** | IBM&nbsp;TERSE                                        |            |          |
-| **`19`** | IBM&nbsp;LZ77&nbsp;(z/Architecture)                   |            |          |
-| **`20`** | Zstandard<sup>3</sup>&nbsp;(deprecated)               |     ✅     |          |
-| **`92`** | Reference&nbsp;Link<sup>5</sup>&nbsp;(de‑duplication) |     ✅     |    ✅    |
-| **`93`** | Zstandard<sup>3</sup>                                 |     ✅     |    ✅    |
-| **`94`** | WZ‑MP3                                                |     ✅     |          |
-| **`95`** | XZ/LZMA2<sup>2</sup>                                  |     ✅     |    ✅    |
-| **`96`** | WZ‑JPEG<sup>2</sup>                                   |     ✅     |          |
-| **`97`** | WavPack<sup>4</sup>                                   |     ✅     |          |
-| **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;Rev&nbsp;1              |     ✅     |    ✅    |
+|   Method | Description                                           | Decompress | Compress      |
+|---------:|:------------------------------------------------------|:----------:|:-------------:|
+|  **`0`** | Store&nbsp;(no&nbsp;compression)                      |     ✅     |    ✅         |
+|  **`1`** | Shrink                                                |     ✅     |    ✅         |
+|  **`2`** | Reduce&nbsp;(level&nbsp;1)                            |     ✅     |    ✅         |
+|  **`3`** | Reduce&nbsp;(level&nbsp;2)                            |     ✅     |    ✅         |
+|  **`4`** | Reduce&nbsp;(level&nbsp;3)                            |     ✅     |    ✅         |
+|  **`5`** | Reduce&nbsp;(level&nbsp;4)                            |     ✅     |    ✅         |
+|  **`6`** | ZIP&nbsp;Implode                                      |     ✅     |    ✅         |
+|  **`8`** | DEFLATE&nbsp;(Zopfli&nbsp;optional)                   |     ✅     |    ✅         |
+|  **`9`** | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)               |     ✅     |    ✅         |
+| **`10`** | DCL&nbsp;Implode                                      |     ✅     |    ✅         |
+| **`12`** | bzip2<sup>1</sup>                                     |     ✅     |    ✅         |
+| **`14`** | LZMA<sup>2</sup>                                      |     ✅     |    ✅         |
+| **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                              |            |               |
+| **`18`** | IBM&nbsp;TERSE                                        |            |               |
+| **`19`** | IBM&nbsp;LZ77&nbsp;(z/Architecture)                   |            |               |
+| **`20`** | Zstandard<sup>3</sup>&nbsp;(deprecated)               |     ✅     | (use&nbsp;93) |
+| **`92`** | Reference&nbsp;Link<sup>5</sup>&nbsp;(de‑duplication) |     ✅     |    ✅         |
+| **`93`** | Zstandard<sup>3</sup>                                 |     ✅     |    ✅         |
+| **`94`** | WZ‑MP3                                                |     ✅     |               |
+| **`95`** | XZ/LZMA2<sup>2</sup>                                  |     ✅     |    ✅         |
+| **`96`** | WZ‑JPEG<sup>2</sup>                                   |     ✅     |               |
+| **`97`** | WavPack<sup>4</sup>                                   |     ✅     |               |
+| **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;Rev&nbsp;1              |     ✅     |    ✅         |
 
 > [!NOTE]
 > Methods 1 through 6 are legacy algorithms and are no longer
