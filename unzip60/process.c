@@ -56,6 +56,10 @@ static int    find_ecrec64       OF((__GPRO__ zoff_t searchlen));
 static int    find_ecrec         OF((__GPRO__ zoff_t searchlen));
 static int    process_zip_cmmnt  OF((__GPRO));
 static int    get_cdir_ent       OF((__GPRO));
+/* Decode a four-byte Unix extra-field timestamp without narrowing to long. */
+static int    ut32_to_time       OF((ulg raw, int interpretation,
+                                    time_t *result));
+static int    ut32_interpretation OF((ulg raw, ulg dos_mdatetime));
 #ifdef IZ_HAVE_UXUIDGID
 static int    read_ux3_value     OF((ZCONST uch *dbuf, unsigned uidgid_sz,
                                      ulg *p_uidgid));
@@ -2903,6 +2907,62 @@ unsigned wzaes_overhead(strength)
     }
 }
 
+/* Read a 32-bit UT/UX timestamp.  `interpretation` is -1 for a signed
+ * pre-epoch value, +1 for a nonnegative unsigned value, or 0 when the
+ * high-bit interpretation is unknown.  Preserve the DOS-date convention
+ * for choosing the meaning of values with bit 31 set. */
+static int ut32_interpretation(raw, dos_mdatetime)
+    ulg raw;
+    ulg dos_mdatetime;
+{
+    if ((raw & (ulg)0x80000000UL) == 0)
+        return 1;
+#ifdef TIME_T_TYPE_DOUBLE
+    /* Historical floating-point time_t supports either interpretation. */
+    if (dos_mdatetime == DOSTIME_MINIMUM)
+        return -1;
+#else
+    /* Preserve the historical signed-time32 interpretation.  A signed
+     * 32-bit time_t cannot represent post-2038 unsigned timestamps. */
+    if (sizeof(time_t) == 4 && (time_t)-1 < (time_t)0)
+        return (dos_mdatetime == DOSTIME_MINIMUM) ? -1 : 0;
+#endif
+    /* Wide signed or unsigned time_t: use high-bit values as nonnegative
+     * seconds when the DOS date confirms the post-2038 interpretation. */
+    if (dos_mdatetime >= DOSTIME_2038_01_18)
+        return 1;
+    return 0;
+}
+
+static int ut32_to_time(raw, interpretation, result)
+    ulg raw;
+    int interpretation;
+    time_t *result;
+{
+    time_t converted;
+
+    raw &= (ulg)0xffffffffUL;
+    if (interpretation == 0 && (raw & (ulg)0x80000000UL))
+        return FALSE;
+    if (interpretation < 0 && (raw & (ulg)0x80000000UL)) {
+        /* Avoid converting a high-bit unsigned value to signed long.
+         * Signed 32-bit value = (low 31 bits) - 2^31.  The two
+         * subtractions also work with a signed 32-bit time_t. */
+        if ((time_t)-1 >= (time_t)0)
+            return FALSE;  /* unsigned time_t cannot hold pre-epoch time */
+        converted = (time_t)(raw & (ulg)0x7fffffffUL);
+        converted -= (time_t)0x7fffffffL;
+        converted -= (time_t)1;
+    } else {
+        converted = (time_t)raw;
+        if ((raw != 0 && converted < (time_t)1) ||
+            (ulg)converted != raw)
+            return FALSE;  /* not representable by host time_t */
+    }
+    *result = converted;
+    return TRUE;
+}
+
 /*******************************/
 /* Function ef_scan_for_izux() */
 /*******************************/
@@ -2920,12 +2980,8 @@ unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
     unsigned eb_id;
     unsigned eb_len;
     int have_new_type_eb = 0;
-    long i_time;        /* buffer for Unix style 32-bit integer time value */
-#ifdef TIME_T_TYPE_DOUBLE
-    int ut_in_archive_sgn = 0;
-#else
-    int ut_zip_unzip_compatible = FALSE;
-#endif
+    ulg i_time;         /* raw unsigned four-byte Unix timestamp */
+    int ut_interpretation = 0;
 
 /*---------------------------------------------------------------------------
     This function scans the extra field for EF_TIME, EF_IZUNIX2, EF_IZUNIX, or
@@ -2967,139 +3023,60 @@ unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
           case EF_TIME:
             flags &= ~0x0ff;    /* ignore previous IZUNIX or EF_TIME fields */
             have_new_type_eb = 1;
-            if ( eb_len >= EB_UT_MINLEN && z_utim != NULL) {
+            if (eb_len >= EB_UT_MINLEN && z_utim != NULL) {
                 unsigned eb_idx = EB_UT_TIME1;
                 TTrace((stderr,"ef_scan_for_izux: found TIME extra field\n"));
                 flags |= (ef_buf[EB_HEADSIZE+EB_UT_FLAGS] & 0x0ff);
-                if ((flags & EB_UT_FL_MTIME)) {
-                    if ((eb_idx+4) <= eb_len) {
-                        i_time = (long)makelong((EB_HEADSIZE+eb_idx) + ef_buf);
+                if (flags & EB_UT_FL_MTIME) {
+                    if (eb_idx + 4 <= eb_len) {
+                        i_time = makelong((EB_HEADSIZE+eb_idx) + ef_buf);
                         eb_idx += 4;
-                        TTrace((stderr,"  UT e.f. modification time = %ld\n",
+                        TTrace((stderr,"  UT e.f. modification time = %lu\n",
                                 i_time));
-
-#ifdef TIME_T_TYPE_DOUBLE
-                        if ((ulg)(i_time) & (ulg)(0x80000000L)) {
-                            if (dos_mdatetime == DOSTIME_MINIMUM) {
-                              ut_in_archive_sgn = -1;
-                              z_utim->mtime =
-                                (time_t)((long)i_time | (~(long)0x7fffffffL));
-                            } else if (dos_mdatetime >= DOSTIME_2038_01_18) {
-                              ut_in_archive_sgn = 1;
-                              z_utim->mtime =
-                                (time_t)((ulg)i_time & (ulg)0xffffffffL);
-                            } else {
-                              ut_in_archive_sgn = 0;
-                              /* cannot determine sign of mtime;
-                                 without modtime: ignore complete UT field */
-                              flags &= ~0x0ff;  /* no time_t times available */
-                              TTrace((stderr,
-                                "  UT modtime range error; ignore e.f.!\n"));
-                              break;            /* stop scanning this field */
-                            }
-                        } else {
-                            /* cannot determine, safe assumption is FALSE */
-                            ut_in_archive_sgn = 0;
-                            z_utim->mtime = (time_t)i_time;
+                        ut_interpretation =
+                            ut32_interpretation(i_time, dos_mdatetime);
+                        if (!ut32_to_time(i_time, ut_interpretation,
+                                          &z_utim->mtime)) {
+                            flags &= ~0x0ff;
+                            TTrace((stderr,
+                              "  UT modtime range error; ignore e.f.!\n"));
+                            break;
                         }
-#else /* !TIME_T_TYPE_DOUBLE */
-                        if ((ulg)(i_time) & (ulg)(0x80000000L)) {
-                            ut_zip_unzip_compatible =
-                              ((time_t)0x80000000L < (time_t)0L)
-                              ? (dos_mdatetime == DOSTIME_MINIMUM)
-                              : (dos_mdatetime >= DOSTIME_2038_01_18);
-                            if (!ut_zip_unzip_compatible) {
-                              /* UnZip interprets mtime differently than Zip;
-                                 without modtime: ignore complete UT field */
-                              flags &= ~0x0ff;  /* no time_t times available */
-                              TTrace((stderr,
-                                "  UT modtime range error; ignore e.f.!\n"));
-                              break;            /* stop scanning this field */
-                            }
-                        } else {
-                            /* cannot determine, safe assumption is FALSE */
-                            ut_zip_unzip_compatible = FALSE;
-                        }
-                        z_utim->mtime = (time_t)i_time;
-#endif /* ?TIME_T_TYPE_DOUBLE */
                     } else {
                         flags &= ~EB_UT_FL_MTIME;
                         TTrace((stderr,"  UT e.f. truncated; no modtime\n"));
                     }
                 }
-                if (ef_is_c) {
+                if (ef_is_c)
                     break;      /* central version of TIME field ends here */
-                }
 
                 if (flags & EB_UT_FL_ATIME) {
-                    if ((eb_idx+4) <= eb_len) {
-                        i_time = (long)makelong((EB_HEADSIZE+eb_idx) + ef_buf);
+                    if (eb_idx + 4 <= eb_len) {
+                        i_time = makelong((EB_HEADSIZE+eb_idx) + ef_buf);
                         eb_idx += 4;
-                        TTrace((stderr,"  UT e.f. access time = %ld\n",
+                        TTrace((stderr,"  UT e.f. access time = %lu\n",
                                 i_time));
-#ifdef TIME_T_TYPE_DOUBLE
-                        if ((ulg)(i_time) & (ulg)(0x80000000L)) {
-                            if (ut_in_archive_sgn == -1)
-                              z_utim->atime =
-                                (time_t)((long)i_time | (~(long)0x7fffffffL));
-                            } else if (ut_in_archive_sgn == 1) {
-                              z_utim->atime =
-                                (time_t)((ulg)i_time & (ulg)0xffffffffL);
-                            } else {
-                              /* sign of 32-bit time is unknown -> ignore it */
-                              flags &= ~EB_UT_FL_ATIME;
-                              TTrace((stderr,
-                                "  UT access time range error: skip time!\n"));
-                            }
-                        } else {
-                            z_utim->atime = (time_t)i_time;
-                        }
-#else /* !TIME_T_TYPE_DOUBLE */
-                        if (((ulg)(i_time) & (ulg)(0x80000000L)) &&
-                            !ut_zip_unzip_compatible) {
+                        if (!ut32_to_time(i_time, ut_interpretation,
+                                          &z_utim->atime)) {
                             flags &= ~EB_UT_FL_ATIME;
                             TTrace((stderr,
                               "  UT access time range error: skip time!\n"));
-                        } else {
-                            z_utim->atime = (time_t)i_time;
                         }
-#endif /* ?TIME_T_TYPE_DOUBLE */
                     } else {
                         flags &= ~EB_UT_FL_ATIME;
                     }
                 }
                 if (flags & EB_UT_FL_CTIME) {
-                    if ((eb_idx+4) <= eb_len) {
-                        i_time = (long)makelong((EB_HEADSIZE+eb_idx) + ef_buf);
-                        TTrace((stderr,"  UT e.f. creation time = %ld\n",
+                    if (eb_idx + 4 <= eb_len) {
+                        i_time = makelong((EB_HEADSIZE+eb_idx) + ef_buf);
+                        TTrace((stderr,"  UT e.f. creation time = %lu\n",
                                 i_time));
-#ifdef TIME_T_TYPE_DOUBLE
-                        if ((ulg)(i_time) & (ulg)(0x80000000L)) {
-                            if (ut_in_archive_sgn == -1)
-                              z_utim->ctime =
-                                (time_t)((long)i_time | (~(long)0x7fffffffL));
-                            } else if (ut_in_archive_sgn == 1) {
-                              z_utim->ctime =
-                                (time_t)((ulg)i_time & (ulg)0xffffffffL);
-                            } else {
-                              /* sign of 32-bit time is unknown -> ignore it */
-                              flags &= ~EB_UT_FL_CTIME;
-                              TTrace((stderr,
-                              "  UT creation time range error: skip time!\n"));
-                            }
-                        } else {
-                            z_utim->ctime = (time_t)i_time;
-                        }
-#else /* !TIME_T_TYPE_DOUBLE */
-                        if (((ulg)(i_time) & (ulg)(0x80000000L)) &&
-                            !ut_zip_unzip_compatible) {
+                        if (!ut32_to_time(i_time, ut_interpretation,
+                                          &z_utim->ctime)) {
                             flags &= ~EB_UT_FL_CTIME;
                             TTrace((stderr,
                               "  UT creation time range error: skip time!\n"));
-                        } else {
-                            z_utim->ctime = (time_t)i_time;
                         }
-#endif /* ?TIME_T_TYPE_DOUBLE */
                     } else {
                         flags &= ~EB_UT_FL_CTIME;
                     }
@@ -3152,85 +3129,29 @@ unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
             if (eb_len >= EB_UX_MINLEN) {
                 TTrace((stderr,"ef_scan_for_izux: found %s extra field\n",
                         (eb_id == EF_IZUNIX ? "IZUNIX" : "PKUNIX")));
-                if (have_new_type_eb > 0) {
+                if (have_new_type_eb > 0)
                     break;      /* Ignore IZUNIX extra field block ! */
-                }
                 if (z_utim != NULL) {
                     flags |= (EB_UT_FL_MTIME | EB_UT_FL_ATIME);
-                    i_time = (long)makelong((EB_HEADSIZE+EB_UX_MTIME)+ef_buf);
-                    TTrace((stderr,"  Unix EF modtime = %ld\n", i_time));
-#ifdef TIME_T_TYPE_DOUBLE
-                    if ((ulg)(i_time) & (ulg)(0x80000000L)) {
-                        if (dos_mdatetime == DOSTIME_MINIMUM) {
-                            ut_in_archive_sgn = -1;
-                            z_utim->mtime =
-                              (time_t)((long)i_time | (~(long)0x7fffffffL));
-                        } else if (dos_mdatetime >= DOSTIME_2038_01_18) {
-                            ut_in_archive_sgn = 1;
-                            z_utim->mtime =
-                              (time_t)((ulg)i_time & (ulg)0xffffffffL);
-                        } else {
-                            ut_in_archive_sgn = 0;
-                            /* cannot determine sign of mtime;
-                               without modtime: ignore complete UT field */
-                            flags &= ~0x0ff;    /* no time_t times available */
-                            TTrace((stderr,
-                                  "  UX modtime range error: ignore e.f.!\n"));
-                        }
-                    } else {
-                        /* cannot determine, safe assumption is FALSE */
-                        ut_in_archive_sgn = 0;
-                        z_utim->mtime = (time_t)i_time;
+                    i_time = makelong((EB_HEADSIZE+EB_UX_MTIME)+ef_buf);
+                    TTrace((stderr,"  Unix EF modtime = %lu\n", i_time));
+                    ut_interpretation =
+                        ut32_interpretation(i_time, dos_mdatetime);
+                    if (!ut32_to_time(i_time, ut_interpretation,
+                                      &z_utim->mtime)) {
+                        flags &= ~0x0ff;
+                        TTrace((stderr,
+                          "  UX modtime range error: ignore e.f.!\n"));
                     }
-#else /* !TIME_T_TYPE_DOUBLE */
-                    if ((ulg)(i_time) & (ulg)(0x80000000L)) {
-                        ut_zip_unzip_compatible =
-                          ((time_t)0x80000000L < (time_t)0L)
-                          ? (dos_mdatetime == DOSTIME_MINIMUM)
-                          : (dos_mdatetime >= DOSTIME_2038_01_18);
-                        if (!ut_zip_unzip_compatible) {
-                            /* UnZip interpretes mtime differently than Zip;
-                               without modtime: ignore complete UT field */
-                            flags &= ~0x0ff;    /* no time_t times available */
-                            TTrace((stderr,
-                                  "  UX modtime range error: ignore e.f.!\n"));
-                        }
-                    } else {
-                        /* cannot determine, safe assumption is FALSE */
-                        ut_zip_unzip_compatible = FALSE;
-                    }
-                    z_utim->mtime = (time_t)i_time;
-#endif /* ?TIME_T_TYPE_DOUBLE */
-                    i_time = (long)makelong((EB_HEADSIZE+EB_UX_ATIME)+ef_buf);
-                    TTrace((stderr,"  Unix EF actime = %ld\n", i_time));
-#ifdef TIME_T_TYPE_DOUBLE
-                    if ((ulg)(i_time) & (ulg)(0x80000000L)) {
-                        if (ut_in_archive_sgn == -1)
-                            z_utim->atime =
-                              (time_t)((long)i_time | (~(long)0x7fffffffL));
-                        } else if (ut_in_archive_sgn == 1) {
-                            z_utim->atime =
-                              (time_t)((ulg)i_time & (ulg)0xffffffffL);
-                        } else if (flags & 0x0ff) {
-                            /* sign of 32-bit time is unknown -> ignore it */
-                            flags &= ~EB_UT_FL_ATIME;
-                            TTrace((stderr,
-                                "  UX access time range error: skip time!\n"));
-                        }
-                    } else {
-                        z_utim->atime = (time_t)i_time;
-                    }
-#else /* !TIME_T_TYPE_DOUBLE */
-                    if (((ulg)(i_time) & (ulg)(0x80000000L)) &&
-                        !ut_zip_unzip_compatible && (flags & 0x0ff)) {
-                        /* atime not in range of UnZip's time_t */
+                    i_time = makelong((EB_HEADSIZE+EB_UX_ATIME)+ef_buf);
+                    TTrace((stderr,"  Unix EF actime = %lu\n", i_time));
+                    if ((flags & EB_UT_FL_ATIME) &&
+                        !ut32_to_time(i_time, ut_interpretation,
+                                      &z_utim->atime)) {
                         flags &= ~EB_UT_FL_ATIME;
                         TTrace((stderr,
-                                "  UX access time range error: skip time!\n"));
-                    } else {
-                        z_utim->atime = (time_t)i_time;
+                          "  UX access time range error: skip time!\n"));
                     }
-#endif /* ?TIME_T_TYPE_DOUBLE */
                 }
 #ifdef IZ_HAVE_UXUIDGID
                 if (eb_len >= EB_UX_FULLSIZE && z_uidgid != NULL) {
