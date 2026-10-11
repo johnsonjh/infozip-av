@@ -69,8 +69,9 @@ The ability to compress and decompress archive members using **Zstandard**
 (methods 2 through 5), **PPMd** (method&nbsp;98), and **LZFSE**
 (method&nbsp;99) has been added.
 
-New decompression‑only support for **WZ‑MP3** (method&nbsp;94), **WZ‑JPEG**
-(method&nbsp;96), and **WavPack** (method&nbsp;97) has also been added.
+New decompression‑only support for the **WZ‑MP3** (method&nbsp;94), **WZ‑JPEG**
+(method&nbsp;96), and **WavPack** (method&nbsp;97) “multimedia extensions” has
+also been integrated.
 
 WinZip‑style de‑duplication **RefPtr** (method&nbsp;92) is supported.
 
@@ -79,7 +80,7 @@ algorithms remain supported.
 
 Additionally, new
 [Zopfli](https://github.com/google/zopfli)‑derived **DEFLATE**‑compatible
-(method&nbsp;8) compression is available (when compressing using `zip ‑11`):
+compression is available (enabled via `zip ‑11`):
 
 |   Method | Description                                           | Decompress | Compress |
 |---------:|:------------------------------------------------------|:----------:|:--------:|
@@ -105,12 +106,12 @@ Additionally, new
 | **`95`** | XZ/LZMA2<sup>2</sup>                                  |     ✅     |    ✅    |
 | **`96`** | WZ‑JPEG<sup>2</sup>                                   |     ✅     |          |
 | **`97`** | WavPack<sup>4</sup>                                   |     ✅     |          |
-| **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;Rev&nbsp;1              |     ✅     |    ✅    |
+| **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;(8)&nbsp;Rev&nbsp;1     |     ✅     |    ✅    |
 | **`99`** | LZFSE<sup>⹋</sup>                                     |     ✅     |    ✅    |
 
 > [!NOTE]
 > Methods 1 through 6 are legacy algorithms and are no longer
-> recommended for use.
+> recommended for normal use.
 >
 > <sup>**1**</sup>&nbsp;bzip2 support requires
 > [`libbz2`](https://sourceware.org/bzip2/).
@@ -127,14 +128,14 @@ Additionally, new
 > <sup>**5**</sup>&nbsp;De‑duplicated archive creation supported via
 > [`zipdedup`](#de-duplication-zipdedup).
 >
-> <sup>**†**</sup>&nbsp;CRC/SHA/AES hardware acceleration is automatically
-> detected at runtime and is currently supported on AMD64 and ARM64 systems
-> running Linux, FreeBSD, OpenBSD, and macOS.  Additional hardware acceleration
-> is provided via the (optional)
+> <sup>**†**</sup>&nbsp;CRC/SHA/AES/compression hardware acceleration is
+> automatically detected at runtime and is currently supported on AMD64 and
+> ARM64 systems running Linux, FreeBSD, OpenBSD, and macOS.  Additional
+> hardware acceleration is provided via the (*optional*)
 > [`zlib‑ng`](https://github.com/zlib-ng/zlib-ng) library where available.
 >
-> <sup>**‡**</sup>&nbsp;IBM&nbsp;CMPSC *compression* is an inefficient
-> and experimental (but interoperable) work‑in‑progress.
+> <sup>**‡**</sup>&nbsp;CMPSC compression support is an inefficient
+> and experimental (but fully interoperable) work‑in‑progress.
 >
 > <sup>**⹋**</sup>&nbsp;LZFSE is a non‑standard Apple extension.
 
