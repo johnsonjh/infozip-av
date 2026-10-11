@@ -885,12 +885,12 @@ zd_supported (unsigned m)
       return 1;
 #endif /* USE_CMPSC16 */
 
-#if defined(USE_LZFSE) && ULONG_MAX > 0xffffffffUL
+#ifdef USE_LZFSE
     /* AES (also method 99) was rejected above by its 0x9901 extra field.
      * Encryption is independently disallowed for all zipdedup input. */
     case 99:
       return 1;
-#endif /* USE_LZFSE, 64-bit unsigned long */
+#endif /* USE_LZFSE */
 
 #ifdef USE_LZMA
     case 14:

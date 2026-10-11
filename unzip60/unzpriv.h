@@ -1810,7 +1810,7 @@
 #define LZFSEED          99   /* Apple LZFSE (method-99 / AES collision) */
 #include <limits.h>
 #if !defined(NO_LZFSE) && !defined(MEMORY16) && \
-    ULONG_MAX > 0xffffffffUL
+    (ULONG_MAX > 0xffffffffUL || defined(__GNUC__) || defined(__clang__))
 # define USE_LZFSE
 #endif
 #define NUM_METHODS      24     /* number of known method IDs */

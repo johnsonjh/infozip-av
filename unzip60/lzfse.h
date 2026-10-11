@@ -70,10 +70,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #  include <limits.h>
 #  include <stddef.h>
-#  if CHAR_BIT != 8 || UINT_MAX != 0xffffffffU || USHRT_MAX != 0xffffU          \
-    || ULONG_MAX != 0xffffffffffffffffUL
-#   error                                                                        \
-    "LZFSE C89 adaptation requires an 8-bit byte, 32-bit int, and 64-bit long"
+/* The wire format requires 64-bit arithmetic, not a 64-bit C long.
+ * Windows (including Win64) uses 32-bit long.  ISO C89 has no portable
+ * 64-bit integer type; GCC/Clang provide one in their C89 language mode.
+ * Keep that unavoidable extension in these two declarations.  Compiling
+ * with -std=c89 -pedantic-errors remains possible on both data models.
+ * IZ_LZFSE_TEST_LLONG exercises the LLP64 integer path on LP64 CI hosts.
+ */
+#  if CHAR_BIT != 8 || UINT_MAX != 0xffffffffU || USHRT_MAX != 0xffffU
+#   error "LZFSE requires 8-bit bytes, 16-bit short and 32-bit int"
 #  endif
 typedef unsigned char izl_u8;
 typedef signed char izl_s8;
@@ -81,8 +86,15 @@ typedef unsigned short izl_u16;
 typedef signed short izl_s16;
 typedef unsigned int izl_u32;
 typedef signed int izl_s32;
+#  if ULONG_MAX > 0xffffffffUL && !defined(IZ_LZFSE_TEST_LLONG)
 typedef unsigned long izl_u64;
 typedef signed long izl_s64;
+#  elif defined(__GNUC__) || defined(__clang__)
+__extension__ typedef unsigned long long izl_u64;
+__extension__ typedef signed long long izl_s64;
+#  else
+#   error "LZFSE needs a 64-bit C integer (GCC/Clang on 32-bit-long targets)"
+#  endif
 
 static int
 izl_count_clz (unsigned int x)
@@ -113,7 +125,13 @@ izl_count_ctzl (unsigned long x)
 static int
 izl_count_ctzll (izl_u64 x)
 {
-  return izl_count_ctzl ((unsigned long)x);
+  /* Never truncate to unsigned long: that is 32-bit even on Win64. */
+  izl_u32 lo = (izl_u32)x;
+  if (lo != 0U)
+    return izl_count_ctzl ((unsigned long)lo);
+  if ((izl_u32)(x >> 32) != 0U)
+    return 32 + izl_count_ctzl ((unsigned long)(izl_u32)(x >> 32));
+  return 64;
 }
 #  define __builtin_clz(x) izl_count_clz ((unsigned int)(x))
 #  define __builtin_ctzl(x) izl_count_ctzl ((unsigned long)(x))
@@ -378,31 +396,12 @@ typedef izl_u16 fse_state;
 static izl_u64
 fse_mask_lsb64 (izl_u64 x, fse_bit_count nbits)
 {
-  static const izl_u64 mtable[65] = {
-    0x0000000000000000UL, 0x0000000000000001UL, 0x0000000000000003UL,
-    0x0000000000000007UL, 0x000000000000000fUL, 0x000000000000001fUL,
-    0x000000000000003fUL, 0x000000000000007fUL, 0x00000000000000ffUL,
-    0x00000000000001ffUL, 0x00000000000003ffUL, 0x00000000000007ffUL,
-    0x0000000000000fffUL, 0x0000000000001fffUL, 0x0000000000003fffUL,
-    0x0000000000007fffUL, 0x000000000000ffffUL, 0x000000000001ffffUL,
-    0x000000000003ffffUL, 0x000000000007ffffUL, 0x00000000000fffffUL,
-    0x00000000001fffffUL, 0x00000000003fffffUL, 0x00000000007fffffUL,
-    0x0000000000ffffffUL, 0x0000000001ffffffUL, 0x0000000003ffffffUL,
-    0x0000000007ffffffUL, 0x000000000fffffffUL, 0x000000001fffffffUL,
-    0x000000003fffffffUL, 0x000000007fffffffUL, 0x00000000ffffffffUL,
-    0x00000001ffffffffUL, 0x00000003ffffffffUL, 0x00000007ffffffffUL,
-    0x0000000fffffffffUL, 0x0000001fffffffffUL, 0x0000003fffffffffUL,
-    0x0000007fffffffffUL, 0x000000ffffffffffUL, 0x000001ffffffffffUL,
-    0x000003ffffffffffUL, 0x000007ffffffffffUL, 0x00000fffffffffffUL,
-    0x00001fffffffffffUL, 0x00003fffffffffffUL, 0x00007fffffffffffUL,
-    0x0000ffffffffffffUL, 0x0001ffffffffffffUL, 0x0003ffffffffffffUL,
-    0x0007ffffffffffffUL, 0x000fffffffffffffUL, 0x001fffffffffffffUL,
-    0x003fffffffffffffUL, 0x007fffffffffffffUL, 0x00ffffffffffffffUL,
-    0x01ffffffffffffffUL, 0x03ffffffffffffffUL, 0x07ffffffffffffffUL,
-    0x0fffffffffffffffUL, 0x1fffffffffffffffUL, 0x3fffffffffffffffUL,
-    0x7fffffffffffffffUL, 0xffffffffffffffffUL,
-  };
-  return x & mtable[nbits];
+  /* Avoid 64-bit UL constants, which are not C89 integer constants on
+   * ILP32/LLP64, and do not shift a 64-bit value by 64. */
+  assert (nbits >= 0 && nbits <= 64);
+  if (nbits == 64)
+    return x;
+  return x & (((izl_u64)1 << nbits) - 1);
 }
 
 /* Mask the NBITS lsb of X. 0 <= NBITS < 32 */
@@ -434,7 +433,7 @@ fse_extract_bits64 (izl_u64 x, fse_bit_count start, fse_bit_count nbits)
   /* If START and NBITS are constants, map to bit-field extraction instructions
    */
   if (0)
-    return (x >> start) & ((1UL << nbits) - 1UL);
+    return fse_mask_lsb64 (x >> start, nbits);
 # endif
 
   /* Otherwise, shift and mask */
@@ -664,7 +663,7 @@ fse_in_checked_init64 (fse_in_stream64 *s, fse_bit_count n,
         return -1; /* out of range */
       *pbuf -= 7;
       memcpy (&(s->accum), *pbuf, 7);
-      s->accum &= 0xffffffffffffff;
+      s->accum &= (((izl_u64)1 << 56) - 1);
       s->accum_nbits = n + 56;
     }
 

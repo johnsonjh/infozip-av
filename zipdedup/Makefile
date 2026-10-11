@@ -5,8 +5,8 @@ CFLAGS = -O3 -std=c89 -pedantic -Wall -Wextra -flto=auto
 ZD_METHODS = -DUSE_DEFLATE64 -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD -DUSE_PPMD -DUSE_WZMP3 -DUSE_WZJPEG -DUSE_CMPSC16 -DUSE_LZFSE
 UZDIR = ../unzip60
 # CMPSC/LZFSE are selected by unzpriv.h according to target capability.
-# Do not forcibly -DUSE_LZFSE: on 32-bit unsigned-long targets its C89
-# codec cannot compile, and the corresponding zipdedup method must be off.
+# LZFSE uses GCC/Clang C89-mode 64-bit integers on ILP32/LLP64 (Win32/Win64);
+# only 16-bit and non-64-bit-integer compilers are excluded.
 UZFLAGS = -O3 -fPIC -DUNIX -DDLL -DLARGE_FILE_SUPPORT -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD
 # ZipDedup builds its own UnZip objects: it must select and link the same
 # external backend in BOTH the objects and the final executable.  Do not rely

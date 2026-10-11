@@ -378,10 +378,11 @@ extern int scanimage;           /* Scan through image files */
 # define CMPSC16_SUPPORT
 #endif
 
-/* LZFSE uses dynamically allocated encoder state, and is disabled on 16-bit builds. */
+/* LZFSE requires flat memory and a 64-bit integer type (native LP64 or
+ * GCC/Clang extension on ILP32/LLP64), but not a 64-bit unsigned long. */
 #include <limits.h>
 #if !defined(NO_LZFSE) && !defined(MEMORY16) && \
-    ULONG_MAX > 0xffffffffUL
+    (ULONG_MAX > 0xffffffffUL || defined(__GNUC__) || defined(__clang__))
 # define LZFSE_SUPPORT
 #endif
 
