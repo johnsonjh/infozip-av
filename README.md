@@ -1,5 +1,10 @@
 # Xtro‑ZIP
 
+<p align="center">
+  <img src=".img/xtro-zip.png" alt="Xtro-ZIP" width="90%"><br>
+  <sup>(testing)</sup>
+</p>
+
 <!-- toc -->
 
 - [Overview](#overview)
