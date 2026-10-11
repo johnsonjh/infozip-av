@@ -1,9 +1,12 @@
 # Xtro‑ZIP
 
+<br>
 <p align="center">
-  <img src=".img/xtro-zip.jpg" alt="Xtro-ZIP" width="90%"><br>
-  <sup>(testing)</sup>
+  <img src=".img/xtro-zip.jpg" alt="Xtro‑ZIP" width="100%"><br>
+  <small><sup>The logo might be slop but we promise that Xtro‑ZIP is not!</sup></small>
 </p>
+
+---
 
 <!-- toc -->
 
