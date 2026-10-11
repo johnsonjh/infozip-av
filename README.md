@@ -107,7 +107,7 @@ compression is available (enabled via `zip ‑11`):
 | **`96`** | WZ‑JPEG<sup>2</sup>                                   |     ✅     |          |
 | **`97`** | WavPack<sup>4</sup>                                   |     ✅     |          |
 | **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;(8)&nbsp;Rev&nbsp;1     |     ✅     |    ✅    |
-| **`99`** | LZFSE<sup>⹋</sup>                                     |     ✅     |    ✅    |
+| **`99`** | LZFSE<sup>⌘</sup>                                     |     ✅     |    ✅    |
 
 > [!NOTE]
 > Methods 1 through 6 are legacy algorithms and are no longer
@@ -137,7 +137,7 @@ compression is available (enabled via `zip ‑11`):
 > <sup>**‡**</sup>&nbsp;CMPSC compression support is an inefficient
 > and experimental (but fully interoperable) work‑in‑progress.
 >
-> <sup>**⹋**</sup>&nbsp;LZFSE is a non‑standard Apple extension.
+> <sup>**⌘**</sup>&nbsp;LZFSE is a non‑standard Apple extension.
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
