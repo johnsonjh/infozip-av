@@ -1,8 +1,9 @@
-# Xtro‑ZIP: Enhanced Info‑ZIP
+# Xtro‑ZIP
 
 <!-- toc -->
 
 - [Overview](#overview)
+  * [Features](#features)
 - [Usage](#usage)
   * [De-duplication (`zipdedup`)](#de-duplication-zipdedup)
   * [PKAV](#pkav)
@@ -31,21 +32,26 @@
 
 ## Overview
 
-**Xtro‑ZIP** adds extensive support for **new algorithms**, **security**
-hardening, data **de‑duplication**, CRC/SHA/AES **hardware**
-**acceleration**<sup>†</sup>, full
-[**PKAV**](https://github.com/johnsonjh/pkstuff#authenticity-verification)
-(create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x),
-[**FWKCS**](http://justsolve.archiveteam.org/wiki/FWKCS)
-[MD5](https://en.wikipedia.org/wiki/MD5), and
-[**AES** cryptography](https://www.winzip.com/en/support/aes-encryption/)
-(**AE‑1**, **AE‑2**, and “quantum‑resistant” **AE‑3**) to
-[Info‑ZIP](https://infozip.sourceforge.net/).
+**Xtro‑ZIP**, derived from **Info‑ZIP**, adds extensive support for:
 
+* **new algorithms**
+* **security** hardening
+* data **de‑duplication**
+* CRC/SHA/AES/compression **hardware** **acceleration**<sup>†</sup>
+* full [**PKAV**](https://github.com/johnsonjh/pkstuff#authenticity-verification)
+  support
+  * Create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x
+* [**FWKCS**](http://justsolve.archiveteam.org/wiki/FWKCS)
+  [MD5](https://en.wikipedia.org/wiki/MD5)
+* [**AES** cryptography](https://www.winzip.com/en/support/aes-encryption/)
+  (**AE‑1**, **AE‑2**, and “quantum‑resistant” **AE‑3**)
+* innumerable **bug fixes** and other improvements
 
 > [!TIP]
 > **Xtro‑ZIP** is the **only** permissively‑licensed open‑source ZIP software
 > that even comes close to fully supporting the complete ZIP specification!
+
+### Features
 
 The ability to compress and decompress archive members using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**
