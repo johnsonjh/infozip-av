@@ -92,22 +92,37 @@ Additionally, new
 | **`96`** | WZ‑JPEG<sup>2</sup>                                   |     ✅     |          |
 | **`97`** | WavPack<sup>4</sup>                                   |     ✅     |          |
 | **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;Rev&nbsp;1              |     ✅     |    ✅    |
-| **`99`** | LZFSE                                                 |     ✅     |    ✅    |
+| **`99`** | LZFSE<sup>⹋</sup>                                     |     ✅     |    ✅    |
 
 > [!NOTE]
 > Methods 1 through 6 are legacy algorithms and are no longer
-> recommended for use.  <sup>**1**</sup>&nbsp;bzip2 support requires
-> [`libbz2`](https://sourceware.org/bzip2/). <sup>**2**</sup>&nbsp;LZMA,
-> XZ/LZMA2, and WZ‑JPEG support requires [`liblzma`](https://tukaani.org/xz/).
+> recommended for use.
+>
+> <sup>**1**</sup>&nbsp;bzip2 support requires
+> [`libbz2`](https://sourceware.org/bzip2/).
+>
+> <sup>**2**</sup>&nbsp;LZMA, XZ/LZMA2, and WZ‑JPEG support requires
+> [`liblzma`](https://tukaani.org/xz/).
+>
 > <sup>**3**</sup>&nbsp;Zstandard support requires
-> [`libzstd`](https://facebook.github.io/zstd/). <sup>**4**</sup>&nbsp;WavPack
-> support requires [`libwavpack`](https://www.wavpack.com/).
+> [`libzstd`](https://facebook.github.io/zstd/).
+>
+> <sup>**4**</sup>&nbsp;WavPack support requires
+> [`libwavpack`](https://www.wavpack.com/).
+>
 > <sup>**5**</sup>&nbsp;De‑duplicated archive creation supported via
-> [`zipdedup`](#de-duplication-zipdedup). <sup>**†**</sup>&nbsp;CRC/SHA/AES
-> hardware acceleration is automatically detected at runtime and is currently
-> supported on AMD64 and ARM64 systems running Linux, FreeBSD, OpenBSD, and
-> macOS. <sup>**‡**</sup>&nbsp;IBM&nbsp;CMPSC *compression* is an inefficient
-> and experimental, but interoperable, work‑in‑progress.
+> [`zipdedup`](#de-duplication-zipdedup).
+>
+> <sup>**†**</sup>&nbsp;CRC/SHA/AES hardware acceleration is automatically
+> detected at runtime and is currently supported on AMD64 and ARM64 systems
+> running Linux, FreeBSD, OpenBSD, and macOS.  Additional hardware acceleration
+> is provided via the (optional)
+> [`zlib‑ng`](https://github.com/zlib-ng/zlib-ng) library.
+>
+> <sup>**‡**</sup>&nbsp;IBM&nbsp;CMPSC *compression* is an inefficient
+> and experimental (but interoperable) work‑in‑progress.
+>
+> <sup>**⹋**</sup>&nbsp;LZFSE is a non‑standard Apple extension.
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
