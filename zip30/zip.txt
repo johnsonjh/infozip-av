@@ -1880,6 +1880,14 @@ OPTIONS
               requires that the input fits the small-member buffer and that
               the archive output is safely seekable for header rewriting.
 
+       --cmpsc-symbol-width auto|9|10|11|12|13
+              Select the width of CMPSC (ZIP method 16) symbols and embedded
+              expansion dictionary.  Default auto evaluates all five sizes
+              using the input spool and selects the smallest complete member,
+              including the embedded dictionary.  Numeric values force the
+              corresponding width for compatibility testing.  CMPSC levels
+              -1 through -9 and -11 remain equivalent.
+
        --zopfli-iterations n
        --zopfli-iterations=n
               Set Zopfli optimization iterations (default 15, range 1 through

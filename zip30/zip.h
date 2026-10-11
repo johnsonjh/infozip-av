@@ -405,6 +405,7 @@ extern int scanimage;           /* Scan through image files */
      (m) == ZSTD || (m) == XZ || (m) == PPMD || (m) == CMPSC16)
 
 extern int method;              /* Restriction on compression method */
+extern int cmpsc_symbol_width; /* 0=auto, otherwise 9..13 */
 extern int disable_store_fallback; /* Disable automatic whole-file store fallback */
 
 extern ulg skip_this_disk;

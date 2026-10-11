@@ -2315,7 +2315,8 @@ local zoff_t cmpsc16filecompress(z_entry,cmpr_method)
     ctx.size=0;
     ctx.write_error=0;
     ctx.store_test=&store_test;
-    ret=izcm_encode(iz_cmpsc_zip_read,iz_cmpsc_zip_write,&ctx);
+    ret=izcm_encode(iz_cmpsc_zip_read,iz_cmpsc_zip_write,&ctx,
+                    (unsigned)cmpsc_symbol_width);
     if (ret) {
         small_store_discard(&store_test);
         if (ctx.write_error) ziperr(ZE_TEMP,"error writing CMPSC data");

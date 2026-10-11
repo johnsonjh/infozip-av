@@ -1665,6 +1665,9 @@ local void help_extended()
 #ifdef ZSTD_SUPPORT
 "  --zstd-level n                   Zstandard native compression level (1..22)",
 #endif
+#ifdef CMPSC16_SUPPORT
+"  --cmpsc-symbol-width auto|n      CMPSC symbol width (9..13) (default: auto)",
+#endif
 "",
 "Encryption:",
 "  -e        use standard (weak) PKZip 2.0 encryption, prompt for password",
@@ -1977,7 +1980,7 @@ local void version_info()
 #endif
     "DCL-Implode          (ZIP method 10; DCL-Implode; using PKDCLX v1.1.2)",
 #ifdef CMPSC16_SUPPORT
-    "IBM CMPSC            (ZIP method 16; 11-bit per-file trained dictionary)",
+    "IBM CMPSC            (ZIP method 16; 9-13-bit per-file trained dictionary)",
 #endif
 #ifdef LZMA_SUPPORT
     lzma_opt_ver,
@@ -2904,6 +2907,7 @@ int set_filetype(out_path)
 #define o_aes_mode      0x155
 #define o_aes_iterations 0x156
 #define o_disable_store_fallback 0x157
+#define o_cmpsc_width  0x158
 #define o_sp            0x134
 #define o_su            0x135
 #define o_sU            0x136
@@ -3099,6 +3103,7 @@ struct option_struct far options[] = {
     {"",   "dcl-implode-dict", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_dict, "DCL dictionary: 1k, 2k, or 4k"},
     {"",   "dcl-implode-optimal", o_NO_VALUE, o_NEGATABLE, o_dcl_optimal, "DCL optimal parse"},
     {"",   "disable-store-fallback", o_NO_VALUE, o_NEGATABLE, o_disable_store_fallback, "Disable automatic store fallback"},
+    {"",   "cmpsc-symbol-width", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_cmpsc_width, "CMPSC symbol width (auto or 9..13)"},
     {"",   "zstd-level", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_zstd_level, "Zstd native compression level 1..22"},
 #if defined(MSDOS) || defined(OS2)
     {"$",  "volume-label", o_NO_VALUE,      o_NOT_NEGATABLE, '$',  "store volume label"},
@@ -3295,6 +3300,7 @@ char **argv;            /* command line tokens */
   dispose = 0;         /* 1=remove files after put in zip file */
   pathput = 1;         /* 1=store path with name */
   method = BEST;       /* one of BEST, DEFLATE (only), or STORE (only) */
+  cmpsc_symbol_width = 0;
   disable_store_fallback = 0;
   dosify = 0;          /* 1=make new entries look like MSDOS */
   verbose = 0;         /* 1=report oddities in zip file structure */
@@ -4416,6 +4422,27 @@ char **argv;            /* command line tokens */
 
         case o_disable_store_fallback:
           disable_store_fallback = negated ? 0 : 1;
+          break;
+
+        case o_cmpsc_width:
+#ifndef CMPSC16_SUPPORT
+          free(value);
+          ZIPERR(ZE_COMPERR, "CMPSC support not enabled");
+#else
+          if (strcmp(value, "auto") == 0) cmpsc_symbol_width = 0;
+          else if (strlen(value) == 1U &&
+                   value[0] == '9')
+            cmpsc_symbol_width = 9;
+          else if (strlen(value) == 2U && value[0] == '1' &&
+                   value[1] >= '0' && value[1] <= '3')
+            cmpsc_symbol_width = 10 + (value[1] - '0');
+          else {
+            free(value);
+            ZIPERR(ZE_PARMS,
+                   "--cmpsc-symbol-width must be auto, 9, 10, 11, 12, or 13");
+          }
+          free(value);
+#endif
           break;
 
         case o_zstd_level:

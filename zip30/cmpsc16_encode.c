@@ -14,9 +14,13 @@
 #include <string.h>
 #include <limits.h>
 
-#define IZCM_NSYM 2048U
-#define IZCM_PHRASE 260U
-#define IZCM_DSIZE (IZCM_NSYM * 8U)
+#if UINT_MAX < 65536UL
+# error CMPSC encoder requires at least 32-bit unsigned integers
+#endif
+
+#define IZCM_MAXSYM 8192U
+#define IZCM_PHRASE 7U
+#define IZCM_MAXDSIZE (IZCM_MAXSYM * 8U)
 #define IZCM_SLOTS 262144UL
 #define IZCM_MASK (IZCM_SLOTS-1UL)
 #define IZCM_MAXPROBE 24U
@@ -24,9 +28,9 @@
 typedef unsigned (*izcm_read_fn)(void *, unsigned char *, unsigned);
 typedef int (*izcm_write_fn)(void *, const unsigned char *, unsigned);
 typedef struct {
-    unsigned char phrase[IZCM_NSYM][IZCM_PHRASE];
-    unsigned short length[IZCM_NSYM];
-    unsigned short next[IZCM_NSYM];
+    unsigned char phrase[IZCM_MAXSYM][IZCM_PHRASE];
+    unsigned short length[IZCM_MAXSYM];
+    unsigned short next[IZCM_MAXSYM];
     unsigned short heads[256];
 } izcm_enc;
 
@@ -34,6 +38,7 @@ typedef struct {
     unsigned char bytes[7];
     unsigned char length;
     unsigned long count;
+    unsigned long score;
 } izcm_gram;
 
 static unsigned long izcm_hash(const unsigned char *p, unsigned n)
@@ -65,48 +70,44 @@ static void izcm_observe(izcm_gram *grams, const unsigned char *p, unsigned n)
     /* Bounded sketch: collisions can cost ratio but never correctness. */
 }
 
-static unsigned long izcm_score(const izcm_gram *g)
+/* Scores are stored with each observation; qsort therefore has no
+ * global comparison state and is safe for concurrent independent encoders. */
+static unsigned long izcm_score(const izcm_gram *g,unsigned width)
 {
-    unsigned gain=8U*(unsigned)g->length-11U;
+    unsigned gain=8U*(unsigned)g->length-width;
     if (g->count>ULONG_MAX/(unsigned long)gain) return ULONG_MAX;
     return g->count*(unsigned long)gain;
 }
 
-static int izcm_compare(const void *a, const void *b)
+static int izcm_compare(const void *a,const void *b)
 {
     const izcm_gram *x=*(const izcm_gram *const *)a;
     const izcm_gram *y=*(const izcm_gram *const *)b;
-    unsigned long ax=izcm_score(x), ay=izcm_score(y);
     int c;
-    if (ax!=ay) return ax>ay ? -1 : 1;
+    if (x->score!=y->score) return x->score>y->score ? -1 : 1;
     if (x->count!=y->count) return x->count>y->count ? -1 : 1;
     c=memcmp(x->bytes,y->bytes,x->length<y->length ? x->length:y->length);
-    if (c) return -c; /* deterministic tie breaker */
+    if (c) return -c;
     if (x->length!=y->length) return x->length>y->length ? -1 : 1;
     return 0;
 }
 
-/* First pass: read through Zip's file_read exactly once. file_read updates
- * CRC, uncompressed length and text/binary detection as usual. */
-static int izcm_train(izcm_read_fn reader,void *ctx,FILE *spool,
-                      unsigned char *dict)
+/* Read Zip's input exactly once, preserving CRC/size/text accounting. The
+ * resulting phrase observations are shared by all auto-width candidates. */
+static int izcm_collect(izcm_read_fn reader,void *ctx,FILE *spool,
+                        izcm_gram *grams,izcm_gram **rank,
+                        unsigned long *used)
 {
-    izcm_gram *grams=NULL;
-    izcm_gram **rank=NULL;
     unsigned char block[8192],tail[7];
-    unsigned tail_len=0,n,i,l,selected=0;
-    unsigned long used=0UL,k;
-    int rc=-2;
-    grams=(izcm_gram *)calloc((size_t)IZCM_SLOTS,sizeof *grams);
-    if (!grams) goto finish;
-    rank=(izcm_gram **)malloc((size_t)IZCM_SLOTS*sizeof *rank);
-    if (!rank) goto finish;
+    unsigned tail_len=0U,n,i,l;
+    unsigned long k;
+    *used=0UL;
     for (;;) {
         n=reader(ctx,block,(unsigned)sizeof block);
-        if (n==(unsigned)EOF) { rc=-1; goto finish; }
+        if (n==(unsigned)EOF) return -1;
         if (!n) break;
-        if (fwrite(block,1U,n,spool)!=(size_t)n) { rc=-3; goto finish; }
-        for (i=0;i<n;++i) {
+        if (fwrite(block,1U,n,spool)!=(size_t)n) return -3;
+        for (i=0U;i<n;++i) {
             if (tail_len==sizeof tail) {
                 memmove(tail,tail+1U,sizeof tail-1U);
                 --tail_len;
@@ -116,29 +117,37 @@ static int izcm_train(izcm_read_fn reader,void *ctx,FILE *spool,
                 izcm_observe(grams,tail+tail_len-l,l);
         }
     }
-    if (fflush(spool) || fseek(spool,0L,SEEK_SET)) { rc=-3; goto finish; }
-    memset(dict,0,IZCM_DSIZE);
-    for (i=0;i<256U;++i) {
+    if (fflush(spool) || fseek(spool,0L,SEEK_SET)) return -3;
+    for (k=0UL;k<IZCM_SLOTS;++k)
+        if (grams[k].length>1U && grams[k].count>=2UL)
+            rank[(*used)++]=grams+k;
+    return 0;
+}
+
+static void izcm_make_dict(unsigned width,unsigned char *dict,
+                           izcm_gram **rank,unsigned long used)
+{
+    unsigned nsym=1U<<width;
+    unsigned dsize=nsym*8U;
+    unsigned selected=0U,i;
+    unsigned long k;
+    for (k=0UL;k<used;++k)
+        rank[k]->score=izcm_score(rank[k],width);
+    qsort(rank,(size_t)used,sizeof *rank,izcm_compare);
+    memset(dict,0,dsize);
+    for (i=0U;i<256U;++i) {
         dict[i*8U]=1U;
         dict[i*8U+1U]=(unsigned char)i;
     }
-    for (k=0UL;k<IZCM_SLOTS;++k)
-        if (grams[k].length>1U && grams[k].count>=2UL) rank[used++]=grams+k;
-    qsort(rank,(size_t)used,sizeof *rank,izcm_compare);
-    for (k=0UL;k<used && selected<IZCM_NSYM-256U;++k) {
+    for (k=0UL;k<used && selected<nsym-256U;++k) {
         izcm_gram *g=rank[k];
         unsigned index=(256U+selected)*8U;
         dict[index]=g->length;
         memcpy(dict+index+1U,g->bytes,g->length);
         ++selected;
     }
-    for (;selected<IZCM_NSYM-256U;++selected)
+    for (;selected<nsym-256U;++selected)
         dict[(256U+selected)*8U]=1U;
-    rc=0;
-finish:
-    free(rank);
-    free(grams);
-    return rc;
 }
 
 /* Bit writer used for a single fixed-Huffman raw-Deflate block. */
@@ -211,26 +220,27 @@ static unsigned izcm_h3(const unsigned char *p)
 }
 /* Encode the fixed-size dictionary with raw Deflate. This requires no
  * external zlib and works with internal, zlib and native-zlib-ng builds. */
-static unsigned izcm_defdict(const unsigned char *dict,unsigned char *dst)
+static unsigned izcm_defdict(const unsigned char *dict,unsigned dsize,
+                                  unsigned char *dst)
 {
     int *head=NULL,*prev=NULL;
     izcm_bits b;
     unsigned i=0U,j,steps,bestlen,bestdist,limit;
     int chain,pos;
-    b.out=dst; b.cap=IZCM_DSIZE; b.used=0U;
+    b.out=dst; b.cap=dsize; b.used=0U;
     b.bits=0UL; b.count=0U; b.error=0;
     head=(int *)malloc(IZCM_HASH3*sizeof *head);
-    prev=(int *)malloc(IZCM_DSIZE*sizeof *prev);
+    prev=(int *)malloc((size_t)dsize*sizeof *prev);
     if (!head || !prev) { free(head);free(prev);return 0U; }
     for(j=0;j<IZCM_HASH3;++j) head[j]=-1;
     izcm_putbits(&b,3U,3U); /* BFINAL=1, BTYPE=01 (fixed Huffman) */
-    while(i<IZCM_DSIZE && !b.error) {
+    while(i<dsize && !b.error) {
         bestlen=0U;bestdist=0U;
-        if (i+2U<IZCM_DSIZE) {
+        if (i+2U<dsize) {
             unsigned h=izcm_h3(dict+i);
             chain=head[h];
             steps=0U;
-            limit=IZCM_DSIZE-i;
+            limit=dsize-i;
             if (limit>258U) limit=258U;
             while(chain>=0 && steps++<64U) {
                 unsigned cp=(unsigned)chain;
@@ -253,7 +263,7 @@ static unsigned izcm_defdict(const unsigned char *dict,unsigned char *dst)
             j=1U;
         }
         while(j--) {
-            if(i+2U<IZCM_DSIZE) {
+            if(i+2U<dsize) {
                 unsigned h=izcm_h3(dict+i);
                 pos=head[h];
                 prev[i]=pos;
@@ -271,11 +281,12 @@ static unsigned izcm_defdict(const unsigned char *dict,unsigned char *dst)
     return b.error ? 0U : b.used;
 }
 
-static void izcm_buildindex(izcm_enc *state,const unsigned char *dict)
+static void izcm_buildindex(izcm_enc *state,const unsigned char *dict,
+                              unsigned nsym)
 {
     unsigned s,k,n;
     for(s=0U;s<256U;++s) state->heads[s]=0xffffU;
-    for(s=0U;s<IZCM_NSYM;++s) {
+    for(s=0U;s<nsym;++s) {
         n=(s<256U) ? 1U : (unsigned)dict[s*8U];
         if(n>7U || !n) continue;
         if (s<256U) state->phrase[s][0]=(unsigned char)s;
@@ -287,39 +298,36 @@ static void izcm_buildindex(izcm_enc *state,const unsigned char *dict)
     }
 }
 
-/* Return 0 success, -1 input/write callback error, -2 allocation error,
- * -3 temporary file read/write/open error. */
-static int izcm_encode(izcm_read_fn reader,izcm_write_fn writer,void *ctx)
+/* Count without relying on 64-bit arithmetic (which ANSI C89 lacks).
+ * hi increases only when unsigned long wraps; compare lexicographically. */
+typedef struct { unsigned long hi,lo; } izcm_size;
+static void izcm_add(izcm_size *z,unsigned n)
 {
-    izcm_enc *state=NULL;
-    unsigned char *dict=NULL,*compressed=NULL;
-    FILE *spool=NULL;
-    unsigned char look[IZCM_PHRASE],out[4096],head[6];
+    unsigned long old=z->lo;
+    z->lo+=(unsigned long)n;
+    if (z->lo<old) ++z->hi;
+}
+static int izcm_smaller(const izcm_size *a,const izcm_size *b)
+{
+    return a->hi<b->hi || (a->hi==b->hi && a->lo<b->lo);
+}
+
+/* Rewind the input spool and emit packed symbols, or count the exact bytes
+ * when writer is NULL. In both modes, decoding uses identical matching.
+ * The counter deliberately excludes the six-byte header and dictionary. */
+static int izcm_stream(FILE *spool,const izcm_enc *state,unsigned width,
+                       izcm_write_fn writer,void *ctx,izcm_size *bytes)
+{
+    unsigned char look[IZCM_PHRASE],out[4096];
     unsigned len=0U,n,j,best,bestlen,s,used=0U;
-    unsigned accum=0U,have=0U,dictlen,remaining;
-    int eof=0,rc=-2;
-    spool=tmpfile();
-    if (!spool) { rc=-3; goto done; }
-    dict=(unsigned char *)malloc(IZCM_DSIZE);
-    compressed=(unsigned char *)malloc(IZCM_DSIZE);
-    state=(izcm_enc *)calloc(1U,sizeof *state);
-    if (!dict || !compressed || !state) goto done;
-    rc=izcm_train(reader,ctx,spool,dict);
-    if (rc) goto done;
-    izcm_buildindex(state,dict);
-    dictlen=izcm_defdict(dict,compressed);
-    head[0]=1U;
-    head[1]=(unsigned char)((dictlen && dictlen<IZCM_DSIZE) ? 0xcbU : 0x8bU);
-    n=(dictlen && dictlen<IZCM_DSIZE) ? dictlen:IZCM_DSIZE;
-    head[2]=(unsigned char)n;head[3]=(unsigned char)(n>>8);
-    head[4]=0U;head[5]=0U;
-    rc=-1;
-    if(writer(ctx,head,6U) || writer(ctx,
-       (dictlen && dictlen<IZCM_DSIZE)?compressed:dict,n)) goto done;
+    unsigned accum=0U,have=0U,remaining;
+    int eof=0;
+    bytes->hi=0UL;bytes->lo=0UL;
+    if (fseek(spool,0L,SEEK_SET)) return -3;
     while (!eof || len) {
         while(len<IZCM_PHRASE && !eof) {
             n=(unsigned)fread(look+len,1U,IZCM_PHRASE-len,spool);
-            if(!n) { if(ferror(spool)) { rc=-3; goto done; } eof=1; }
+            if(!n) { if(ferror(spool)) return -3; eof=1; }
             else len+=n;
         }
         if(!len) break;
@@ -331,13 +339,14 @@ static int izcm_encode(izcm_read_fn reader,izcm_write_fn writer,void *ctx)
                 best=s;bestlen=sl;
             }
         }
-        for(j=0U;j<11U;++j) {
-            accum=(accum<<1U)|((best>>(10U-j))&1U);
+        for(j=0U;j<width;++j) {
+            accum=(accum<<1U)|((best>>(width-1U-j))&1U);
             if(++have==8U) {
                 out[used++]=(unsigned char)accum;
                 accum=0U;have=0U;
                 if(used==(unsigned)sizeof out) {
-                    if(writer(ctx,out,used)) goto done;
+                    if(writer && writer(ctx,out,used)) return -1;
+                    izcm_add(bytes,used);
                     used=0U;
                 }
             }
@@ -347,10 +356,77 @@ static int izcm_encode(izcm_read_fn reader,izcm_write_fn writer,void *ctx)
         len=remaining;
     }
     if(have) out[used++]=(unsigned char)(accum<<(8U-have));
-    if(used && writer(ctx,out,used)) goto done;
-    rc=0;
+    if(used) {
+        if(writer && writer(ctx,out,used)) return -1;
+        izcm_add(bytes,used);
+    }
+    return 0;
+}
+
+/* Return 0 success, -1 input/write callback error, -2 allocation error,
+ * -3 temporary file read/write/open error.  Width 0 selects the smallest
+ * complete candidate (including the Deflated expansion dictionary).
+ * Widths 9..13 force a specific format for interoperability testing. */
+static int izcm_encode(izcm_read_fn reader,izcm_write_fn writer,void *ctx,
+                       unsigned requested_width)
+{
+    izcm_enc *state=NULL;
+    izcm_gram *grams=NULL,**rank=NULL;
+    unsigned char *dict=NULL,*compressed=NULL;
+    FILE *spool=NULL;
+    unsigned char head[6];
+    unsigned long used=0UL;
+    unsigned width,begin,end,bestwidth=0U,n,dictlen,dsize;
+    izcm_size candidate,bestsize,outputbytes;
+    int rc=-2;
+    if(requested_width &&
+       (requested_width<9U || requested_width>13U)) return -2;
+    begin=requested_width ? requested_width : 9U;
+    end=requested_width ? requested_width : 13U;
+    spool=tmpfile();
+    if (!spool) return -3;
+    dict=(unsigned char *)malloc(IZCM_MAXDSIZE);
+    compressed=(unsigned char *)malloc(IZCM_MAXDSIZE);
+    state=(izcm_enc *)calloc(1U,sizeof *state);
+    grams=(izcm_gram *)calloc((size_t)IZCM_SLOTS,sizeof *grams);
+    rank=(izcm_gram **)malloc((size_t)IZCM_SLOTS*sizeof *rank);
+    if(!dict || !compressed || !state || !grams || !rank) goto done;
+    rc=izcm_collect(reader,ctx,spool,grams,rank,&used);
+    if(rc) goto done;
+    rc=-3;
+    bestsize.hi=ULONG_MAX;bestsize.lo=ULONG_MAX;
+    for(width=begin;width<=end;++width) {
+        dsize=(1U<<width)*8U;
+        izcm_make_dict(width,dict,rank,used);
+        izcm_buildindex(state,dict,1U<<width);
+        dictlen=izcm_defdict(dict,dsize,compressed);
+        n=(dictlen && dictlen<dsize) ? dictlen : dsize;
+        if(izcm_stream(spool,state,width,NULL,NULL,&candidate)) goto done;
+        izcm_add(&candidate,n+6U);
+        if(bestwidth==0U || izcm_smaller(&candidate,&bestsize)) {
+            bestwidth=width;
+            bestsize=candidate;
+        }
+    }
+    width=bestwidth;
+    dsize=(1U<<width)*8U;
+    izcm_make_dict(width,dict,rank,used);
+    izcm_buildindex(state,dict,1U<<width);
+    dictlen=izcm_defdict(dict,dsize,compressed);
+    n=(dictlen && dictlen<dsize) ? dictlen : dsize;
+    head[0]=1U;
+    head[1]=(unsigned char)((dictlen && dictlen<dsize) ?
+                            (0xc0U|width) : (0x80U|width));
+    head[2]=(unsigned char)n;
+    head[3]=(unsigned char)(n>>8);
+    head[4]=(unsigned char)(n>>16);
+    head[5]=(unsigned char)(n>>24);
+    rc=-1;
+    if(writer(ctx,head,6U) || writer(ctx,
+        (dictlen && dictlen<dsize) ? compressed : dict,n)) goto done;
+    rc=izcm_stream(spool,state,width,writer,ctx,&outputbytes);
 done:
     if(spool) fclose(spool);
-    free(state);free(compressed);free(dict);
+    free(rank);free(grams);free(state);free(compressed);free(dict);
     return rc;
 }
