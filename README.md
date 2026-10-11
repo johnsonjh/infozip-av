@@ -117,7 +117,7 @@ Additionally, new
 > detected at runtime and is currently supported on AMD64 and ARM64 systems
 > running Linux, FreeBSD, OpenBSD, and macOS.  Additional hardware acceleration
 > is provided via the (optional)
-> [`zlib‑ng`](https://github.com/zlib-ng/zlib-ng) library.
+> [`zlib‑ng`](https://github.com/zlib-ng/zlib-ng) library where available.
 >
 > <sup>**‡**</sup>&nbsp;IBM&nbsp;CMPSC *compression* is an inefficient
 > and experimental (but interoperable) work‑in‑progress.
