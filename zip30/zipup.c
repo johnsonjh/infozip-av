@@ -38,6 +38,10 @@ extern int iz_zip_aes_active;
 /* Keep the PKDCLX engine source unchanged and compile it with zipup.c */
 #include "pkdcl.c"
 
+#ifdef LZFSE_SUPPORT
+# include "lzfse.c"
+#endif
+
 /* Source-only CMPSC codec, independently written ANSI C89. */
 #ifdef CMPSC16_SUPPORT
 # include "cmpsc16_encode.c"
@@ -226,6 +230,9 @@ local zoff_t deflate64filecompress OF((struct zlist far *z_entry, int *cmpr_meth
 local zoff_t dclfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #ifdef CMPSC16_SUPPORT
 local zoff_t cmpsc16filecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#endif
+#ifdef LZFSE_SUPPORT
+local zoff_t lzfsefilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
 #ifdef PPMD_SUPPORT
 local zoff_t ppmdfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
@@ -1111,7 +1118,7 @@ struct zlist far *z;    /* zip entry to compress */
       free(tempcextra);
   }
 
-  if (q == 0)
+  if (q == 0 && m != LZFSE)
     m = STORE;
   if (m == BEST)
     m = DEFLATE;
@@ -1199,6 +1206,10 @@ struct zlist far *z;    /* zip entry to compress */
    * writes 6.3 instead; follow the WinZip interoperability precedent here. */
   if (method == ZSTD)
       z->ver = (ush)(m == STORE ? 10 : 20);
+#endif
+#ifndef NO_AES
+  if (m == LZFSE && iz_aes_mode && key != NULL)
+    ZIPERR(ZE_PARMS, "LZFSE cannot be combined with WinZip AES: both use ZIP method 99");
 #endif
   z->crc = 0;  /* to be updated later */
   /* Assume first that we will need an extended local header: */
@@ -1356,9 +1367,10 @@ struct zlist far *z;    /* zip entry to compress */
       s = cmpsc16filecompress(z, &m);
     }
 #endif
-#ifdef CMPSC16_SUPPORT
-    else if (m == CMPSC16)
-      fprintf(mesg, " (CMPSC compressed %d%%)\n", percent(isize, s));
+#ifdef LZFSE_SUPPORT
+    else if (m == LZFSE) {
+      s = lzfsefilecompress(z, &m);
+    }
 #endif
 #ifdef PPMD_SUPPORT
     else if (m == PPMD) {
@@ -1763,6 +1775,10 @@ struct zlist far *z;    /* zip entry to compress */
     else if (m == CMPSC16)
       fprintf(mesg, " (CMPSC compressed %d%%)\n", percent(isize, s));
 #endif
+#ifdef LZFSE_SUPPORT
+    else if (m == LZFSE)
+      fprintf(mesg, " (LZFSE compressed %d%%)\n", percent(isize, s));
+#endif
 #ifdef PPMD_SUPPORT
     else if (m == PPMD)
       fprintf(mesg, " (PPMd compressed %d%%)\n", percent(isize, s));
@@ -1810,6 +1826,10 @@ struct zlist far *z;    /* zip entry to compress */
 #ifdef CMPSC16_SUPPORT
     else if (m == CMPSC16)
       fprintf(logfile, " (CMPSC compressed %d%%)\n", percent(isize, s));
+#endif
+#ifdef LZFSE_SUPPORT
+    else if (m == LZFSE)
+      fprintf(logfile, " (LZFSE compressed %d%%)\n", percent(isize, s));
 #endif
 #ifdef PPMD_SUPPORT
     else if (m == PPMD)
@@ -3960,3 +3980,75 @@ int *cmpr_method;
 
 #endif /* BZIP2_SUPPORT */
 #endif /* !UTIL */
+
+#ifdef LZFSE_SUPPORT
+/* Apple LZFSE's encoder operates on bounded independent input chunks.
+ * Each produces blocks followed by bvx$.  Remove intermediate end markers
+ * and preserve the last one to form one valid multi-block LZFSE stream.
+ * This avoids the upstream signed-32-bit long-input offset path. */
+#define IZ_LZFSE_CHUNK (1024U * 1024U)
+local zoff_t lzfsefilecompress(z_entry, cmpr_method)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+{
+    unsigned char *input = NULL, *output = NULL;
+    void *scratch = NULL;
+    size_t inlen, outlen, total, capacity, scratch_size;
+    unsigned got;
+    zoff_t written = 0;
+    int eof = 0;
+    (void)cmpr_method;
+    capacity = (size_t)IZ_LZFSE_CHUNK + 1024U;
+    input = (unsigned char *)malloc((size_t)IZ_LZFSE_CHUNK);
+    output = (unsigned char *)malloc(capacity);
+    scratch_size = lzfse_encode_scratch_size();
+    scratch = malloc(scratch_size);
+    if (!input || !output || !scratch) goto no_memory;
+    while (!eof) {
+        inlen = 0;
+        while (inlen < IZ_LZFSE_CHUNK) {
+            got = file_read((char *)input + inlen,
+                            (unsigned)((size_t)IZ_LZFSE_CHUNK - inlen));
+            if (got == (unsigned)EOF) goto read_error;
+            if (got == 0) { eof = 1; break; }
+            if (!is_text_buf((char *)input + inlen, got))
+                file_binary_final = 1;
+            inlen += got;
+        }
+        if (inlen == 0 && written != 0) {
+            /* Exact multiple of the encoding chunk size. */
+            unsigned char end[4] = {'b','v','x','$'};
+            if (zfwrite((char *)end,1,4) != 4) goto write_error;
+            written += 4;
+            break;
+        }
+        outlen = lzfse_encode_buffer(output,capacity,input,inlen,scratch);
+        if (outlen < 4 || memcmp(output + outlen - 4, "bvx$",4) != 0)
+            goto encode_error;
+        /* We must omit EOS except on the final chunk.  For full chunks,
+         * the next read determines EOS, so always write nonterminal blocks. */
+        total = eof ? outlen : outlen - 4;
+        if (zfwrite((char *)output,1,(extent)total) != (extent)total)
+            goto write_error;
+        written += (zoff_t)total;
+        if (eof) break;
+    }
+
+    free(input); free(output); free(scratch);
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    return written;
+no_memory:
+    free(input); free(output); free(scratch);
+    ziperr(ZE_MEM,"LZFSE allocation failed");
+read_error:
+    free(input); free(output); free(scratch);
+    ziperr(ZE_READ,"LZFSE input read failed");
+encode_error:
+    free(input); free(output); free(scratch);
+    ziperr(ZE_COMPERR,"LZFSE encoding failed");
+write_error:
+    free(input); free(output); free(scratch);
+    ziperr(ZE_WRITE,"LZFSE output write failed");
+    return (zoff_t)-1;
+}
+#endif /* LZFSE_SUPPORT */

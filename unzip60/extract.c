@@ -252,6 +252,118 @@ static int iz_ae3_authenticate(__G)
 }
 #endif /* !NO_AES */
 
+#ifdef USE_LZFSE
+#include "lzfse.c"
+#endif
+
+#ifdef USE_LZFSE
+/* Apple LZFSE stream decoder.  The full compressed LZFSE block must fit in
+ * the input window while decoding FSE symbols backwards, but consecutive
+ * blocks do not require retaining the entire member in memory.  The output
+ * window retains enough history for cross-block match distances. */
+#define UZ_LZFSE_IN_INITIAL (2U * 1024U * 1024U)
+#define UZ_LZFSE_IN_MAX (32U * 1024U * 1024U)
+#define UZ_LZFSE_HISTORY 262144U
+#define UZ_LZFSE_OUT_SIZE (UZ_LZFSE_HISTORY + 1024U * 1024U)
+
+static int uz_lzfse_decompress(__G)
+    __GDEF
+{
+    lzfse_decoder_state *state;
+    unsigned char *inbuf, *outbuf, *tmp;
+    unsigned char *fresh_begin;
+    size_t incapa, inlen, used, space, fresh, history, filled;
+    zoff_t total;
+    int status, c, r;
+    inbuf = (unsigned char *)malloc(UZ_LZFSE_IN_INITIAL);
+    outbuf = (unsigned char *)malloc(UZ_LZFSE_OUT_SIZE);
+    state = (lzfse_decoder_state *)malloc(sizeof(*state));
+    if (!inbuf || !outbuf || !state) {
+        free(inbuf); free(outbuf); free(state);
+        return PK_MEM3;
+    }
+    memset(state,0,sizeof(*state));
+    incapa = UZ_LZFSE_IN_INITIAL;
+    inlen = 0;
+    total = 0;
+    fresh_begin = outbuf;
+    state->dst_begin = outbuf;
+    state->dst = outbuf;
+    state->dst_end = outbuf + UZ_LZFSE_OUT_SIZE;
+    state->src_begin = inbuf;
+    state->src = inbuf;
+    state->src_end = inbuf;
+    r = PK_ERR;
+    for (;;) {
+        status = lzfse_decode(state);
+        if (status == LZFSE_STATUS_OK) {
+            if (!state->end_of_stream) break;
+            fresh = (size_t)(state->dst - fresh_begin);
+            if ((zoff_t)fresh > G.lrec.ucsize - total) break;
+            total += (zoff_t)fresh;
+            if (total != G.lrec.ucsize) break;
+            if (state->src != state->src_end) break;
+            /* A valid frame consumes exactly the compressed member. */
+            if (NEXTBYTE != EOF) break;
+            if (fresh) r = flush(__G__ fresh_begin,(ulg)fresh,0);
+            else r = PK_COOL;
+            break;
+        }
+        if (status == LZFSE_STATUS_DST_FULL) {
+            fresh = (size_t)(state->dst - fresh_begin);
+            if (fresh == 0 || (zoff_t)fresh > G.lrec.ucsize - total)
+                break;
+            total += (zoff_t)fresh;
+            r = flush(__G__ fresh_begin,(ulg)fresh,0);
+            if (r != PK_COOL) break;
+            r = PK_ERR;
+            /* Retain previous match history across output flushes. */
+            filled = (size_t)(state->dst - state->dst_begin);
+            history = filled < UZ_LZFSE_HISTORY ? filled : UZ_LZFSE_HISTORY;
+            memmove(outbuf,state->dst - history,history);
+            state->dst_begin = outbuf;
+            state->dst = outbuf + history;
+            state->dst_end = outbuf + UZ_LZFSE_OUT_SIZE;
+            fresh_begin = state->dst;
+            continue;
+        }
+        if (status != LZFSE_STATUS_SRC_EMPTY) break;
+        used = (size_t)(state->src - state->src_begin);
+        if (used) {
+            inlen = (size_t)(state->src_end - state->src);
+            memmove(inbuf,state->src,inlen);
+            state->src_begin = inbuf;
+            state->src = inbuf;
+            state->src_end = inbuf + inlen;
+        }
+        if (inlen == incapa) {
+            if (incapa >= UZ_LZFSE_IN_MAX) break;
+            /* Compressed block exceeds the initial working window. */
+            space = incapa * 2;
+            tmp = (unsigned char *)realloc(inbuf,space);
+            if (!tmp) { r = PK_MEM3; break; }
+            inbuf = tmp;
+            incapa = space;
+            state->src_begin = inbuf;
+            state->src = inbuf;
+            state->src_end = inbuf + inlen;
+        }
+        space = incapa - inlen;
+        filled = 0;
+        while (filled < space) {
+            c = NEXTBYTE;
+            if (c == EOF) break;
+            inbuf[inlen + filled++] = (unsigned char)c;
+        }
+        if (!filled) break;
+        inlen += filled;
+        state->src_end = inbuf + inlen;
+    }
+    free(state); free(inbuf); free(outbuf);
+    return r;
+}
+#endif /* USE_LZFSE */
+
 #ifdef USE_CMPSC16
 #include "cmpsc16.c"
 
@@ -2687,6 +2799,12 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #  define UNKN_PPMD TRUE      /* PPMd unknown */
 #endif
 
+#ifdef USE_LZFSE
+#  define UNKN_LZFSE (G.crec.compression_method!=LZFSEED)
+#else
+#  define UNKN_LZFSE TRUE
+#endif
+
 #ifdef USE_CMPSC16
 #  define UNKN_CMPSC (G.crec.compression_method!=CMPSCED)
 #else
@@ -2704,11 +2822,11 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method<DEFLATED \
       && G.crec.compression_method>ENHDEFLATED \
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE)
 #  else
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method!=DEFLATED\
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE)
 #  endif
 #else
 #  ifdef USE_OLDUNZIP
@@ -2724,13 +2842,13 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>ENHDEFLATED && \
       G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD \
-      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC))
+      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE))
 #  else
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>DEFLATED && \
       G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD \
-      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC))
+      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE))
 #  endif
 #endif
 
@@ -2740,13 +2858,25 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
         unsigned v=0,strength=0,m=0;
         int r=ef_scan_for_wzaes(G.extra_field,
                 G.crec.extra_field_length,&v,&strength,&m);
-        if(r!=1 || !(G.crec.general_purpose_bit_flag&1) ||
-           (G.crec.general_purpose_bit_flag&0x2040))return 0;
+        if(r != 1) {
+            if(r < 0) return 0;
+            /* No 0x9901: method 99 can instead be an Apple LZFSE stream,
+             * including a traditional ZipCrypto-encrypted LZFSE stream. */
+            G.pInfo->aes_strength = 0;
+            G.pInfo->aes_version = 0;
+            G.pInfo->aes_iterations = 0;
+            G.pInfo->aes_method = 0;
+        } else {
+          /* AES's actual compression method cannot also be the method-99
+           * wrapper: reject the nested, ambiguous method-99 collision. */
+          if (m == LZFSEED || !(G.crec.general_purpose_bit_flag&1) ||
+              (G.crec.general_purpose_bit_flag&0x2040)) return 0;
         G.pInfo->aes_strength=strength;
         G.pInfo->aes_version=v;
         G.pInfo->aes_iterations=(v==3)?wzaes_ae3_iterations(G.extra_field,G.crec.extra_field_length):0;
         G.pInfo->aes_method=m;
         G.crec.compression_method=(ush)m;
+        }
     } else {
         G.pInfo->aes_strength=0;
         G.pInfo->aes_version=0;
@@ -3214,7 +3344,12 @@ static int extract_or_test_entrylist(__G__ numchunk,
             }
             G.lrec.compression_method=(ush)m;
         } else if (G.lrec.compression_method==99) {
-            error_in_archive=PK_ERR;continue;
+            unsigned v=0, strength=0, m=0;
+            /* Reject any local AES extra not present in central directory. */
+            if (ef_scan_for_wzaes(G.extra_field,
+                         G.lrec.extra_field_length,&v,&strength,&m)!=0) {
+                error_in_archive=PK_ERR;continue;
+            }
         }
 #endif
         /* The compression method is redundant between the local and central
@@ -4141,6 +4276,22 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             break;
 #endif /* USE_ZSTD */
 
+#ifdef USE_LZFSE
+        case LZFSEED:
+            if (!uO.tflag && QCOND2)
+                Info(slide,0,((char *)slide,LoadFarString(ExtractMsg),
+                  "decod",FnFilter1(G.filename),avmark,avsep,
+                  (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
+                  uO.cflag ? NEWLINE : ""));
+            r=uz_lzfse_decompress(__G);
+            if (r != PK_COOL) {
+                Info(slide,0x401,((char *)slide,
+                     "invalid or truncated LZFSE stream: %s\n",
+                     FnFilter1(G.filename)));
+                error = r;
+            }
+            break;
+#endif
 #ifdef USE_CMPSC16
         case CMPSCED:
             if (!uO.tflag && QCOND2) {

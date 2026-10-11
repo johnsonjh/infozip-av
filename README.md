@@ -91,6 +91,7 @@ support is available (when compressing using `zip ‑11`):
 | **`96`** | WZ‑JPEG<sup>2</sup>                                   |     ✅     |          |
 | **`97`** | WavPack<sup>4</sup>                                   |     ✅     |          |
 | **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;Rev&nbsp;1              |     ✅     |    ✅    |
+| **`99`** | LZFSE                                                 |     ✅     |    ✅    |
 
 > [!NOTE]
 > Methods 1 through 6 are legacy algorithms and are no longer
@@ -549,6 +550,10 @@ No errors detected in compressed data of pkz110.exe.
 * The **Zopfli** compression algorithm used is derived from the
   [Apache‑2.0](zip30/zopfli.LICENSE) licensed upstream
   [reference implementation](https://github.com/google/zopfli).
+
+* The **LZFSE** compression and decompression implementations are derived from
+  the [BSD‑3‑Clause](zip30/LZFSE-LICENSE.txt) licensed upstream
+  [reference implementation](https://github.com/lzfse/lzfse).
 
 * The Info‑ZIP software suites (Zip and UnZip, with included tools) are
   distributed under their respective [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE)

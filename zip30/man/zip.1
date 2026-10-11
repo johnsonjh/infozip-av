@@ -2461,7 +2461,7 @@ The comment can be taken from a file:
 .B \-\-compression\-method\ \fRcm
 Set the default compression method.  The main methods supported by
 \fIzip\fP are \fBstore\fP, \fBshrink\fP, \fBreduce\fP, \fBimplode\fP, \fBdeflate\fP, \fBdcl-implode\fP,
-\fBlzma\fP, \fBxz\fP, \fBzstd\fP, \fBcmpsc\fP, and \fBppmd\fP (with methods requiring external libraries
+\fBlzma\fP, \fBxz\fP, \fBzstd\fP, \fBcmpsc\fP, \fBppmd\fP, and \fBlzfse\fP (with methods requiring external libraries
 available only when compiled in).
 Compression method can be set to:
 
@@ -2558,6 +2558,16 @@ in on non-16-bit targets unless disabled at compile time with \fBNO_PPMD\fP.
 Archives using method 98 require a PPMd-capable extractor and advertise ZIP
 extraction version 6.3.  The encoder uses PPMd restart restoration.  With
 PPMd, \fB-11\fP has exactly the same settings as \fB-9\fP.
+
+\fBlzfse\fP \- Encode an Apple LZFSE/LZVN stream in a ZIP method-99
+member.  Method 99 is ALSO used as the WinZip AES wrapper: this Zip tool
+uses method 99 WITHOUT AES extra field 0x9901 for LZFSE (since actual
+AES members require that extra field).  LZFSE CAN NOT be combined with
+WinZip AES (including AE-3).  Traditional ZipCrypto is supported.
+Extraction requires an LZFSE-aware utility (such as this UnZip or a
+compatible 7-Zip build); generic ZIP implementations may legally reject it.
+The encoder uses bounded 1 MiB input chunks.  Define NO_LZFSE to omit
+support on suitable targets.
 
 \fBbzip2\fP \- If \fBbzip2\fP support is compiled in, this compression
 method also becomes available.  Only some modern unzips currently support

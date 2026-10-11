@@ -4,10 +4,10 @@
  */
 
 #undef ZD_VER
-#define ZD_VER "0.1"
+#define ZD_VER "0.2"
 
 #undef ZD_DATE
-#define ZD_DATE "2026-10-09"
+#define ZD_DATE "2026-10-11"
 
 #ifndef _POSIX_C_SOURCE
 # define _POSIX_C_SOURCE 200809L
@@ -495,7 +495,8 @@ zd_load (struct zd_archive *a)
       e->csz64 = (e->csize == 0xffffffffUL);
       e->usz64 = (e->usize == 0xffffffffUL);
       e->off64 = (e->off == 0xffffffffUL);
-      if (zd_u16 (hdr + 34) != 0 || (e->flags & 0x41U) || e->method == 99)
+
+      if (zd_u16 (hdr + 34) != 0 || (e->flags & 0x41U))
         {
           zd_fail ("split or encrypted archive/member rejected");
           return 0;
@@ -516,6 +517,7 @@ zd_load (struct zd_archive *a)
         }
 
       r = zd_has (e->cen + 46 + nam, extr, 0x9903, &off, &xlen);
+
       if (r < 0)
         {
           return 0;
@@ -657,9 +659,10 @@ zd_load (struct zd_archive *a)
           return 0;
         }
 
-      if (zd_has (e->loc + 30 + ln, lex, 7, NULL, NULL) != 0)
+      if (zd_has (e->loc + 30 + ln, lex, 7, NULL, NULL) != 0
+          || zd_has (e->loc + 30 + ln, lex, 0x9901, NULL, NULL) != 0)
         {
-          zd_fail ("authenticated local record rejected");
+          zd_fail ("authenticated or AES local record rejected");
           return 0;
         }
 
@@ -876,6 +879,18 @@ zd_supported (unsigned m)
     case 12:
       return 1;
 #endif /* ifdef USE_BZIP2 */
+
+#ifdef USE_CMPSC16
+    case 16:
+      return 1;
+#endif /* USE_CMPSC16 */
+
+#if defined(USE_LZFSE) && ULONG_MAX > 0xffffffffUL
+    /* AES (also method 99) was rejected above by its 0x9901 extra field.
+     * Encryption is independently disallowed for all zipdedup input. */
+    case 99:
+      return 1;
+#endif /* USE_LZFSE, 64-bit unsigned long */
 
 #ifdef USE_LZMA
     case 14:

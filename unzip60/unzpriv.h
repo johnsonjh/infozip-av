@@ -1807,6 +1807,12 @@
 #define WZJPEGED         96
 #define WAVPACKED        97
 #define PPMDED           98
+#define LZFSEED          99   /* Apple LZFSE (method-99 / AES collision) */
+#include <limits.h>
+#if !defined(NO_LZFSE) && !defined(MEMORY16) && \
+    ULONG_MAX > 0xffffffffUL
+# define USE_LZFSE
+#endif
 #define NUM_METHODS      24     /* number of known method IDs */
 /* don't forget to update list.c (list_files()), extract.c and zipinfo.c
  * appropriately if NUM_METHODS changes */
@@ -2559,6 +2565,8 @@ void   pkav_update               OF((__GPRO__ ZCONST uch *buf, ulg size));
 /* static int   test_NT          OF((__GPRO__ uch *eb, unsigned eb_size)); */
 #ifndef SFX
   unsigned find_compr_idx        OF((unsigned compr_methodnum));
+  int zip99_lzfse_probe OF((ZCONST char *zipfn, zoff_t rel_offset,
+                            zoff_t prefix, zoff_t ziplen));
 #endif
 int    memextract                OF((__GPRO__ uch *tgt, ulg tgtsize,
                                      ZCONST uch *src, ulg srcsize));

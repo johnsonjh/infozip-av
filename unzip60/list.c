@@ -409,6 +409,14 @@ int list_files(__G)    /* return PK-type error code */
                 aes_status = ef_scan_for_wzaes(G.extra_field,
                   G.crec.extra_field_length, &aes_version, &aes_strength,
                   &aes_method);
+            /* Method 99 identifies AES only with consistent encryption
+             * flags and a non-99 inner compressor.  Listing MUST agree with
+             * extraction instead of labeling aninvalid entry as AE-1/2/3 */
+            if (aes_status == 1 &&
+                (!(G.crec.general_purpose_bit_flag & 1) ||
+                 (G.crec.general_purpose_bit_flag & 0x2040) ||
+                 aes_method == 99))
+                aes_status = -1;
 
             csiz = G.crec.csize;
             if (G.crec.general_purpose_bit_flag & 1) {
@@ -417,7 +425,7 @@ int list_files(__G)    /* return PK-type error code */
                                wzaes_overhead(aes_strength));
                     if ((zusz_t)aes_ovh <= csiz)
                         csiz -= aes_ovh;
-                } else if (G.crec.compression_method != 99 && csiz >= 12) {
+                } else if (aes_status == 0 && csiz >= 12) {
                     csiz -= 12;  /* traditional ZipCrypto header */
                 }
             }
@@ -449,6 +457,14 @@ int list_files(__G)    /* return PK-type error code */
                             sprintf(&aesbase[3], "%04X", aes_method);
                     }
                     sprintf(methbuf, "%s/AE%u", aesbase, aes_version);
+                } else if (aes_status == 0 &&
+                           !(G.crec.general_purpose_bit_flag & 1) &&
+                           zip99_lzfse_probe(G.zipfn,
+                             (zoff_t)G.crec.relative_offset_local_header,
+                             G.extra_bytes, G.ziplen) == 1) {
+                    strcpy(methbuf, "LZFSE");
+                } else if (aes_status == 0) {
+                    strcpy(methbuf, "M99-unknown");
                 } else {
                     strcpy(methbuf, "AES-invalid");
                 }

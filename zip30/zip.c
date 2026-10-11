@@ -1652,6 +1652,9 @@ local void help_extended()
 #endif
 #ifdef PPMD_SUPPORT
 "              ppmd        - PPMd Variant I (method 98; -1..-9 presets)",
+#ifdef LZFSE_SUPPORT
+"              lzfse       - Apple LZFSE (method 99)",
+#endif
 #endif
 "",
 "Compression tuning:",
@@ -4537,6 +4540,12 @@ char **argv;            /* command line tokens */
 #else
             ZIPERR(ZE_COMPERR, "Compression method bzip2 not enabled");
 #endif
+          } else if (strcmp(value,"lzfse") == 0) {
+#ifdef LZFSE_SUPPORT
+            method = LZFSE;
+#else
+            ZIPERR(ZE_COMPERR,"Compression method lzfse not enabled");
+#endif
           } else if (abbrevmatch("ppmd", value, 0, 1)) {
             /* PPMd Variant I, ZIP method 98 */
 #ifdef PPMD_SUPPORT
@@ -4585,12 +4594,17 @@ char **argv;            /* command line tokens */
 #else
 #define D64_STR ""
 #endif
+#ifdef LZFSE_SUPPORT
+#define LF_STR ", lzfse"
+#else
+#define LF_STR ""
+#endif
 #ifdef CMPSC16_SUPPORT
 #define CM_STR ", cmpsc"
 #else
 #define CM_STR ""
 #endif
-            zipwarn("valid compression methods include: store, dcl-implode, deflate" SH_STR RE_STR IM_STR D64_STR BZ_STR LZ_STR PP_STR ZS_STR CM_STR, "");
+            zipwarn("valid compression methods include: store, dcl-implode, deflate" SH_STR RE_STR IM_STR D64_STR BZ_STR LZ_STR PP_STR ZS_STR CM_STR LF_STR, "");
 #undef CM_STR
 #undef BZ_STR
 #undef LZ_STR

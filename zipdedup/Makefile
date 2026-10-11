@@ -2,8 +2,11 @@
 # XXX: Needs a full build with bzip2, lzma, and zstd libraries, assumes cc is GCC!
 CC = cc
 CFLAGS = -O3 -std=c89 -pedantic -Wall -Wextra -flto=auto
-ZD_METHODS = -DUSE_DEFLATE64 -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD -DUSE_PPMD -DUSE_WZMP3 -DUSE_WZJPEG
+ZD_METHODS = -DUSE_DEFLATE64 -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD -DUSE_PPMD -DUSE_WZMP3 -DUSE_WZJPEG -DUSE_CMPSC16 -DUSE_LZFSE
 UZDIR = ../unzip60
+# CMPSC/LZFSE are selected by unzpriv.h according to target capability.
+# Do not forcibly -DUSE_LZFSE: on 32-bit unsigned-long targets its C89
+# codec cannot compile, and the corresponding zipdedup method must be off.
 UZFLAGS = -O3 -fPIC -DUNIX -DDLL -DLARGE_FILE_SUPPORT -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD
 # ZipDedup builds its own UnZip objects: it must select and link the same
 # external backend in BOTH the objects and the final executable.  Do not rely
@@ -76,4 +79,5 @@ test: zipdedup test-refptr9903
 	./test-refptr9903
 	python3 tests/test_zipdedup.py
 	python3 tests/test_refptr_metadata.py
+	python3 tests/test_lzfse_cmpsc.py
 .PHONY: test

@@ -2824,6 +2824,56 @@ static int parse_ux3_buf(buf, len, z_uidgid)
 #endif /* IZ_HAVE_UXUIDGID */
 
 
+/* Check whether an unencrypted ZIP method-99 member starts with Apple LZFSE.
+ * This is only a non-destructive listing probe.  A successful signature
+ * check does not establish that the compressed LZFSE stream is valid.
+ * Return 1 if magic matches, 0 if it does not, -1 if it cannot be examined.
+ * Never read from G.zipfd: buffered central-directory input must be preserved.
+ */
+int zip99_lzfse_probe(ZCONST char *zipfn, zoff_t rel_offset,
+                      zoff_t prefix, zoff_t ziplen)
+{
+    FILE *fp;
+    unsigned char h[30], magic[4];
+    zoff_t pos, remaining;
+    unsigned name_len, extra_len;
+    int result = -1;
+
+    if (zipfn == NULL || rel_offset < 0 || prefix < 0 ||
+        ziplen < 34 || rel_offset > ziplen - prefix)
+        return -1;
+    pos = rel_offset + prefix;
+    if (pos > ziplen - 34)
+        return -1;
+    fp = fopen(zipfn, "rb");
+    if (fp == NULL)
+        return -1;
+    if (zfseeko(fp, pos, SEEK_SET) != 0 ||
+        fread(h, 1, sizeof(h), fp) != sizeof(h))
+        goto done;
+    /* Check the local signature, ZIP method 99, and unencrypted flag. */
+    if (h[0] != 'P' || h[1] != 'K' || h[2] != 3 || h[3] != 4 ||
+        h[8] != 99 || h[9] != 0 || (h[6] & 1) != 0) {
+        result = 0;
+        goto done;
+    }
+    name_len = (unsigned)h[26] | ((unsigned)h[27] << 8);
+    extra_len = (unsigned)h[28] | ((unsigned)h[29] << 8);
+    remaining = ziplen - pos - (zoff_t)sizeof(h);
+    if (remaining < (zoff_t)name_len + (zoff_t)extra_len + 4L)
+        goto done;
+    if (zfseeko(fp, (zoff_t)name_len + (zoff_t)extra_len,
+                SEEK_CUR) != 0 ||
+        fread(magic, 1, sizeof(magic), fp) != sizeof(magic))
+        goto done;
+    result = (magic[0] == 'b' && magic[1] == 'v' && magic[2] == 'x' &&
+              (magic[3] == '-' || magic[3] == '1' || magic[3] == '2' ||
+               magic[3] == 'n' || magic[3] == '$')) ? 1 : 0;
+done:
+    fclose(fp);
+    return result;
+}
+
 /********************************/
 /* Function ef_scan_for_wzaes() */
 /********************************/

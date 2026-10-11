@@ -246,7 +246,11 @@ deflating (superfast, fast, normal, maximum compression).  \fIzipinfo\fP
 represents these methods and their sub-methods as follows:  \fIstor\fP;
 \fIre:1\fP, \fIre:2\fP, etc.; \fIshrk\fP; \fIi4:2\fP, \fIi8:3\fP, etc.;
 \fItokn\fP; and \fIdefS\fP, \fIdefF\fP, \fIdefN\fP, and \fIdefX\fP.
-ZIP method 98 (PPMd Variant I) is displayed as \fIppmd\fP.  WinZip AES
+ZIP method 98 (PPMd Variant I) is displayed as \fIppmd\fP.
+Unencrypted ZIP method 99 with a recognized valid Apple LZFSE signature is
+displayed as \fIlzfse\fP; traditional ZipCrypto-encrypted method-99
+entries without AES metadata cannot be identified from their ciphertext
+alone.  WinZip AES
 entries append \fI/AE1\fP, \fI/AE2\fP or \fI/AE3\fP to the actual
 compression method, for example \fIdefN/AE1\fP or \fIstor/AE3\fP.
 .PP

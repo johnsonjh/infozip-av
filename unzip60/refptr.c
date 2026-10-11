@@ -91,6 +91,31 @@ refptr_parse_uuid (refptr_candidate *c, const uch *extra, unsigned len)
     }
 }
 
+/* Never treat WinZip AES metadata as a plaintext method-99 source.
+ * This check is deliberately independent of the optional AES decoder so
+ * RefPtr remains safe in NO_AES and SFX configurations.  A damaged extra
+ * field is unsuitable for this interpretation as well. */
+static int
+refptr_has_aes_extra (const uch *extra, unsigned len)
+{
+  unsigned off = 0;
+  if (len && extra == (const uch *)NULL)
+    return TRUE;
+  while (off < len)
+    {
+      unsigned id, n;
+      if (len - off < 4U)
+        return TRUE;
+      id = (unsigned)extra[off] | ((unsigned)extra[off+1] << 8);
+      n = (unsigned)extra[off+2] | ((unsigned)extra[off+3] << 8);
+      off += 4U;
+      if (id == 0x9901U || n > len - off)
+        return TRUE;
+      off += n;
+    }
+  return FALSE;
+}
+
 /* The reference is looked up by its central-directory local-header offset,
  * so callers are independent of filename filters and extraction ordering. */
 static const refptr_candidate *
@@ -235,6 +260,16 @@ refptr_method_supported (unsigned method)
       return TRUE;
 # endif /* ifdef USE_PPMD */
 
+# ifdef USE_CMPSC16
+    case CMPSCED:
+      return TRUE;
+# endif /* USE_CMPSC16 */
+
+# ifdef USE_LZFSE
+    case LZFSEED:
+      return TRUE;
+# endif /* USE_LZFSE */
+
     default:
       return FALSE;
     }
@@ -254,6 +289,7 @@ refptr_method_recognized (unsigned method)
     case IMPLODED: case DCLIMPLODED: case BZIPPED:
     case LZMAED: case XZED: case ZSTD_OLD: case ZSTDED:
     case PPMDED: case WZJPEGED: case WZMP3ED: case WAVPACKED:
+    case CMPSCED: case LZFSEED:
       return TRUE;
     default:
       return FALSE;
@@ -330,6 +366,9 @@ refptr_build_index (__G) __GDEF
 
       if ((G.crec.general_purpose_bit_flag & 1) != 0
           || G.crec.disk_number_start != 0
+          || (G.crec.compression_method == LZFSEED
+              && refptr_has_aes_extra (G.extra_field,
+                                       G.crec.extra_field_length))
           || !refptr_method_recognized (G.crec.compression_method))
         {
           continue;
@@ -447,6 +486,14 @@ static int refptr_select_source (__G__ c) __GDEF const refptr_candidate *c;
     {
       r = PK_ERR;
 
+      goto out;
+    }
+
+  if (c->method == LZFSEED
+      && refptr_has_aes_extra (G.extra_field,
+                               G.lrec.extra_field_length))
+    {
+      r = PK_ERR;
       goto out;
     }
 
@@ -582,6 +629,16 @@ refptr_decode_source (__G) __GDEF
     case PPMDED:
       return uz_ppmd_decompress (__G);
 # endif /* ifdef USE_PPMD */
+
+# ifdef USE_CMPSC16
+    case CMPSCED:
+      return uz_cmpsc16_decompress (__G);
+# endif /* USE_CMPSC16 */
+
+# ifdef USE_LZFSE
+    case LZFSEED:
+      return uz_lzfse_decompress (__G);
+# endif /* USE_LZFSE */
 
 # ifdef USE_WAVP
     case WAVPACKED:

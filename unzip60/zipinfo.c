@@ -1154,6 +1154,11 @@ static int zi_long(__G__ pEndprev, error_in_archive)
     if (methid == 99 && G.extra_field != NULL)
         aes_status = ef_scan_for_wzaes(G.extra_field,
           G.crec.extra_field_length, &aes_version, &aes_strength, &aes_method);
+    if (methid == 99 && aes_status == 1 &&
+        (!(G.crec.general_purpose_bit_flag & 1) ||
+         (G.crec.general_purpose_bit_flag & 0x2040) ||
+         aes_method == 99))
+        aes_status = -1;
     display_methid = (methid == 99 && aes_status == 1) ? aes_method : methid;
     methnum = find_compr_idx(display_methid);
 
@@ -1192,7 +1197,18 @@ static int zi_long(__G__ pEndprev, error_in_archive)
       extver%10));
 
     if (methid == 99 && aes_status != 1) {
-        varmsg_str = "WinZip AES encrypted (malformed or missing 0x9901)";
+        if (aes_status == 0 &&
+            !(G.crec.general_purpose_bit_flag & 1) &&
+            zip99_lzfse_probe(G.zipfn,
+              (zoff_t)G.crec.relative_offset_local_header,
+              G.extra_bytes, G.ziplen) == 1)
+            varmsg_str = "Apple LZFSE compressed (method 99)";
+        else if (aes_status < 0)
+            varmsg_str = "method 99 (malformed extra field / AES metadata)";
+        else if (G.crec.general_purpose_bit_flag & 1)
+            varmsg_str = "method 99 (encrypted, type unverified)";
+        else
+            varmsg_str = "method 99 (unknown stream, no AES extra field)";
     } else if (methnum >= NUM_METHODS) {
         sprintf(unkn, LoadFarString(UnknownNo), display_methid);
         varmsg_str = unkn;
@@ -2065,6 +2081,11 @@ static int zi_short(__G)   /* return PK-type error code */
     if (methid == 99 && G.extra_field != NULL)
         aes_status = ef_scan_for_wzaes(G.extra_field,
           G.crec.extra_field_length, &aes_version, &aes_strength, &aes_method);
+    if (methid == 99 && aes_status == 1 &&
+        (!(G.crec.general_purpose_bit_flag & 1) ||
+         (G.crec.general_purpose_bit_flag & 0x2040) ||
+         aes_method == 99))
+        aes_status = -1;
     methnum = find_compr_idx(G.crec.compression_method);
     hostnum = (unsigned)(G.pInfo->hostnum);
     hostver = (unsigned)(G.pInfo->hostver);
@@ -2098,6 +2119,14 @@ static int zi_short(__G)   /* return PK-type error code */
                     aesbase[ai] = '\0';
             }
             sprintf(methbuf, "%s/AE%u", aesbase, aes_version);
+        } else if (aes_status == 0 &&
+                   !(G.crec.general_purpose_bit_flag & 1) &&
+                   zip99_lzfse_probe(G.zipfn,
+                     (zoff_t)G.crec.relative_offset_local_header,
+                     G.extra_bytes, G.ziplen) == 1) {
+            strcpy(methbuf, "lzfse");
+        } else if (aes_status == 0) {
+            strcpy(methbuf, "m99?unk");
         } else {
             strcpy(methbuf, "aes?/bad");
         }
@@ -2351,7 +2380,7 @@ static int zi_short(__G)   /* return PK-type error code */
                 aes_ovh = (aes_version==3?44U:wzaes_overhead(aes_strength));
                 if ((zusz_t)aes_ovh <= csiz)
                     csiz -= aes_ovh;
-            } else if (methid != 99 && csiz >= 12) {
+            } else if (aes_status == 0 && csiz >= 12) {
                 csiz -= 12;    /* traditional ZipCrypto header */
             }
         }

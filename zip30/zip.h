@@ -348,6 +348,7 @@ extern int scanimage;           /* Scan through image files */
 #define ZSTD 93                 /* Zstandard method */
 #define XZ 95                   /* XZ/LZMA2 method */
 #define PPMD 98                 /* PPMd Variant I, ZIP method 98 */
+#define LZFSE 99                /* Apple LZFSE (unofficial ZIP method 99) */
 
 /* Shrink is ANSI C and its allocations fit 16-bit memory segments */
 #if !defined(NO_SHRINK) && !defined(NO_PROTO) && !defined(NO_CONST) && \
@@ -377,6 +378,13 @@ extern int scanimage;           /* Scan through image files */
 # define CMPSC16_SUPPORT
 #endif
 
+/* LZFSE uses dynamically allocated encoder state, and is disabled on 16-bit builds. */
+#include <limits.h>
+#if !defined(NO_LZFSE) && !defined(MEMORY16) && \
+    ULONG_MAX > 0xffffffffUL
+# define LZFSE_SUPPORT
+#endif
+
 /* PPMd needs a flat space large enough for 1MB minimum! */
 #if !defined(NO_PPMD) && !defined(MEMORY16)
 # define PPMD_SUPPORT
@@ -399,10 +407,11 @@ extern int scanimage;           /* Scan through image files */
 #endif
 
 /* Compression methods which Zip recognizes while reading existing archives.
- * Keep this explicit: modern method numbers are sparse (14, 20, 93, 95, 98). */
+ * Keep this explicit: modern method numbers are sparse (14, 16, 20, 93, 95, 98, 99). */
 #define KNOWN_COMPMETHOD(m) \
     ((m) <= BZIP2 || (m) == LZMA || (m) == ZSTD_OLD || \
-     (m) == ZSTD || (m) == XZ || (m) == PPMD || (m) == CMPSC16)
+     (m) == ZSTD || (m) == XZ || (m) == PPMD || (m) == CMPSC16 || \
+     (m) == LZFSE)
 
 extern int method;              /* Restriction on compression method */
 extern int cmpsc_symbol_width; /* 0=auto, otherwise 9..13 */
