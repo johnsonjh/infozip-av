@@ -1976,7 +1976,7 @@ local void version_info()
 #endif
     "DCL-Implode          (ZIP method 10; DCL-Implode; using PKDCLX v1.1.2)",
 #ifdef CMPSC16_SUPPORT
-    "IBM CMPSC            (ZIP method 16; 11-bit ASCII dictionary)",
+    "IBM CMPSC            (ZIP method 16; 11-bit per-file trained dictionary)",
 #endif
 #ifdef LZMA_SUPPORT
     lzma_opt_ver,

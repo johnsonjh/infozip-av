@@ -2313,7 +2313,8 @@ local zoff_t cmpsc16filecompress(z_entry,cmpr_method)
     ret=izcm_encode(iz_cmpsc_zip_read,iz_cmpsc_zip_write,&ctx);
     if (ret) {
         if (ctx.write_error) ziperr(ZE_TEMP,"error writing CMPSC data");
-        ziperr(ret == -2 ? ZE_MEM : ZE_READ, "CMPSC compression failed");
+        ziperr(ret == -2 ? ZE_MEM : (ret == -3 ? ZE_TEMP : ZE_READ),
+               "CMPSC compression failed");
     }
     z_entry->att=(ush)(file_binary_final ? BINARY : ASCII);
     return ctx.size;

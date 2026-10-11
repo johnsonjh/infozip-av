@@ -2533,11 +2533,17 @@ accepted by UnZip but is never created by Zip.  If compression is not
 beneficial, the normal store fallback is used.
 
 \fBcmpsc\fP \- Encode IBM z/OS CMPSC (ZIP method 16) using the
-shipped generic ASCII expansion dictionary, 2,048 symbols, and 11-bit
-CMPSC codes.  Compression uses independent longest-symbol matching;
+per-file trained expansion dictionary, 2,048 symbols, and 11-bit
+CMPSC codes.  The encoder counts recurring 2- through 7-byte sequences,
+builds a dictionary, and uses independent longest-symbol matching.
+It spools input in a temporary file during training; enough disk space
+is required for each input member, including standard input.
 \fB-1\fP through \fB-9\fP and \fB-11\fP have identical behavior.
-The embedded expansion dictionary is stored uncompressed (header 0x80).
-UnZip also reads raw Deflate-compressed dictionaries (0xC0) and supports
+The embedded dictionary is compressed using raw Deflate (0xC0)
+when beneficial, otherwise stored uncompressed (0x80).
+No automatic STORE fallback is used for nonempty CMPSC members;
+some files can grow rather than shrink.
+UnZip supports
 9-, 10-, 11-, 12-, and 13-bit symbols.  Deflate dictionary data is raw
 RFC 1951.  These archives require a method-16-capable
 extractor.  Use \fBNO_CMPSC16\fP at build time to omit the codec.
