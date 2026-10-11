@@ -1869,6 +1869,17 @@ OPTIONS
               process memory.  The default -6 uses order 8 with a 50 MiB model;
               -9 and -11 use PPMdI's maximum order 16 with a 256 MiB model.
 
+       --disable-store-fallback
+       --disable-store-fallback-
+              Disable or re-enable automatic whole-file STORE fallback when
+              compression would enlarge a member.  The default is enabled.
+              The last setting wins, including settings inherited from ZIPOPT.
+              This option does not override explicit -0 or -Z store, directory
+              or empty-file storage, or internal Deflate stored blocks.
+              Disabling fallback may increase archive sizes.  Normal fallback
+              requires that the input fits the small-member buffer and that
+              the archive output is safely seekable for header rewriting.
+
        --zopfli-iterations n
        --zopfli-iterations=n
               Set Zopfli optimization iterations (default 15, range 1 through

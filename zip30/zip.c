@@ -1655,6 +1655,7 @@ local void help_extended()
 #endif
 "",
 "Compression tuning:",
+"  --disable-store-fallback[-]      disable/enable automatic STORE fallback",
 "  --dcl-implode-mode ascii|binary  DCL-implode mode (default binary)",
 "  --dcl-implode-dict 1k|2k|4k      DCL-implode dict size (default automatic)",
 "  --dcl-implode-optimal[-]         enable/disable DCL-Implode optimal parser",
@@ -2902,6 +2903,7 @@ int set_filetype(out_path)
 #define o_aes_strength  0x154
 #define o_aes_mode      0x155
 #define o_aes_iterations 0x156
+#define o_disable_store_fallback 0x157
 #define o_sp            0x134
 #define o_su            0x135
 #define o_sU            0x136
@@ -3096,6 +3098,7 @@ struct option_struct far options[] = {
     {"",   "dcl-implode-mode", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_mode, "DCL literal mode: ascii or binary"},
     {"",   "dcl-implode-dict", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_dict, "DCL dictionary: 1k, 2k, or 4k"},
     {"",   "dcl-implode-optimal", o_NO_VALUE, o_NEGATABLE, o_dcl_optimal, "DCL optimal parse"},
+    {"",   "disable-store-fallback", o_NO_VALUE, o_NEGATABLE, o_disable_store_fallback, "Disable automatic STORE fallback"},
     {"",   "zstd-level", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_zstd_level, "Zstd native compression level 1..22"},
 #if defined(MSDOS) || defined(OS2)
     {"$",  "volume-label", o_NO_VALUE,      o_NOT_NEGATABLE, '$',  "store volume label"},
@@ -3292,6 +3295,7 @@ char **argv;            /* command line tokens */
   dispose = 0;         /* 1=remove files after put in zip file */
   pathput = 1;         /* 1=store path with name */
   method = BEST;       /* one of BEST, DEFLATE (only), or STORE (only) */
+  disable_store_fallback = 0;
   dosify = 0;          /* 1=make new entries look like MSDOS */
   verbose = 0;         /* 1=report oddities in zip file structure */
   fix = 0;             /* 1=fix the zip file */
@@ -4408,6 +4412,10 @@ char **argv;            /* command line tokens */
 
         case o_dcl_optimal:
           dcl_implode_optimal = negated ? 0 : 1;
+          break;
+
+        case o_disable_store_fallback:
+          disable_store_fallback = negated ? 0 : 1;
           break;
 
         case o_zstd_level:

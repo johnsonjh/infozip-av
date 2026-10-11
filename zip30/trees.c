@@ -1057,11 +1057,12 @@ uzoff_t flush_block(buf, stored_len, eof)
      * the whole file is transformed into a stored file:
      */
 #ifdef FORCE_METHOD
-    if (level == 1 && eof && file_method != NULL &&
+    if (!disable_store_fallback && level == 1 && eof && file_method != NULL &&
         cmpr_bytelen == (uzoff_t)0 && cmpr_len_bits == 0L
        ) { /* force stored file */
 #else
-    if (stored_len <= opt_lenb && eof && file_method != NULL &&
+    if (!disable_store_fallback && stored_len <= opt_lenb &&
+        eof && file_method != NULL &&
         cmpr_bytelen == (uzoff_t)0 && cmpr_len_bits == 0L &&
         seekable() && !use_descriptors) {
 #endif

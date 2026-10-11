@@ -2048,7 +2048,7 @@ local void small_store_init(s, limit)
     s->output_alloc = 0;
     s->active = FALSE;
 
-    if (limit == 0 || use_descriptors || !fseekable(y))
+    if (disable_store_fallback || limit == 0 || use_descriptors || !fseekable(y))
         return;
 
     s->input = (uch *)malloc(limit);
@@ -2161,7 +2161,7 @@ local zoff_t small_store_finish(s, cmpr_method, cmpr_size)
     Assert(cmpr_size == (zoff_t)s->output_size,
            "small-store compressed byte count mismatch");
 
-    if (cmpr_size >= (zoff_t)s->input_size) {
+    if (!disable_store_fallback && cmpr_size >= (zoff_t)s->input_size) {
         if (s->input_size != 0 &&
             zfwrite(s->input, 1, (extent)s->input_size) !=
                 (extent)s->input_size) {
@@ -2272,12 +2272,13 @@ local zoff_t dclfilecompress(z_entry, cmpr_method)
 typedef struct {
     zoff_t size;
     int write_error;
+    struct small_store_state *store_test;
 } iz_cmpsc_zip_ctx;
 
 static unsigned iz_cmpsc_zip_read(void *opaque, unsigned char *buf, unsigned count)
 {
-    (void)opaque;
-    return file_read((char *)buf,count);
+    iz_cmpsc_zip_ctx *ctx = (iz_cmpsc_zip_ctx *)opaque;
+    return small_store_read(ctx->store_test, (char *)buf, count);
 }
 static int iz_cmpsc_zip_write(void *opaque, const unsigned char *buf,
                               unsigned count)
@@ -2286,12 +2287,13 @@ static int iz_cmpsc_zip_write(void *opaque, const unsigned char *buf,
     unsigned char writable[4096];
     unsigned n;
     if (ctx->write_error) return -1;
-    /* zfwrite() encrypts IN PLACE for ZipCrypto and AES, so source buffers
-     * including the immutable shipped dictionary MUST be copied first. */
+    /* zfwrite() encrypts IN PLACE, so keep the encoder's input immutable.
+     * small_store_write() also buffers the candidate until it can decide
+     * whether a complete small member is better stored uncompressed. */
     while (count) {
         n=count>sizeof writable ? sizeof writable : count;
         memcpy(writable,buf,(size_t)n);
-        if (zfwrite(writable,1,(extent)n)!=(extent)n) {
+        if (small_store_write(ctx->store_test, writable, n) != n) {
             ctx->write_error=1;
             return -1;
         }
@@ -2306,18 +2308,22 @@ local zoff_t cmpsc16filecompress(z_entry,cmpr_method)
     int *cmpr_method;
 {
     iz_cmpsc_zip_ctx ctx;
+    struct small_store_state store_test;
     int ret;
-    (void)cmpr_method;  /* all compression levels use the same dictionary */
+
+    small_store_init(&store_test, (size_t)SBSZ);
     ctx.size=0;
     ctx.write_error=0;
+    ctx.store_test=&store_test;
     ret=izcm_encode(iz_cmpsc_zip_read,iz_cmpsc_zip_write,&ctx);
     if (ret) {
+        small_store_discard(&store_test);
         if (ctx.write_error) ziperr(ZE_TEMP,"error writing CMPSC data");
         ziperr(ret == -2 ? ZE_MEM : (ret == -3 ? ZE_TEMP : ZE_READ),
                "CMPSC compression failed");
     }
     z_entry->att=(ush)(file_binary_final ? BINARY : ASCII);
-    return ctx.size;
+    return small_store_finish(&store_test,cmpr_method,ctx.size);
 }
 #endif /* CMPSC16_SUPPORT */
 
@@ -3503,7 +3509,8 @@ local zoff_t filecompress(z_entry, cmpr_method)
         unsigned more = file_read((char *)(void *)(zstrm.next_in + zstrm.avail_in),
                                   (ibuf_sz - zstrm.avail_in));
         if (more == EOF || more == 0) {
-            maybe_stored = TRUE;
+            if (!disable_store_fallback)
+                maybe_stored = TRUE;
         } else {
             zstrm.avail_in += more;
         }
@@ -3811,7 +3818,8 @@ int *cmpr_method;
         unsigned more = file_read(bstrm.next_in + bstrm.avail_in,
                                   (ibuf_sz - bstrm.avail_in));
         if (more == (unsigned) EOF || more == 0) {
-            maybe_stored = TRUE;
+            if (!disable_store_fallback)
+                maybe_stored = TRUE;
         } else {
             bstrm.avail_in += more;
         }

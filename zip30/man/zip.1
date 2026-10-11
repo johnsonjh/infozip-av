@@ -2541,8 +2541,9 @@ is required for each input member, including standard input.
 \fB-1\fP through \fB-9\fP and \fB-11\fP have identical behavior.
 The embedded dictionary is compressed using raw Deflate (0xC0)
 when beneficial, otherwise stored uncompressed (0x80).
-No automatic STORE fallback is used for nonempty CMPSC members;
-some files can grow rather than shrink.
+For small members, the normal automatic STORE fallback applies when
+compression enlarges the file, unless \fB--disable-store-fallback\fP is set.
+Large members may still grow because fallback is limited to buffered input.
 UnZip supports
 9-, 10-, 11-, 12-, and 13-bit symbols.  Deflate dictionary data is raw
 RFC 1951.  These archives require a method-16-capable
@@ -2623,6 +2624,22 @@ Level   Order   Model memory
 The model-memory value is the PPMd model allocation, not total process memory.
 The default \fB-6\fP therefore uses order 8 with a 50 MiB model, while
 \fB-9\fP and \fB-11\fP use PPMdI's maximum order 16 with a 256 MiB model.
+.TP
+.PD 0
+.B \-\-disable-store-fallback
+.TP
+.PD
+.B \-\-disable-store-fallback-
+Disable or re-enable automatic whole-member fallback to ZIP STORE when the
+selected compression method fails to reduce the size of a file.  Fallback
+remains enabled by default.  The negated form re-enables it; the last setting
+wins, including settings inherited from ZIPOPT.  This is useful for testing
+experimental compression methods that may expand input data.  The setting
+does not affect explicit \fB-0\fP or \fB-Z store\fP, directories, empty
+files, or the stored blocks used internally by Deflate.  When disabled,
+compression may produce an archive larger than its input.  Fallback is
+normally attempted only for input that fits the small-member buffer and
+when Zip can safely rewrite the local header.
 .TP
 .PD 0
 .BI \-\-zopfli-iterations\ n
