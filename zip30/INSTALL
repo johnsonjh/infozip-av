@@ -411,7 +411,7 @@ Compiler Flags
     When the input size is reliably known it is pledged to libzstd so the frame
     may record it; streaming/unknown-size input remains fully streaming and
     does not get buffered merely to learn the size.  The normal small-file
-    STORE fallback is retained.
+    store fallback is retained.
 
   BZIP2_SUPPORT
     Enable compressing zip entries using the bzip2 library.  You must get

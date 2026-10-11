@@ -1871,7 +1871,7 @@ OPTIONS
 
        --disable-store-fallback
        --disable-store-fallback-
-              Disable or re-enable automatic whole-file STORE fallback when
+              Disable or re-enable automatic whole-file store fallback when
               compression would enlarge a member.  The default is enabled.
               The last setting wins, including settings inherited from ZIPOPT.
               This option does not override explicit -0 or -Z store, directory

@@ -2541,7 +2541,7 @@ is required for each input member, including standard input.
 \fB-1\fP through \fB-9\fP and \fB-11\fP have identical behavior.
 The embedded dictionary is compressed using raw Deflate (0xC0)
 when beneficial, otherwise stored uncompressed (0x80).
-For small members, the normal automatic STORE fallback applies when
+For small members, the normal automatic store fallback applies when
 compression enlarges the file, unless \fB--disable-store-fallback\fP is set.
 Large members may still grow because fallback is limited to buffered input.
 UnZip supports

@@ -1655,7 +1655,7 @@ local void help_extended()
 #endif
 "",
 "Compression tuning:",
-"  --disable-store-fallback[-]      disable/enable automatic STORE fallback",
+"  --disable-store-fallback[-]      disable/enable automatic store fallback",
 "  --dcl-implode-mode ascii|binary  DCL-implode mode (default binary)",
 "  --dcl-implode-dict 1k|2k|4k      DCL-implode dict size (default automatic)",
 "  --dcl-implode-optimal[-]         enable/disable DCL-Implode optimal parser",
@@ -3098,7 +3098,7 @@ struct option_struct far options[] = {
     {"",   "dcl-implode-mode", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_mode, "DCL literal mode: ascii or binary"},
     {"",   "dcl-implode-dict", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_dict, "DCL dictionary: 1k, 2k, or 4k"},
     {"",   "dcl-implode-optimal", o_NO_VALUE, o_NEGATABLE, o_dcl_optimal, "DCL optimal parse"},
-    {"",   "disable-store-fallback", o_NO_VALUE, o_NEGATABLE, o_disable_store_fallback, "Disable automatic STORE fallback"},
+    {"",   "disable-store-fallback", o_NO_VALUE, o_NEGATABLE, o_disable_store_fallback, "Disable automatic store fallback"},
     {"",   "zstd-level", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_zstd_level, "Zstd native compression level 1..22"},
 #if defined(MSDOS) || defined(OS2)
     {"$",  "volume-label", o_NO_VALUE,      o_NOT_NEGATABLE, '$',  "store volume label"},
