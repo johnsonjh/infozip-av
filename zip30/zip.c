@@ -1620,7 +1620,7 @@ local void help_extended()
 "Compression:",
 "  -0        store files (without using compression)",
 "  -1 to -9  compress fastest to compress best (default is -6)",
-"  -11       compress ultra (supports deflate, deflate64, zstd, cmpsc, lzfse)",
+"  -11       ultra (deflate, deflate64, dcl-implode, zstd, cmpsc, lzfse)",
 "  -Z cm     set compression method to cm:",
 "              store       - store without compression, same as option -0",
 #ifdef SHRINK_SUPPORT
@@ -1661,7 +1661,7 @@ local void help_extended()
 "  --disable-store-fallback[-]      disable/enable automatic store fallback",
 "  --dcl-implode-mode ascii|binary  DCL-implode mode (default binary)",
 "  --dcl-implode-dict 1k|2k|4k      DCL-implode dict size (default automatic)",
-"  --dcl-implode-optimal[-]         enable/disable DCL-Implode optimal parser",
+"  --dcl-implode-optimal[-]         override DCL optimal (-11 also enables it)",
 #ifdef ZOPFLI_SUPPORT
 "  --zopfli-iterations n            Zopfli iterations (default 15, 1..10000)",
 #endif
@@ -3195,6 +3195,7 @@ char **argv;            /* command line tokens */
   int zopfli_iterations_set = 0; /* --zopfli-iterations was specified */
   int dcl_mode_set = 0;          /* --dcl-implode-mode was specified */
   int dcl_dict_set = 0;          /* --dcl-implode-dict was specified */
+  int dcl_optimal_set = 0;       /* explicit --dcl-implode-optimal[-] */
 #ifdef UNICODE_TEST
   int create_files = 0;
 #endif
@@ -4421,6 +4422,7 @@ char **argv;            /* command line tokens */
 
         case o_dcl_optimal:
           dcl_implode_optimal = negated ? 0 : 1;
+          dcl_optimal_set = 1;
           break;
 
         case o_disable_store_fallback:
@@ -4928,6 +4930,11 @@ char **argv;            /* command line tokens */
     RETURN(finish(ZE_OK));
   }
 
+
+  /* -11 enables optimal DCL parsing unless overridden */
+  /* Resolved here AFTER option parsing so the negated form wins! */
+  if (method == DCLIMPLODE && level == 11 && !dcl_optimal_set)
+    dcl_implode_optimal = 1;
 
   if (level == 11 && (method == BEST || method == DEFLATE)) {
 #ifndef ZOPFLI_SUPPORT

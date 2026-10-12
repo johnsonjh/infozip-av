@@ -1790,8 +1790,9 @@ OPTIONS
               dcl-implode - Use PKWARE DCL Implode (ZIP method 10).  The
               default uses binary literal coding and automatically selects a
               1K dictionary for inputs up to 1K, 2K for inputs over 1K through
-              2K, and 4K for larger inputs.  The DCL-specific options below can
-              override literal mode and dictionary size or enable optimal parse.
+              2K, and 4K for larger inputs.  -11 enables optimal parsing mode;
+              lower levels leave it off by default.  The DCL-specific options
+              below can override literal mode, dictionary size, or parser mode.
 
               lzma - Use LZMA (ZIP method 14) through liblzma.  Unix generic
               builds enable this method with XZ Utils/liblzma 5.4.0 or newer.
@@ -1855,8 +1856,10 @@ OPTIONS
               when Zopfli support is compiled in; entries remain ZIP method 8.
               Without Zopfli support, -11 with Deflate is an error.  For
               Deflate64, -11 enables higher-effort parsing and block splitting.
-              For LZFSE, -11 tries deeper match histories with a size-based
-              fallback to the original stream; it still uses ZIP method 99.
+              For DCL Implode, -11 enables optimal parsing mode unless explicitly
+              negated with "--dcl-implode-optimal-".  For LZFSE, -11 tries deeper
+              match histories with a size-based fallback to the original
+              stream; it still uses ZIP method 99.
               Other level-aware methods retain their documented -11 mapping.
               Like -9, -11 ignores the suffix list.
 
@@ -1936,11 +1939,10 @@ OPTIONS
 
        --dcl-implode-optimal
        --dcl-implode-optimal-
-              Enable or disable the DCL optimal parser.  The default is off.
-              When enabled, Zip compares the optimal result with both the
-              compatible EXTRA parser and the legacy-compatible candidate and
-              keeps the smallest stream, so enabling optimal parsing cannot
-              enlarge the DCL candidate.  Optimal parsing can use substantially
+              Enable or disable the DCL optimal parser.  The default is off
+              for levels other than -11; -11 enables it automatically.  An
+              explicit setting (including the negated form) overrides -11
+              regardless of option order. Optimal parsing can use substantially
               more time and memory.  This option requires -Z dcl-implode when
               enabled; the negated form can cancel a setting inherited through
               ZIPOPT.
