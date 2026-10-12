@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT-0
 CC ?= cc
 CFLAGS ?= -O2 -std=c89 -Wall -Wextra
-CPPFLAGS += -D_FILE_OFFSET_BITS=64
+CPPFLAGS += -D_FILE_OFFSET_BITS=64 $(LOCAL_ZIP) $(LOCAL_UNZIP)
 UZDIR = ../unzip60
 UZFLAGS = -std=gnu89 -O2 -I$(UZDIR) -DUNIX -DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DLARGE_FILE_SUPPORT -DNO_ZLIB_NG -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD $(LOCAL_ZIP) $(LOCAL_UNZIP)
 UZUNITS = unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo api unix
