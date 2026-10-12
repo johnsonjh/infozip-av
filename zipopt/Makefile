@@ -4,7 +4,7 @@ CC ?= cc
 CFLAGS ?= -O2 -std=c89 -Wall -Wextra
 CPPFLAGS += -D_FILE_OFFSET_BITS=64
 UZDIR = ../unzip60
-UZFLAGS = -std=gnu89 -O2 -I$(UZDIR) -DUNIX -DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DLARGE_FILE_SUPPORT -DNO_ZLIB_NG -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD
+UZFLAGS = -std=gnu89 -O2 -I$(UZDIR) -DUNIX -DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DLARGE_FILE_SUPPORT -DNO_ZLIB_NG -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD $(LOCAL_ZIP) $(LOCAL_UNZIP)
 UZUNITS = unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo api unix
 UZOBJS = $(addprefix build/uz-,$(addsuffix .o,$(UZUNITS)))
 # UnZip frequently changes codec declarations in headers.  Generate private
@@ -21,11 +21,11 @@ LDLIBS += -lbz2 -llzma -lzstd
 
 all: zipopt zipopt-preflight zipopt-decodecheck
 zipopt: archive.c archive.h extract.c extract.h writer.c writer.h codec.c codec.h $(CODEC_DEPS) display.h zipopt.c $(UZOBJS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c extract.c writer.c -DZO_SHARED_UNZIP_CODECS codec.c zipopt.c $(UZOBJS) $(LDLIBS) -lm -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c extract.c writer.c -DZO_SHARED_UNZIP_CODECS codec.c zipopt.c $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 zipopt-preflight: archive.c archive.h preflight.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c preflight.c -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c preflight.c -o $@ $(LOCAL_GLDFLAGS)
 zipopt-decodecheck: archive.c archive.h extract.c extract.h decodecheck.c $(UZOBJS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) $(LDLIBS) -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) $(LDLIBS) -o $@ $(LOCAL_GLDFLAGS)
 build:
 	mkdir -p $@
 build/uz-unix.o: $(UZDIR)/unix/unix.c | build

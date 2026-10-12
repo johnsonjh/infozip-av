@@ -30,6 +30,7 @@ pvsreport/
 /zipdedup/test-refptr9903
 /zipdedup/tests/__pycache__/
 /zipdedup/zipdedup
+/zipopt/build
 /zipopt/tests/__pycache__/
 /zipopt/zipopt
 /zipopt/zipopt-decodecheck

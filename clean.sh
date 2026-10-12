@@ -34,6 +34,7 @@ test "${PREFIX:?}" = "/build" && {
   cd "${ZIPOPTDIR:?}" \
     && make clean
   rm -rf ./tests/__pycache__ 2> /dev/null || :
+  rm -rf ./build 2> /dev/null || :
 )
 
 rm -f "${UNZIPDIR:?}/"*.pic.o
