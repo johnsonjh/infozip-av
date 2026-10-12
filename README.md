@@ -56,6 +56,8 @@
   [MD5](https://en.wikipedia.org/wiki/MD5)
 * [**AES** cryptography](https://www.winzip.com/en/support/aes-encryption/)
   (**AE‑1**, **AE‑2**, and “quantum‑resistant” **AE‑3**)
+* compatibility with legacy tools (*e.g.*, [atool](https://www.nongnu.org/atool/),
+  [patool](https://wummel.github.io/patool/))
 * innumerable **bug fixes** and other improvements
 
 > [!TIP]
