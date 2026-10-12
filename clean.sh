@@ -16,23 +16,23 @@ test "${PREFIX:?}" = "/build" && {
 
 (
   cd "${UNZIPDIR:?}" \
-    && make -f unix/Makefile clean
+    && "${MAKE:-make}" -f unix/Makefile clean
 )
 
 (
   cd "${ZIPDIR:?}" \
-    && make -f unix/Makefile clean
+    && "${MAKE:-make}" -f unix/Makefile clean
 )
 
 (
   cd "${ZIPDEDUPDIR:?}" \
-    && make clean
+    && "${MAKE:-make}" clean
   rm -rf ./tests/__pycache__ 2> /dev/null || :
 )
 
 (
   cd "${ZIPOPTDIR:?}" \
-    && make clean
+    && "${MAKE:-make}" clean
   rm -rf ./tests/__pycache__ 2> /dev/null || :
   rm -rf ./build 2> /dev/null || :
 )
