@@ -4,10 +4,10 @@
  */
 
 #undef ZD_VER
-#define ZD_VER "0.3"
+#define ZD_VER "0.4"
 
 #undef ZD_DATE
-#define ZD_DATE "2026-10-11"
+#define ZD_DATE "2026-10-12"
 
 #ifndef _FILE_OFFSET_BITS
 # define _FILE_OFFSET_BITS 64
@@ -21,6 +21,7 @@
 #define DLL 1
 
 #include "../unzip60/izsha1.h"
+#include "fwkcs_md5.h"
 #include "../unzip60/unzip.h"
 
 #include <limits.h>
@@ -74,6 +75,8 @@ struct zd_entry
   unsigned csz64, usz64, off64, lcsz64, lusz64;
   unsigned char sha1[20], uuid[16];
   int digest_valid, has_ref, selected, is_source, source_index;
+  int add_md5;
+  unsigned char md5[16];
 };
 
 struct zd_archive
@@ -84,7 +87,7 @@ struct zd_archive
   struct zd_entry *members;
   unsigned long *order;
   const char *input, *output;
-  int force, verbose, quiet;
+  int force, verbose, quiet, fwkcs_md5;
 };
 
 static const char *zd_error;
@@ -789,6 +792,207 @@ zd_unzip_cb (zvoid *g, uch *p, ulg len, int flag)
   return 0;
 }
 
+static int zd_has_metachar (const char *p);
+
+/*
+ * Opt-in FWKCS mode checking all non-directory entries by name
+ * RefPtr (m92) gives the referenced plaintext bytes and
+ * not the 20-byte reference pointer!
+ */
+
+static xm_md5_ctx zd_md5_state;
+static unsigned long zd_md5_bytes, zd_md5_crc;
+static int zd_md5_failed;
+
+static int
+zd_md5_cb (zvoid *g, uch *p, ulg len, int flag)
+{
+  (void)g;
+  if (flag != 0)
+    {
+      return 0;
+    }
+
+  if (len > ULONG_MAX - zd_md5_bytes)
+    {
+      zd_md5_failed = 1;
+
+      return 1;
+    }
+
+  {
+    ulg remain = len;
+    const uch *buf = p;
+
+    while (remain)
+      {
+        unsigned take = remain > 32768UL ? 32768U : (unsigned)remain;
+
+        xm_md5_update (&zd_md5_state, buf, take);
+        buf += take;
+        remain -= take;
+      }
+  }
+
+  zd_md5_bytes += (unsigned long)len;
+  zd_md5_crc = zd_crc32_step (zd_md5_crc, p, (unsigned long)len);
+
+  return 0;
+}
+
+static int
+zd_md5_member (struct zd_archive *a, unsigned long idx,
+               unsigned char digest[16])
+{
+  struct zd_entry *e = &a->members[idx];
+  UzpInit u;
+  char *argv[5];
+  unsigned long j;
+  int rc;
+
+  if (e->name[0] && e->name[strlen (e->name) - 1] == '/')
+    {
+      if (e->usize != 0 || e->crc != 0)
+        {
+          zd_fail ("directory with nonempty contents cannot be FWKCS validated");
+
+          return 0;
+        }
+
+      xm_md5_init (&zd_md5_state);
+      xm_md5_final (digest, &zd_md5_state);
+
+      return 1;
+    }
+
+  /*
+   * The public UnZip API selects by pattern and not central index
+   * reject selecting multiple entries rather than hash wrong data.
+   */
+
+  if (!e->name[0] || zd_has_metachar (e->name))
+    {
+      zd_fail ("FWKCS cannot select member with empty or pattern name");
+
+      return 0;
+    }
+
+  for (j = 0; j < a->count; j++)
+    if (j != idx && !strcmp (e->name, a->members[j].name))
+      {
+        zd_fail ("duplicate names prevent unambiguous FWKCS verification");
+        return 0;
+      }
+
+  memset (&u, 0, sizeof (u));
+  u.structlen = sizeof (u);
+  u.msgfn = zd_md5_cb;
+  argv[0] = "unzip";
+  argv[1] = "-p";
+  argv[2] = (char *)a->input;
+  argv[3] = e->name;
+  argv[4] = NULL;
+  zd_md5_failed = 0;
+  zd_md5_bytes = 0;
+  zd_md5_crc = 0xffffffffUL;
+  xm_md5_init (&zd_md5_state);
+  rc = UzpAltMain (4, argv, &u);
+
+  if (rc != 0 || zd_md5_failed || zd_md5_bytes != e->usize
+      || (zd_md5_crc ^ 0xffffffffUL) != e->crc)
+    {
+      zd_fail ("FWKCS requested but member cannot be decoded or verified");
+
+      return 0;
+    }
+
+  xm_md5_final (digest, &zd_md5_state);
+
+  return 1;
+}
+
+/*
+ * Parse central FWKCS records without rewriting them
+ * Any malformed or repeated FWKCS is an error only
+ * with --fwkcs-md5 mode
+ */
+
+static int
+zd_prepare_fwkcs (struct zd_archive *a, unsigned long *missing)
+{
+  unsigned long i;
+  *missing = 0;
+
+  for (i = 0; i < a->count; ++i)
+    {
+      struct zd_entry *e = &a->members[i];
+      unsigned name = zd_u16 (e->cen + 28);
+      unsigned ex = zd_u16 (e->cen + 30);
+      const unsigned char *extras = e->cen + 46 + name;
+      unsigned pos = 0, n, id, got = 0;
+      unsigned char digest[16];
+      int isdir = e->name[0]
+                  && e->name[strlen (e->name) - 1] == '/';
+      while (pos < ex)
+        {
+          if (ex - pos < 4)
+            {
+              zd_fail ("malformed central extra field");
+
+              return 0;
+            }
+
+          id = zd_u16 (extras + pos);
+          n = zd_u16 (extras + pos + 2);
+
+          if (n > ex - pos - 4)
+            {
+              zd_fail ("malformed central extra field length");
+
+              return 0;
+            }
+
+          if (id == 0x4b46U)
+            {
+              if (got || n != 19 || memcmp (extras + pos + 4, "MD5", 3))
+                {
+                  zd_fail ("duplicate or invalid existing FWKCS MD5 extra");
+
+                  return 0;
+                }
+
+              got = 1;
+              memcpy (digest, extras + pos + 7, 16);
+            }
+
+          pos += n + 4;
+        }
+
+      if (!isdir || got)
+        {
+          if (!zd_md5_member (a, i, e->md5))
+            {
+              return 0;
+            }
+
+          if (got && memcmp (digest, e->md5, 16))
+            {
+              zd_fail ("existing FWKCS MD5 checksum mismatch");
+
+              return 0;
+            }
+        }
+
+      if (!got && !isdir)
+        {
+          e->add_md5 = 1;
+          ++*missing;
+        }
+    }
+
+  return 1;
+}
+
 static int
 zd_has_metachar (const char *p)
 {
@@ -1205,6 +1409,7 @@ zd_rewrite_central (struct zd_entry *e, FILE *out)
   unsigned char *p;
   unsigned long len = e->cenlen;
   int add = (e->selected || (e->is_source && !e->has_ref));
+  int add_md5 = e->add_md5;
   unsigned v = zd_u16 (e->cen + 6);
   unsigned long crc;
 
@@ -1220,6 +1425,18 @@ zd_rewrite_central (struct zd_entry *e, FILE *out)
       len += 24;
     }
 
+  if (add_md5)
+    {
+      if (nex > 65535U - 23U)
+        {
+          zd_fail ("central extra field cannot accommodate FWKCS MD5");
+          return 0;
+        }
+
+      nex += 23U;
+      len += 23UL;
+    }
+
   c = (unsigned char *)malloc ((size_t)len);
   if (!c)
     {
@@ -1228,9 +1445,11 @@ zd_rewrite_central (struct zd_entry *e, FILE *out)
     }
 
   memcpy (c, e->cen, 46UL + name + ex);
-  if (add)
+
+  if (add || add_md5)
     {
-      memset (c + 46UL + name + ex, 0, 24);
+      memset (c + 46UL + name + ex, 0,
+              (add ? 24U : 0U) + (add_md5 ? 23U : 0U));
     }
 
   memcpy (c + 46UL + name + nex, e->cen + 46UL + name + ex, com);
@@ -1271,6 +1490,15 @@ zd_rewrite_central (struct zd_entry *e, FILE *out)
   else
     {
       zd_w32 (c + 42, e->new_off);
+    }
+
+  if (add_md5)
+    {
+      p = c + 46 + name + ex + (add ? 24U : 0U);
+      zd_w16 (p, 0x4b46U);
+      zd_w16 (p + 2, 19U);
+      memcpy (p + 4, "MD5", 3);
+      memcpy (p + 7, e->md5, 16);
     }
 
   if (!zd_patch64 (c + 46 + name, nex, e->usz64, e->csz64, e->off64, e->usize,
@@ -1694,9 +1922,16 @@ zd_usage (FILE *out)
 /******************************************************************************/
 "Xtro-ZIP - zipdedup - WinZip-compatible (\"ZIPX\" method 92) de-duplication\n"
 "Release %s - %s - https://github.com/johnsonjh/infozip-av\n"
-"Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>\n\n"
-"Usage: zipdedup [--force] [-v|--verbose] [-q|--quiet] <in.zip> <out.zip>\n"
-"       zipdedup --help | --version\n", ZD_VER, ZD_DATE);
+"Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>\n"
+"\n", ZD_VER, ZD_DATE);
+(void)fprintf (out,
+"Usage: zipdedup [option(s)...] <in.zip> <out.zip>\n"
+"  -f, --force          allow dangerous operations\n"
+"  -5, --fwkcs-md5      write FWKCS MD5 metadata to output\n"
+"  -q, --quiet          suppress non-essential output\n"
+"  -v, --verbose        verbose output display mode\n"
+"  -V, --version        display the zipopt version\n"
+"  -h, --help           display this help text\n");
 /******************************************************************************/
 }
 
@@ -1705,50 +1940,65 @@ main (int argc, char **argv)
 {
   struct zd_archive a;
   int i, nargs = 0, ok = 0, apk_block, align_ok, align_seen;
-  unsigned long count = 0, saved = 0;
+  unsigned long count = 0, saved = 0, missing = 0;
+  int rewrite;
   const char *paths[2];
   char *tmp = NULL;
   FILE *out = NULL;
   int fd = -1;
 
   memset (&a, 0, sizeof (a));
+
   for (i = 1; i < argc; i++)
     {
-      if (!strcmp (argv[i], "--force"))
+      if (!strcmp (argv[i], "--fwkcs-md5") || !strcmp (argv[i], "-5"))
+        {
+          a.fwkcs_md5 = 1;
+
+          continue;
+        }
+
+      if (!strcmp (argv[i], "--force") || !strcmp (argv[i], "-f"))
         {
           a.force = 1;
+
           continue;
         }
 
       if (!strcmp (argv[i], "--verbose") || !strcmp (argv[i], "-v"))
         {
           a.verbose = 1;
+
           continue;
         }
 
       if (!strcmp (argv[i], "--quiet") || !strcmp (argv[i], "-q"))
         {
           a.quiet = 1;
+
           continue;
         }
 
       if (!strcmp (argv[i], "--help") || !strcmp (argv[i], "-h"))
         {
           zd_usage (stdout);
+
           return 0;
         }
 
-      if (!strcmp (argv[i], "--version"))
+      if (!strcmp (argv[i], "--version") || !strcmp (argv[i], "-V"))
         {
           fprintf (stdout, "zipdedup v%s (%s)%s\n", ZD_VER, ZD_DATE,
                    iz_sha1_hardware_active ()
                        ? " [Hardware SHA acceleration enabled]" : "");
+
           return 0;
         }
 
       if (argv[i][0] == '-' || nargs >= 2)
         {
           zd_usage (stderr);
+
           return 2;
         }
 
@@ -1758,6 +2008,7 @@ main (int argc, char **argv)
   if (nargs != 2)
     {
       zd_usage (stderr);
+
       return 2;
     }
 
@@ -1780,11 +2031,13 @@ main (int argc, char **argv)
     }
 
   if (!zd_input_representable (a.in)
-      || !zd_load (&a) || !zd_plan (&a, &count, &saved))
+      || !zd_load (&a) || !zd_plan (&a, &count, &saved)
+      || (a.fwkcs_md5 && !zd_prepare_fwkcs (&a, &missing)))
     {
       goto done;
     }
 
+  rewrite = (count != 0 || missing != 0);
   apk_block = zd_apk_signing_block (&a);
 
   if (apk_block)
@@ -1792,20 +2045,20 @@ main (int argc, char **argv)
       fprintf (stderr, "zipdedup: warning: APK Signing Block detected%s\n",
                apk_block == 2 ? " (malformed envelope)" : "");
 
-      if (count && !a.force)
+      if (rewrite && !a.force)
         {
           zd_fail ("APK Signing Block prevents rewrite (use --force to override)");
 
           goto done;
         }
 
-      if (count)
+      if (rewrite)
         {
           fprintf (stderr, "zipdedup: warning: --force may invalidate APK signatures\n");
         }
     }
 
-  if (count)
+  if (rewrite)
     {
       align_ok = zd_alignment_preserved (&a, &align_seen);
 
@@ -1862,7 +2115,7 @@ main (int argc, char **argv)
     }
 
   fd = -1;
-  if (count == 0)
+  if (!rewrite)
     {
       if (!zd_copy (a.in, out, 0, a.bytes))
         {

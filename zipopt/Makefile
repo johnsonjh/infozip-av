@@ -27,7 +27,7 @@ LDLIBS += -lbz2 -llzma -lzstd
 # of LOCAL_ZIP/LOCAL_UNZIP and to preserve conditional ABI declarations.
 ZOCODEC = build/zo-codec.o
 all: zipopt zipopt-preflight zipopt-decodecheck
-zipopt: archive.c archive.h extract.c extract.h writer.c writer.h codec.c codec.h $(CODEC_DEPS) display.h zipopt.c $(ZOCODEC) $(UZOBJS)
+zipopt: archive.c archive.h extract.c extract.h writer.c writer.h codec.c codec.h $(CODEC_DEPS) display.h fwkcs_md5.h zipopt.c $(ZOCODEC) $(UZOBJS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c extract.c writer.c zipopt.c $(ZOCODEC) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 zipopt-preflight: archive.c archive.h preflight.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c preflight.c -o $@ $(LOCAL_GLDFLAGS)
@@ -62,6 +62,7 @@ test: test-display test-index test-structures test-zip64-offset test-interrupt t
 	./test-zip64-offset
 	./test-interrupt
 	./tests/test_zipopt.sh
+	python3 tests/test_fwkcs_md5.py
 	./test-source-stability
 -include $(UZDEPS)
 clean:

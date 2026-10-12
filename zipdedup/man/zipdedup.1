@@ -18,6 +18,13 @@ Override the APK Signing Block and known alignment-field rewriting safeguards.
 This will invalidate APK signatures and data alignment!  The diagnostics remain
 visible even with --quiet.  All other archive validation remains unchanged.
 .TP
+.B --fwkcs-md5
+Verify existing FWKCS MD5 metadata and add missing central-directory MD5
+records for files.  Does not add metadata to directory entries.  Note than
+an otherwise unchanged archive is rewritten if new MD5 fields are needed.
+Existing APK-signature and alignment safeguards still apply.  Missing or
+invalid decoded data or malformed MD5 metadata will cause an error.
+.TP
 .BR -v , " --verbose"
 Show which member is retained for each duplicate.
 .TP
@@ -42,6 +49,7 @@ fields prevent a rewrite unless --force is supplied; no-op archives are copied
 unchanged. This is not a general Android zipalign verifier. Supported codecs depend on the linked UnZip build.
 The current utility is a POSIX program written in strictly ANSI C89 syntax.
 ZIP64 offsets exceeding the platform's C long file-position range are refused.
+Input file sizes are checked before writing and output positions are checked while writing.
 An existing output archive is never overwritten.
 .SH EXIT STATUS
 0 for success (including no duplicate files); 1 for archive or

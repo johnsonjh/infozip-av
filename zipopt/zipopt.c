@@ -4,7 +4,7 @@
  */
 
 #undef ZO_VER
-#define ZO_VER "0.3"
+#define ZO_VER "0.4"
 
 #undef ZO_DATE
 #define ZO_DATE "2026-10-12"
@@ -14,6 +14,7 @@
 #include "display.h"
 #include "extract.h"
 #include "writer.h"
+#include "fwkcs_md5.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -26,6 +27,40 @@ typedef struct
   zo_u64 size;
   unsigned code;
 } zo_verbose_record;
+
+/*
+ * Digest the already-CRC-checked uncompressed temporary file
+ * Don't decode again nor trust the compressed methods physical bytes
+ */
+
+static int
+zo_decoded_md5 (FILE *in, unsigned char md5[16])
+{
+  xm_md5_ctx ctx;
+  unsigned char buf[32768];
+  size_t n;
+
+  if (fseek (in, 0, SEEK_SET) != 0)
+    {
+      return 0;
+    }
+
+  xm_md5_init (&ctx);
+
+  while ((n = fread (buf, 1, sizeof (buf), in)) != 0)
+    {
+      xm_md5_update (&ctx, buf, (unsigned)n);
+    }
+
+  if (ferror (in))
+    {
+      return 0;
+    }
+
+  xm_md5_final (md5, &ctx);
+
+  return 1;
+}
 
 static int
 zo_verbose_descending (const void *left, const void *right)
@@ -145,8 +180,9 @@ fprintf (stdout,
         "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com\n\n",
         ZO_VER, ZO_DATE);
 
-  puts ("Usage: zipopt [-v|--verbose] [--methods=...] <in.zip> <out.zip>\n"
+  puts ("Usage: zipopt [option(s)...] <in.zip> <out.zip>\n"
         "  --methods=<help|list|all>      specify methods (default: all)\n"
+        "  --fwkcs-md5                    write FWKCS MD5 metadata to output\n"
         "  --dcl-implode-optimal          enable DCL-Implode optimal parser");
   puts ("  --zopfli-iterations=N          Zopfli passes (1..10000; default 15)\n"
         "  -v, --verbose                  verbose output display mode\n"
@@ -410,7 +446,8 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size)
       zo_entry *y = &output.entries[(size_t)i];
 
       if (y->name_len != x->name_len || memcmp (y->name, x->name, x->name_len)
-          || y->has_fwkcs || y->method != w->entries[(size_t)i].method
+          || y->has_fwkcs != (unsigned)w->entries[(size_t)i].has_md5
+          || y->method != w->entries[(size_t)i].method
           || y->flags != w->entries[(size_t)i].flags
           || y->csize != w->entries[(size_t)i].csize || y->usize != x->usize
           || y->crc != x->crc
@@ -488,6 +525,7 @@ main (int argc, char **argv)
   unsigned size_width = 0, verbose_count = 0;
   unsigned member_width = 0;
   int rc = 1, verbose = 0, original_win, iterations_set = 0;
+  int fwkcs_md5 = 0;
   zo_settings settings;
   int j;
 
@@ -517,6 +555,10 @@ main (int argc, char **argv)
       else if (!strcmp (arg, "--dcl-implode-optimal"))
         {
           settings.dcl_optimal = 1;
+        }
+      else if (!strcmp (arg, "--fwkcs-md5"))
+        {
+          fwkcs_md5 = 1;
         }
       else if (!strncmp (arg, "--zopfli-iterations=", 20))
         {
@@ -794,11 +836,24 @@ main (int argc, char **argv)
               goto done;
             }
 
+          /* no FWKCS for directory entries, but preexisting and verified
+           * directory FWKCS preserved when the option is requested */
+          if (fwkcs_md5 && e->has_fwkcs)
+            {
+              if (!zo_decoded_md5 (decoded, w.entries[(size_t)i].md5))
+                {
+                  goto done;
+	        }
+
+              w.entries[(size_t)i].has_md5 = 1;
+            }
+
           fprintf (stderr, "  directory: stored (0 bytes)\n");
 
           if (e->has_fwkcs)
             {
-              fputs ("  FWKCS input MD5 verified; omitted from output\n",
+              fputs (fwkcs_md5 ? "  FWKCS input MD5 verified; retained in output\n"
+                               : "  FWKCS input MD5 verified; omitted from output\n",
                      stderr);
             }
 
@@ -889,6 +944,17 @@ main (int argc, char **argv)
               fclose (candidate);
               candidate = NULL;
             }
+        }
+
+      if (fwkcs_md5)
+        {
+          if (!zo_decoded_md5 (decoded, w.entries[(size_t)i].md5))
+            {
+              fprintf (stderr, "zipopt: cannot calculate FWKCS MD5\n");
+              goto done;
+            }
+
+          w.entries[(size_t)i].has_md5 = 1;
         }
 
       if (original_win)
@@ -1010,7 +1076,8 @@ main (int argc, char **argv)
 
         if (e->has_fwkcs)
           {
-            fputs ("  FWKCS input MD5 verified; omitted from output\n",
+            fputs (fwkcs_md5 ? "  FWKCS input MD5 verified; retained in output\n"
+                             : "  FWKCS input MD5 verified; omitted from output\n",
                    stderr);
           }
       }

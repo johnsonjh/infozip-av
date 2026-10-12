@@ -14,6 +14,8 @@ typedef struct zo_outentry
 {
   zo_u64 local_off, usize, csize;
   unsigned method, flags, version;
+  int has_md5;
+  unsigned char md5[16];
 } zo_outentry;
 
 typedef struct zo_writer

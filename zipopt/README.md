@@ -1,5 +1,7 @@
 # zipopt — lossless per-member ZIP compression optimizer
 
+**NOTE: AI/LLM generated README based on the source code, so it's likely terrible.**
+
 `zipopt` is a standalone, in-process optimizer built against this source tree.
 It uses the source tree's compression codecs and a **private** embedded UnZip
 build.  It never launches external executables.  In version 1, Unix/POSIX
@@ -20,6 +22,7 @@ Invoke:
     zipopt/zipopt --methods=help
     zipopt/zipopt --zopfli-iterations=30 input.zip output.zip
     zipopt/zipopt --dcl-implode-optimal input.zip output.zip
+    zipopt/zipopt --fwkcs-md5 --methods=store input.zip output.zip
 
 `--methods=` accepts comma-separated names from the registry in `codec.c`:
 store, shrink, reduce-l1 through reduce-l4, implode-4k-2, implode-4k-3,
@@ -41,12 +44,17 @@ Implode is therefore eligible if *any* Implode variant is enabled. Original
 LZFSE, CMPSC and legacy Zstandard method 20 are never retained under `all`.
 
 The input is parsed strictly and each member must decode with the linked UnZip
-and match the original CRC and size. FWKCS MD5 extras are accepted and verified
-but are always removed from the output. Encryption, PKAV, RefPtr, SFX prefixes,
-split archives, digital signatures, and unrecognized extra fields are rejected.
-Existing safe metadata, member names/order/comments, archive comments, and
-compatible timestamps are copied; ZIP64 and other compression-dependent records
-are regenerated. Only regular single-disk ZIP archives are supported.
+and match the original CRC and size. FWKCS MD5 extras are accepted and verified.
+By default they are removed from the output; with `--fwkcs-md5`, the output
+central directory includes FWKCS MD5 for each regular file (including empty
+files), never newly adding it to directories. Pre-existing valid directory
+FWKCS is retained if enabled.  The digest covers uncompressed bytes and never
+appears in local extras.  The option never changes the compressed member
+selection. Encryption, PKAV, RefPtr, SFX prefixes,  split archives, digital
+signatures, and unrecognized extra fields are rejected.  Existing safe metadata,
+member names/order/comments, archive comments, and compatible timestamps are
+copied; ZIP64 and other compression-dependent records  are regenerated. Only
+regular single-disk ZIP archives are supported.
 
 Progress always identifies the member being processed, with filenames safely
 escaped. The `[member current/total] index` prefix shows a right-aligned,

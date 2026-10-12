@@ -583,7 +583,8 @@ zo_writer_complete (zo_writer *w)
       z64 = zsz || zcs || zoff;
       need = (zsz ? 8 : 0) + (zcs ? 8 : 0) + (zoff ? 8 : 0);
 
-      if (z64 && nx > 65535 - 4 - need)
+      if (nx > 65535U - (z64 ? 4U + need : 0U)
+                    - (o->has_md5 ? 23U : 0U))
         {
           free (extra);
           return 0;
@@ -608,7 +609,8 @@ zo_writer_complete (zo_writer *w)
       if (!zo_write (w, cen + 12, 4) || !zo_w32 (w, e->crc)
           || !zo_w32 (w, zcs ? ZO32MAX : o->csize)
           || !zo_w32 (w, zsz ? ZO32MAX : o->usize) || !zo_w16 (w, e->name_len)
-          || !zo_w16 (w, nx + (z64 ? 4 + need : 0))
+          || !zo_w16 (w, nx + (z64 ? 4 + need : 0)
+                             + (o->has_md5 ? 23U : 0U))
           || !zo_w16 (w, e->central_comment_len) || !zo_w16 (w, 0)
           || !zo_write (w, cen + 36, 6)
           || !zo_w32 (w, zoff ? ZO32MAX : o->local_off)
@@ -635,6 +637,16 @@ zo_writer_complete (zo_writer *w)
             }
 
           if (zoff && !zo_w64 (w, o->local_off))
+            {
+              goto fail;
+            }
+        }
+
+      if (o->has_md5)
+        {
+          if (!zo_w16 (w, 0x4b46U) || !zo_w16 (w, 19U)
+              || !zo_write (w, "MD5", 3)
+              || !zo_write (w, o->md5, 16))
             {
               goto fail;
             }

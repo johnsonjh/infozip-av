@@ -48,7 +48,7 @@ UZOBJECTS = $(addprefix $(UZDIR)/,unzip.pic.o crc32.pic.o crypt.pic.o \
 all: zipdedup
 unzip-objects:
 	$(MAKE) -B -C $(UZDIR) -f unix/Makefile objsdll CC="$(CC)" CFLAGS="$(UZFLAGS) $(ZD_BACKEND_FLAGS)"
-zipdedup: zipdedup.c refptr9903.c unzip-objects
+zipdedup: zipdedup.c fwkcs_md5.h refptr9903.c unzip-objects
 	$(CC) $(CFLAGS) $(LOCAL_UNZIP) $(ZD_METHODS) $(ZD_BACKEND_FLAGS) -DUNIX -DDLL -I$(UZDIR) zipdedup.c refptr9903.c $(UZOBJECTS) -o $@ $(LDLIBS) $(LOCAL_GLDFLAGS)
 clean:
 	rm -f zipdedup test-refptr9903
@@ -61,5 +61,6 @@ test: zipdedup test-refptr9903
 	python3 tests/test_zipdedup.py
 	python3 tests/test_refptr_metadata.py
 	python3 tests/test_rewrite_safeguards.py
+	python3 tests/test_fwkcs_md5.py
 	python3 tests/test_lzfse_cmpsc.py
 .PHONY: test
