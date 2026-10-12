@@ -3753,12 +3753,23 @@ reprompt:
                         do {
                             Info(slide, 0x81, ((char *)slide,
                               LoadFarString(NewNameQuery)));
-                            fgets(G.filename, FILNAMSIZ, stdin);
+                            if (fgets(G.filename, FILNAMSIZ, stdin)
+                                == (char *)NULL) {
+                                Info(slide, 1, ((char *)slide,
+                                  LoadFarString(AssumeNone)));
+                                skip_entry = SKIP_Y_EXISTING;
+                                if (!error_in_archive)
+                                    error_in_archive = PK_WARN;
+                                break;
+                            }
                             /* usually get \n here:  better check for it */
                             fnlen = strlen(G.filename);
-                            if (lastchar(G.filename, fnlen) == '\n')
+                            if (fnlen != 0 &&
+                                lastchar(G.filename, fnlen) == '\n')
                                 G.filename[--fnlen] = '\0';
                         } while (fnlen == 0);
+                        if (skip_entry != SKIP_NO)
+                            break;
 #ifdef WIN32  /* WIN32 fgets( ... , stdin) returns OEM coded strings */
                         _OEM_INTERN(G.filename);
 #endif
@@ -3789,7 +3800,8 @@ reprompt:
                            (fnlen can be re-used here, we are outside the
                            "enter new filename" loop) */
                         fnlen = strlen(G.answerbuf);
-                        if (lastchar(G.answerbuf, fnlen) == '\n')
+                        if (fnlen != 0 &&
+                            lastchar(G.answerbuf, fnlen) == '\n')
                             G.answerbuf[--fnlen] = '\0';
                         Info(slide, 1, ((char *)slide,
                           LoadFarString(InvalidResponse), G.answerbuf));
