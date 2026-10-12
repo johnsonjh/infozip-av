@@ -9,7 +9,7 @@ UZDIR = ../unzip60
 # CMPSC/LZFSE are selected by unzpriv.h according to target capability.
 # LZFSE uses GCC/Clang C89-mode 64-bit integers on ILP32/LLP64 (Win32/Win64);
 # only 16-bit and non-64-bit-integer compilers are excluded.
-UZFLAGS = -O3 -fPIC -DUNIX -DDLL -DLARGE_FILE_SUPPORT -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD $(LOCAL_UNZIP)
+UZFLAGS = -std=gnu89 -O3 -fPIC -DUNIX -DDLL -DLARGE_FILE_SUPPORT -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD $(LOCAL_UNZIP)
 # ZipDedup builds private UnZip-style objects.  ZD_BACKEND, not LOCAL_UNZIP,
 # selects the external compression/CRC backend (auto/native/zlib/internal).
 # LOCAL_UNZIP carries only CFLAGS and must not be interpreted as a backend.
