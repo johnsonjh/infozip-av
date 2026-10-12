@@ -14,6 +14,7 @@
   * [Features](#features)
 - [Usage](#usage)
   * [De-duplication (`zipdedup`)](#de-duplication-zipdedup)
+  * [Optimization (`zipopt`)](#optimization-zipopt)
   * [PKAV](#pkav)
     + [PKAV archive creation (`zip`)](#pkav-archive-creation-zip)
     + [PKAV archive testing (`unzip`)](#pkav-archive-testing-unzip)
