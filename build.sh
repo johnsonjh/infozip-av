@@ -8,6 +8,12 @@ test -z "${MAKE:-}" 2> /dev/null && {
     || printf '%s\n' 'make')"
 }
 
+if [ "$(uname -s 2> /dev/null || :)" = "OpenBSD" ]; then
+  LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-} -L/usr/local/lib -liconv"
+  LOCAL_UNZIP="${LOCAL_UNZIP:-} -I/usr/local/include"
+  LOCAL_ZIP="${LOCAL_ZIP:-} -I/usr/local/include"
+fi
+
 if [ "$(uname -s 2> /dev/null || :)" = "FreeBSD" ]; then
   LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-} -L/usr/local/lib -liconv"
   LOCAL_UNZIP="${LOCAL_UNZIP:-} -I/usr/local/include"
