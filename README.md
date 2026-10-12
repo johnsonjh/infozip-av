@@ -186,8 +186,8 @@ Invoke as `zipdedup --help` for complete `zipdedup` usage information.
 ### Optimization (`zipopt`)
 
 The new `zipopt` tool optimizes an existing ZIP file by recompressing each
-member of the archive using every available (or, every requested) supported
-compression method, keeping the method that produces the smallest output
+member of the archive using every possible (or every requested) compression
+method, keeping the data from the method that produces the smallest output
 (which could be the original input).
 
 Relevant archive metadata is preserved and extensive checking is performed to
@@ -199,9 +199,9 @@ z/OS CMPSC methods.
 
 ```
 $ zipopt original.zip optimized.zip
-optimized.zip: complete [7 members]
-zipopt: 44,283 bytes -> 45,499 bytes -> 11,760 bytes
-        (-3% -> 74% -> 73%) [33,739 bytes saved]
+optimized.zip: complete [1043 members]
+zipopt: 13,005,195 bytes -> 3,767,243 bytes -> 3,093,724 bytes
+        (71% -> 18% -> 76%) [673,519 bytes saved]
 ```
 
 Invoke as `zipopt --help` for complete `zipopt` usage information.
