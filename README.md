@@ -600,10 +600,11 @@ No errors detected in compressed data of pkz110.exe.
 ## Licenses
 
 * The **Shrink**, **Reduce**, **ZIP**&nbsp;**Implode**, and **Deflate64**
-  compressors, **IBM**&nbsp;**CMPSC** decompressor, **WZ‑JPEG** decompressor,
-  **WZ‑MP3** decompressor, and the **PKAV** and **FWKCS** additions to
-  Info‑ZIP are provided under the [MIT‑0](LICENSE) license, or, at your
-  option, the [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
+  compressors, the **IBM**&nbsp;**CMPSC** compressor and decompressor, the
+  **Xceed**&nbsp;**BWT**, **WZ‑JPEG**, and **WZ‑MP3** decompressors, and the
+  **PKAV** and **FWKCS** additions to Info‑ZIP are provided under the
+  [`MIT‑0`](LICENSE) license, or, at your option, the
+  [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
   [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
 
 * The **Shrink**, **Reduce**, and **ZIP Implode** decompression
@@ -611,18 +612,18 @@ No errors detected in compressed data of pkz110.exe.
   [Jason Summers](https://github.com/jsummers/oldunzip).
 
 * The **DCL**&nbsp;**Implode** compression and decompression implementations
-  use the [MIT‑0](LICENSE) licensed
+  use the [`MIT‑0`](LICENSE) licensed
   [PKDCLX](https://github.com/johnsonjh/pkdclx) routines.
 
 * The **PPMd** compression and decompression implementations are derived from
   the public‑domain [7‑Zip PPMd](https://www.7-zip.org/sdk.html) routines.
 
 * The **Zopfli** compression algorithm used is derived from the
-  [Apache‑2.0](zip30/zopfli.LICENSE) licensed upstream
+  [`Apache‑2.0`](zip30/zopfli.LICENSE) licensed upstream
   [reference implementation](https://github.com/google/zopfli).
 
 * The **LZFSE** compression and decompression implementations are derived from
-  the [BSD‑3‑Clause](zip30/LZFSE-LICENSE.txt) licensed upstream
+  the [`BSD‑3‑Clause`](zip30/LZFSE-LICENSE.txt) licensed upstream
   [reference implementation](https://github.com/lzfse/lzfse).
 
 * The Info‑ZIP software suites (Zip and UnZip, with included tools) are
@@ -632,7 +633,7 @@ No errors detected in compressed data of pkz110.exe.
 ## External links
 
 * [Common ZIP](https://commonzip.org/) ‑ Open‑source specification for the ZIP file format
-* [`hexdump-zip`](https://github.com/johnsonjh/hexdump-zip) ‑ ANSI C89 implementation of [`thejoshwolfe/hexdump-zip`](https://github.com/thejoshwolfe/hexdump-zip)
+* [`hexdump‑zip`](https://github.com/johnsonjh/hexdump-zip) ‑ ANSI C89 implementation of [`thejoshwolfe/hexdump-zip`](https://github.com/thejoshwolfe/hexdump-zip)
 * [`johnsonjh/pkstuff`](https://github.com/johnsonjh/pkstuff) ‑ PKZIP/PKUNZIP/PKSFX/PKLITE utilities
 * [PKDCLX](https://github.com/johnsonjh/pkdclx) ‑ PKWARE DCL‑compatible Extended DCL‑Implode and DCL‑Explode
 * [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT) ‑ Current ZIP file format specification
