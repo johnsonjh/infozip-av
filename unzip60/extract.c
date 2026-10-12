@@ -859,7 +859,11 @@ static int uz_lzma_decompress(__G)
 
     options = (lzma_options_lzma *)filters[0].options;
     if (!eos) {
-        options->ext_flags = 0;
+        /* some PKZIPC method 14 members have an LZMA end-marker
+         * with general-purpose bit 1 clear; with a known output
+         * length liblzma can accept either way while rejecting
+         * a marker before the required number of output bytes */
+        options->ext_flags = LZMA_LZMA1EXT_ALLOW_EOPM;
         lzma_set_ext_size((*options), (uint64_t)G.lrec.ucsize);
     }
 
