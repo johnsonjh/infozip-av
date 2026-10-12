@@ -2437,6 +2437,18 @@ int extract_or_test_files(__G)    /* return PK-type error code */
                     break;
                 }
             }
+#ifdef ZIPOPT_EMBED
+            if (G.zipopt_select_enabled) {
+                if ((z_uint8)members_processed == G.zipopt_selected_index) {
+                    if (store_info(__G)) {
+                        G.zipopt_select_found = TRUE;
+                        ++j;
+                    } else {
+                        ++num_skipped;
+                    }
+                }
+            } else
+#endif
             if (G.process_all_files) {
                 if (store_info(__G))
                     ++j;  /* file is OK; info[] stored; continue with next */
@@ -2911,6 +2923,15 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #ifdef USE_PPMD
     if (!UNKN_PPMD && unzvers_support < UNZIP_PPMDVERS)
         unzvers_support = UNZIP_PPMDVERS;
+#endif
+#ifdef USE_REFPTR
+    /* WinZip RefPtr entries can inherit the version needed from the
+     * original compressed member (PPMd and LZMA at 6.3 atleast).
+     * Apply this exception ONLY to method 92; do not change any
+     * version check for unrelated methods (or unknown versions) */
+    if (G.crec.compression_method == REFPTR &&
+        unzvers_support < 63)
+        unzvers_support = 63;
 #endif
 
 /*---------------------------------------------------------------------------

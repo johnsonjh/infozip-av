@@ -5,6 +5,7 @@ set -e
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
 ZIPDEDUPDIR="zipdedup"
+ZIPOPTDIR="zipopt"
 
 PREFIX="$(pwd -P 2> /dev/null || :)/build"
 
@@ -26,6 +27,13 @@ test "${PREFIX:?}" = "/build" && {
 (
   cd "${ZIPDEDUPDIR:?}" \
     && make clean
+  rm -rf ./tests/__pycache__ 2> /dev/null || :
+)
+
+(
+  cd "${ZIPOPTDIR:?}" \
+    && make clean
+  rm -rf ./tests/__pycache__ 2> /dev/null || :
 )
 
 rm -f "${UNZIPDIR:?}/"*.pic.o

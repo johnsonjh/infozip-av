@@ -679,6 +679,11 @@ typedef struct _Uzp_cdir_Rec {
 
 int      UZ_EXP UzpMain            OF((int argc, char **argv));
 int      UZ_EXP UzpAltMain         OF((int argc, char **argv, UzpInit *init));
+#if defined(ZIPOPT_EMBED) && !defined(WINDLL)
+/* private embedded API: like -p for exactly one central-directory index */
+int UZ_EXP UzpAltMainIndex OF((int argc, char **argv, UzpInit *init,
+                              unsigned long index));
+#endif
 ZCONST UzpVer * UZ_EXP UzpVersion  OF((void));
 void     UZ_EXP UzpFreeMemBuffer   OF((UzpBuffer *retstr));
 #ifndef WINDLL

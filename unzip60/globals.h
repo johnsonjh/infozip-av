@@ -198,6 +198,12 @@ typedef struct Globals {
     unsigned filespecs;   /* number of real file specifications to be matched */
     unsigned xfilespecs;  /* number of excluded filespecs to be matched */
     int process_all_files;
+#ifdef ZIPOPT_EMBED
+    /* zero-based central-directory selection never filename matching. */
+    z_uint8 zipopt_selected_index;
+    int zipopt_select_enabled;
+    int zipopt_select_found;
+#endif
     int overwrite_mode;   /* 0 - query, 1 - always, 2 - never */
     int create_dirs;      /* used by main(), mapname(), checkdir() */
     int extract_flag;
