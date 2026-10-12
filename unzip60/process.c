@@ -914,9 +914,14 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
       -----------------------------------------------------------------------*/
 
         if (G.expect_ecrec_offset==0L && G.ecrec.size_central_directory==0) {
-            if (uO.zipinfo_mode)
-                Info(slide, 0, ((char *)slide, "%sEmpty zipfile.\n",
-                  uO.lflag>9? "\n  " : ""));
+            if (uO.zipinfo_mode) {
+                /* -1 and -2 are filename-oriented modes: a valid but
+                 * empty ZIP has no names to print, fix that message
+                 * on stdout would be mistaken for a filename */
+                if (uO.lflag != 1 && uO.lflag != 2)
+                    Info(slide, 0, ((char *)slide, "%sEmpty zipfile.\n",
+                      uO.lflag>9? "\n  " : ""));
+            }
             else
                 Info(slide, 0x401, ((char *)slide, LoadFarString(ZipfileEmpty),
                                     G.zipfn));
