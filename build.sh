@@ -38,6 +38,7 @@ LOCAL_ZIP="${LOCAL_ZIP:-} ${EXTERNAL_ZLIB:-}"
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
 ZIPDEDUPDIR="zipdedup"
+ZIPOPTDIR="zipopt"
 
 PREFIX="$(pwd -P 2> /dev/null && :)/build"
 
@@ -97,6 +98,15 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
       LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
     && cp -p "zipdedup" "${PREFIX:?}/bin/zipdedup" \
     && cp -p "man/zipdedup.1" "${PREFIX:?}/man1/zipdedup.1"
+)
+
+(
+  cd "${ZIPOPTDIR:?}" \
+    && "${MAKE:-make}" -j "${CPUS:?}" all \
+      LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
+      LOCAL_ZIP="${LOCAL_ZIP:-}" \
+    && cp -p "zipopt" "${PREFIX:?}/bin/zipopt" \
+    && cp -p "man/zipopt.1" "${PREFIX:?}/man1/zipopt.1"
 )
 
 "${STRIP:-strip}" "${PREFIX:?}"/bin/* 2> /dev/null || :

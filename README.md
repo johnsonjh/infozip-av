@@ -45,6 +45,7 @@
 * **new algorithms**
 * **security** hardening
 * data **de‑duplication**
+* ZIP **optimization**
 * CRC/SHA/AES/compression **hardware** **acceleration**<sup>†</sup>
 * full [**PKAV**](https://github.com/johnsonjh/pkstuff#authenticity-verification)
   support
@@ -166,6 +167,27 @@ will be skipped).
 $ zipdedup original.zip dedup.zip
 449 new references; approximate savings: 9010081 bytes
 ```
+
+Invoke as `zipdedup --help` for complete `zipdedup` usage information.
+
+### Optimization (`zipopt`)
+
+The new `zipopt` tool optimizes an existing ZIP file by recompressing each
+member of the archive using every available (or, every requested) supported
+compression method, keeping the method that produces the smallest output
+(which could be the original input).
+
+Relevant archive metadata is preserved and extensive checking is performed to
+ensure that the process is completely lossless.
+
+```
+$ zipopt original.zip optimized.zip
+optimized.zip: complete [7 members]
+zipopt: 44,283 bytes -> 45,499 bytes -> 11,760 bytes
+        (-3% -> 74% -> 73%) [33,739 bytes saved]
+```
+
+Invoke as `zipopt --help` for complete `zipopt` usage information.
 
 ### PKAV
 
@@ -598,3 +620,4 @@ No errors detected in compressed data of pkz110.exe.
 * [PKDCLX](https://github.com/johnsonjh/pkdclx) ‑ PKWARE DCL‑compatible Extended DCL‑Implode and DCL‑Explode
 * [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT) ‑ Current ZIP file format specification
 * [WinZip WZ‑JPEG](https://www.winzip.com/static/wz/docs/wz-jpg-comp.pdf) ‑ Method&nbsp;96 JPEG Compression specification
+* [`zipdetails`](https://github.com/pmqs/zipdetails) ‑ Display details about the internal structure of Zip files

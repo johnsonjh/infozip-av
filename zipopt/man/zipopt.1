@@ -1,0 +1,101 @@
+.TH ZIPOPT 1 "October 2026" "Xtro-ZIP" "User Commands"
+.SH NAME
+zipopt \- losslessly optimize ZIP archive members by trying available compressors
+.SH SYNOPSIS
+.B zipopt
+.RB [ \-v | \-\-verbose ]
+.RB [ \-\-methods= LIST ]
+.RB [ \-\-zopfli-iterations= N ]
+.RB [ \-\-dcl-implode-optimal ]
+.I input.zip output.zip
+.SH DESCRIPTION
+.B zipopt
+reads and verifies a single-disk ZIP archive, extracts each member internally,
+tries all selected compressor configurations, and writes the smallest eligible
+compressed representation into a new archive. It retains an original compressed
+stream only when its ZIP method is permitted by the selected profile.
+The entire completed output is re-extracted and compared byte-for-byte against
+the source before it is published. No external Zip or UnZip command is launched.
+Output files are never overwritten. Each member name is displayed before
+optimization; directory entries are written as empty STORE records without
+trying every compressor. Each member begins with a right-aligned one-based
+progress count out of all central-directory members (including directories),
+followed by its original zero-based index. The selected-result line reports
+uncompressed member size, original packed member size, and selected packed
+member size. A second, aligned line gives three rounded ZIP-style percentages:
+original compression relative to uncompressed size, improvement relative to
+original packed size, and final compression relative to uncompressed size,
+followed by the number of packed bytes saved or added. Verbose mode lists the original
+packed stream and each attempted candidate in descending packed-size order,
+largest first; ties place the original first, then candidates in registry
+order. Each verbose row reports the packed size, the percentage compressed
+relative to the uncompressed member size, and the signed percentage change
+relative to the original packed stream. A plus sign means larger, a minus
+sign means smaller, and an equals sign means unchanged. Changes from zero
+packed bytes to nonzero bytes report n/a. The original row identifies its
+actual ZIP method. Columns are right-aligned to the widest observed values
+for each member, and member records are separated with a blank line.
+On successful publication, the output filename prefixes the completion line
+with the total number of members. The next line begins with
+.B zipopt:
+and reports the sum of member uncompressed sizes and physical original and
+output ZIP file sizes (including headers and metadata). A separate line,
+indented eight spaces, displays three rounded ratios: initial physical
+compression, reduction in physical archive size, and final physical
+compression, followed by the number of physical bytes saved or added.
+All byte counts have comma-separated thousands (independent of locale), while
+member ordinals and counts are not grouped. Verbose mode additionally prints
+a method-count table after the completion line and before the archive-size
+summary. The table counts methods actually recorded in the output, including
+STORE directory entries, and sorts by ascending member count, breaking ties
+by method number. Configurations sharing a ZIP method ID are aggregated;
+normal mode omits the table. In verbose mode only, the completion header is
+separated from the final member report by a blank line.
+For multiple selected candidates, flushed dots show progress; one-candidate
+runs omit dots. POSIX SIGINT, SIGTERM, SIGHUP and SIGQUIT interrupt
+handling removes the named temporary output without publishing it.
+.PP
+The default
+.B \-\-methods=all
+tries 19 configurations, which can take considerable time and temporary disk
+space. Compression runs sequentially and any failure aborts the operation.
+.SH OPTIONS
+.TP
+.BR \-v , " \-\-verbose"
+Print the original packed stream and each attempted compressor, sorted by
+compressed size in descending order.
+.TP
+.BI \-\-methods= LIST
+Comma-separated selection: store, shrink, reduce-l1, reduce-l2, reduce-l3,
+reduce-l4, implode-4k-2, implode-4k-3, implode-8k-2, implode-8k-3,
+deflate, deflate64, dcl-implode-binary, dcl-implode-ascii, bzip2, lzma,
+zstd, xz, ppmd. Use
+.B implode
+to select all four ZIP Implode variants and
+.B dcl-implode
+for both DCL modes. Use
+.B \-\-methods=help
+to display every available method; invalid names also print this list.
+.TP
+.BI \-\-zopfli-iterations= N
+Set Zopfli iteration count for Deflate -11 (1..10000, default 15).
+.TP
+.B \-\-dcl-implode-optimal
+Enable the extremely slow optimal parser for both DCL Implode candidates.
+Disabled by default.
+.TP
+.BR \-h , " \-\-help"
+Display usage.
+.SH INPUT RESTRICTIONS
+The input is rejected if encrypted (ZipCrypto, AES, or strong encryption),
+signed, spanned/split, contains PKAV or RefPtr, has an SFX prefix, or contains
+unrecognized unsafe extra fields. Valid FWKCS MD5 fields are verified and
+removed; output never carries FWKCS fields. Plain LZFSE and CMPSC streams can
+be decoded but are not generated by the default output profile.
+.SH PLATFORM
+Version 1 builds on Unix with the bundled codecs, libbz2, liblzma, and libzstd.
+Native Windows and DOS execution is not yet supported.
+.SH SEE ALSO
+.BR zip (1),
+.BR unzip (1),
+.BR zipdedup (1)

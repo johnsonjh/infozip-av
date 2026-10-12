@@ -212,6 +212,32 @@ int UZ_EXP UzpAltMain(int argc, char *argv[], UzpInit *init)
     RETURN(r);
 }
 
+#ifdef ZIPOPT_EMBED
+int UZ_EXP UzpAltMainIndex(int argc, char *argv[], UzpInit *init,
+                            unsigned long index)
+{
+    int r, (*dummyfn)();
+    CONSTRUCTGLOBALS();
+    if (init == NULL || init->structlen < sizeof(ulg) + sizeof(dummyfn)
+        || init->msgfn == NULL) {
+        DESTROYGLOBALS();
+        return PK_PARAM;
+    }
+    G.message = init->msgfn;
+    if (init->structlen >= sizeof(ulg) + 2 * sizeof(dummyfn) && init->inputfn)
+        G.input = init->inputfn;
+    if (init->structlen >= sizeof(ulg) + 3 * sizeof(dummyfn) && init->pausefn)
+        G.mpause = init->pausefn;
+    G.zipopt_select_enabled = TRUE;
+    G.zipopt_selected_index = (z_uint8)index;
+    G.zipopt_select_found = FALSE;
+    r = unzip(__G__ argc, argv);
+    if (r == PK_COOL && !G.zipopt_select_found)
+        r = PK_FIND;
+    DESTROYGLOBALS();
+    RETURN(r);
+}
+#endif /* ZIPOPT_EMBED */
 #endif /* !WINDLL */
 
 
