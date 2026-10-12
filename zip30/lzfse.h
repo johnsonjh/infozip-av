@@ -1,6 +1,9 @@
-/* Amalgamated and modified for the Info-ZIP fork.
- * Upstream: https://github.com/lzfse/lzfse (Apple Inc., BSD-3-Clause).
- * Full original license follows.
+/* Amalgamated and somewhat heavily modified for the Xtro-ZIP fork.
+ *
+ * Upstream: https://github.com/lzfse/lzfse
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Full original license follows:
  * Copyright (c) 2015-2016, Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1241,6 +1244,11 @@ typedef struct
   /*  corresponds to a group of four byte sequences in the input stream */
   /*  that hash to the same value. */
   lzfse_history_set history_table[LZFSE_ENCODE_HASH_VALUES];
+  /* Optional -11-only 8-way history; default encoder uses the table above. */
+  lzfse_history_set *ultra_history;
+  lzfse_history_set *ultra_history_extra;
+  unsigned int active_hash_bits;
+  unsigned int good_match_length;
 } lzfse_encoder_state;
 
 /*! @abstract Decoder state object for lzfse compressed blocks. */

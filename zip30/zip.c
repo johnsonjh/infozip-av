@@ -1620,7 +1620,7 @@ local void help_extended()
 "Compression:",
 "  -0        store files (without using compression)",
 "  -1 to -9  compress fastest to compress best (default is -6)",
-"  -11       compress ultra (supported for: deflate, deflate64, zstd, cmpsc)",
+"  -11       compress ultra (supports deflate, deflate64, zstd, cmpsc, lzfse)",
 "  -Z cm     set compression method to cm:",
 "              store       - store without compression, same as option -0",
 #ifdef SHRINK_SUPPORT

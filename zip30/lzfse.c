@@ -1,6 +1,9 @@
-/* Amalgamated and modified for the Info-ZIP fork.
- * Upstream: https://github.com/lzfse/lzfse (Apple Inc., BSD-3-Clause).
- * Full original license follows.
+/* Amalgamated and somewhat heavily modified for the Xtro-ZIP fork.
+ *
+ * Upstream: https://github.com/lzfse/lzfse
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Full original license follows:
  * Copyright (c) 2015-2016, Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1971,10 +1974,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*! @abstract Get hash in range [0, LZFSE_ENCODE_HASH_VALUES-1] from 4 bytes in
  * X. */
 static izl_u32
-hashX (izl_u32 x)
+hashX (izl_u32 x, unsigned int hash_bits)
 {
   return (x * 2654435761U)
-         >> (32 - LZFSE_ENCODE_HASH_BITS); /* Knuth multiplicative hash */
+         >> (32 - hash_bits); /* Knuth multiplicative hash */
 }
 
 /*! @abstract Return value with all 0 except nbits<=32 unsigned bits from V
@@ -2663,11 +2666,19 @@ lzfse_encode_init (lzfse_encoder_state *s)
         line.value[i] = 0;
       }
   }
-  /* Fill table */
+  /* Fill the default 4-way table, or both halves of -11's 8-way table. */
   {
     int i;
-    for (i = 0; i < LZFSE_ENCODE_HASH_VALUES; i++)
-      s->history_table[i] = line;
+    lzfse_history_set *active = s->ultra_history
+                                ? s->ultra_history : s->history_table;
+    unsigned int n = s->ultra_history
+                     ? (1U << s->active_hash_bits) : LZFSE_ENCODE_HASH_VALUES;
+    for (i = 0; i < (int)n; i++)
+      {
+        active[i] = line;
+        if (s->ultra_history_extra)
+          s->ultra_history_extra[i] = line;
+      }
   }
   s->pending = NO_MATCH;
   s->src_literal = 0;
@@ -2703,18 +2714,25 @@ lzfse_encode_translate (lzfse_encoder_state *s, lzfse_offset delta)
     izl_s32 invalidPos = -4 * LZFSE_ENCODE_MAX_D_VALUE;
     {
       int i;
-      for (i = 0; i < LZFSE_ENCODE_HASH_VALUES; i++)
+      unsigned int n = s->ultra_history
+                       ? (1U << s->active_hash_bits) : LZFSE_ENCODE_HASH_VALUES;
+      lzfse_history_set *active = s->ultra_history
+                                  ? s->ultra_history : s->history_table;
+      for (i = 0; i < (int)n; i++)
         {
-          izl_s32 *p = &(s->history_table[i].pos[0]);
-          {
-            int j;
-            for (j = 0; j < LZFSE_ENCODE_HASH_WIDTH; j++)
-              {
-                lzfse_offset newPos = p[j] - delta; /* translate */
-                p[j] = (izl_s32)((newPos < invalidPos) ? invalidPos
-                                                       : newPos); /* clamp */
-              }
-          }
+          int group;
+          for (group = 0; group < (s->ultra_history_extra ? 2 : 1); group++)
+            {
+              izl_s32 *p = group ? s->ultra_history_extra[i].pos
+                                : active[i].pos;
+              int j;
+              for (j = 0; j < LZFSE_ENCODE_HASH_WIDTH; j++)
+                {
+                  lzfse_offset newPos = p[j] - delta;
+                  p[j] = (izl_s32)((newPos < invalidPos) ? invalidPos
+                                                         : newPos);
+                }
+            }
         }
     }
 
@@ -2728,13 +2746,17 @@ lzfse_encode_translate (lzfse_encoder_state *s, lzfse_offset delta)
 int
 lzfse_encode_base (lzfse_encoder_state *s)
 {
-  lzfse_history_set *history_table = s->history_table;
+  lzfse_history_set *history_table = s->ultra_history
+                                      ? s->ultra_history : s->history_table;
+  lzfse_history_set *extra_table = s->ultra_history_extra;
   lzfse_history_set *hashLine = 0;
-  lzfse_history_set newH;
+  lzfse_history_set *hashLineExtra = 0;
+  lzfse_history_set newH, newExtraH;
   const lzfse_match NO_MATCH = { 0 };
   int ok = 1;
 
   memset (&newH, 0x00, sizeof (newH));
+  memset (&newExtraH, 0x00, sizeof (newExtraH));
 
   /* 8 byte padding at end of buffer */
   s->src_encode_end = s->src_end - 8;
@@ -2744,9 +2766,16 @@ lzfse_encode_base (lzfse_encoder_state *s)
 
       /* Load 4 byte value and get hash line */
       izl_u32 x = load4 (s->src + pos);
-      hashLine = history_table + hashX (x);
+      {
+        izl_u32 hash = hashX (x, s->active_hash_bits);
+        hashLine = history_table + hash;
+        hashLineExtra = extra_table ? extra_table + hash : NULL;
+      }
       {
         lzfse_history_set h = *hashLine;
+        lzfse_history_set hExtra;
+        if (hashLineExtra)
+          hExtra = *hashLineExtra;
 
         /* Prepare next hash line (component 0 is the most recent) to prepare
          * new */
@@ -2764,6 +2793,17 @@ lzfse_encode_base (lzfse_encoder_state *s)
             for (k = 0; k < LZFSE_ENCODE_HASH_WIDTH - 1; k++)
               newH.value[k + 1] = h.value[k];
           }
+          if (hashLineExtra)
+            {
+              int k;
+              newExtraH.pos[0] = h.pos[LZFSE_ENCODE_HASH_WIDTH - 1];
+              newExtraH.value[0] = h.value[LZFSE_ENCODE_HASH_WIDTH - 1];
+              for (k = 0; k < LZFSE_ENCODE_HASH_WIDTH - 1; k++)
+                {
+                  newExtraH.pos[k + 1] = hExtra.pos[k];
+                  newExtraH.value[k + 1] = hExtra.value[k];
+                }
+            }
         }
 
         /* Do not look for a match if we are still covered by a previous match
@@ -2780,14 +2820,16 @@ lzfse_encode_base (lzfse_encoder_state *s)
 
           /* Check for matches.  We consider matches of length >= 4 only. */
           {
-            int k;
-            for (k = 0; k < LZFSE_ENCODE_HASH_WIDTH; k++)
+            int k, group;
+            for (group = 0; group < (hashLineExtra ? 2 : 1); group++)
+              for (k = 0; k < LZFSE_ENCODE_HASH_WIDTH; k++)
               {
-                izl_u32 d = h.value[k] ^ x;
+                const lzfse_history_set *c = group ? &hExtra : &h;
+                izl_u32 d = c->value[k] ^ x;
                 if (d)
                   continue; /* no 4 byte match */
                 {
-                  izl_s32 ref = h.pos[k];
+                  izl_s32 ref = c->pos[k];
                   if (ref + LZFSE_ENCODE_MAX_D_VALUE < pos)
                     continue; /* too far */
 
@@ -2889,7 +2931,7 @@ lzfse_encode_base (lzfse_encoder_state *s)
            * here. */
 
           /* Incoming is 'good', emit incoming */
-          if (incoming.length >= LZFSE_ENCODE_GOOD_MATCH)
+          if (incoming.length >= s->good_match_length)
             {
               if (lzfse_backend_match (s, &incoming) != LZFSE_STATUS_OK)
                 {
@@ -2942,6 +2984,8 @@ lzfse_encode_base (lzfse_encoder_state *s)
           /* We are done with this src_encode_i. */
           /* Update state now (s->pending has already been updated). */
           *hashLine = newH;
+          if (hashLineExtra)
+            *hashLineExtra = newExtraH;
         }
       }
     }
@@ -3859,9 +3903,13 @@ lzfse_encode_scratch_size (void)
 }
 
 size_t
-lzfse_encode_buffer_with_scratch (izl_u8 *dst_buffer, size_t dst_size,
+lzfse_encode_buffer_with_options (izl_u8 *dst_buffer, size_t dst_size,
                                   const izl_u8 *src_buffer, size_t src_size,
-                                  void *scratch_buffer)
+                                  void *scratch_buffer,
+                                  lzfse_history_set *ultra_history,
+                                  lzfse_history_set *ultra_history_extra,
+                                  unsigned int active_hash_bits,
+                                  unsigned int good_match_length)
 {
   const size_t original_size = src_size;
 
@@ -3907,6 +3955,10 @@ lzfse_encode_buffer_with_scratch (izl_u8 *dst_buffer, size_t dst_size,
   {
     lzfse_encoder_state *state = scratch_buffer;
     memset (state, 0x00, sizeof *state);
+    state->ultra_history = ultra_history;
+    state->ultra_history_extra = ultra_history_extra;
+    state->active_hash_bits = active_hash_bits;
+    state->good_match_length = good_match_length;
     if (lzfse_encode_init (state) != LZFSE_STATUS_OK)
       goto try_uncompressed;
     state->dst = dst_buffer;
@@ -4000,11 +4052,44 @@ lzfse_encode_buffer (izl_u8 *dst_buffer, size_t dst_size,
     }
   if (scratch_buffer == NULL)
     return 0;
-  ret = lzfse_encode_buffer_with_scratch (dst_buffer, dst_size, src_buffer,
-                                          src_size, scratch_buffer);
+  ret = lzfse_encode_buffer_with_options (dst_buffer, dst_size, src_buffer,
+                                       src_size, scratch_buffer, NULL, NULL,
+                                       LZFSE_ENCODE_HASH_BITS,
+                                       LZFSE_ENCODE_GOOD_MATCH);
   if (has_malloc)
     free (scratch_buffer);
   return ret;
+}
+
+/* Private -11 candidate: eight retained match positions, 14-16 hash bits.
+ * All parameters affect encoder search only; the stream format is unchanged.
+ * Failure returns zero, allowing Zip to retain its default candidate.
+ * No global state or decoder modifications. */
+static size_t
+iz_lzfse_encode_ultra_candidate (izl_u8 *dst, size_t dst_size,
+                                  const izl_u8 *src, size_t src_size,
+                                  void *scratch, unsigned int hash_bits,
+                                  unsigned int good_match)
+{
+  lzfse_history_set *history, *extra;
+  size_t count, result;
+  if (hash_bits < 14U || hash_bits > 16U || good_match == 0U)
+    return 0;
+  count = (size_t)1U << hash_bits;
+  history = (lzfse_history_set *)malloc (count * sizeof (*history));
+  extra = (lzfse_history_set *)malloc (count * sizeof (*extra));
+  if (history == NULL || extra == NULL)
+    {
+      free (history);
+      free (extra);
+      return 0;
+    }
+  result = lzfse_encode_buffer_with_options (dst, dst_size, src, src_size,
+                                             scratch, history, extra,
+                                             hash_bits, good_match);
+  free (history);
+  free (extra);
+  return result;
 }
 
 /* ===== original lzfse_decode.c ===== */

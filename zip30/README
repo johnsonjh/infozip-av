@@ -105,6 +105,11 @@ history, so stdin and very large files do not require whole-file buffering.
 Zopfli can be omitted with NO_ZOPFLI and is not enabled for 16-bit or Windows
 DLL builds.
 
+With -Z lzfse, level -11 tries several deeper, eight-way match searches
+(hash widths 14-16, with multiple good-match thresholds), retaining the
+smallest complete LZFSE result per 1 MiB chunk.  Levels -1 through -9
+retain byte-identical default LZFSE output.
+
 Installation.  Please read the file INSTALL for information on how to compile
 and install zip, zipsplit, zipcloak, and zipnote and please read the manual
 pages ZIP.txt, ZIPSPLIT.txt, ZIPCLOAK.txt, and ZIPNOTE.txt for information on

@@ -2570,8 +2570,12 @@ AES members require that extra field).  LZFSE CAN NOT be combined with
 WinZip AES (including AE-3).  Traditional ZipCrypto is supported.
 Extraction requires an LZFSE-aware utility (such as this UnZip or a
 compatible 7-Zip build); generic ZIP implementations may legally reject it.
-The encoder uses bounded 1 MiB input chunks.  Define NO_LZFSE to omit
-support on suitable targets.
+The encoder uses bounded 1 MiB input chunks.  With \fB-11\fP, Zip
+tries a slower, higher-effort match search using eight history positions
+and larger hash tables.  It retains the smallest complete compressed chunk,
+including the original encoder as a fallback; no new decoder features are
+required.  Lower levels use the unchanged default LZFSE settings.  Define
+NO_LZFSE to omit support on suitable targets.
 
 \fBbzip2\fP \- If \fBbzip2\fP support is compiled in, this compression
 method also becomes available.  Only some modern unzips currently support

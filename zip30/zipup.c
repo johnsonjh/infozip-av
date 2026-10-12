@@ -4006,7 +4006,7 @@ local zoff_t lzfsefilecompress(z_entry, cmpr_method)
     struct zlist far *z_entry;
     int *cmpr_method;
 {
-    unsigned char *input = NULL, *output = NULL;
+    unsigned char *input = NULL, *output = NULL, *candidate = NULL;
     void *scratch = NULL;
     size_t inlen, outlen, total, capacity, scratch_size;
     unsigned got;
@@ -4016,9 +4016,12 @@ local zoff_t lzfsefilecompress(z_entry, cmpr_method)
     capacity = (size_t)IZ_LZFSE_CHUNK + 1024U;
     input = (unsigned char *)malloc((size_t)IZ_LZFSE_CHUNK);
     output = (unsigned char *)malloc(capacity);
+    if (level == 11)
+        candidate = (unsigned char *)malloc(capacity);
     scratch_size = lzfse_encode_scratch_size();
     scratch = malloc(scratch_size);
     if (!input || !output || !scratch) goto no_memory;
+    /* Memory pressure must not prevent the proven default candidate. */
     while (!eof) {
         inlen = 0;
         while (inlen < IZ_LZFSE_CHUNK) {
@@ -4040,6 +4043,28 @@ local zoff_t lzfsefilecompress(z_entry, cmpr_method)
         outlen = lzfse_encode_buffer(output,capacity,input,inlen,scratch);
         if (outlen < 4 || memcmp(output + outlen - 4, "bvx$",4) != 0)
             goto encode_error;
+        if (level == 11 && candidate &&
+            inlen >= LZFSE_ENCODE_LZVN_THRESHOLD) {
+            /* The default stream is always candidate zero.  Search-depth and
+             * match-emission settings have no on-disk representation. */
+            static const struct { unsigned bits, good; } modes[] = {
+                {14U, 40U}, {15U, 40U}, {15U, 96U},
+                {16U, 40U}, {16U, 64U}, {16U, 160U}
+            };
+            unsigned i;
+            for (i = 0; i < sizeof(modes)/sizeof(modes[0]); i++) {
+                size_t sz = iz_lzfse_encode_ultra_candidate(
+                    candidate, capacity, input, inlen, scratch,
+                    modes[i].bits, modes[i].good);
+                if (sz >= 4 && sz < outlen &&
+                    memcmp(candidate + sz - 4, "bvx$", 4) == 0) {
+                    unsigned char *old = output;
+                    output = candidate;
+                    candidate = old;
+                    outlen = sz;
+                }
+            }
+        }
         /* We must omit EOS except on the final chunk.  For full chunks,
          * the next read determines EOS, so always write nonterminal blocks. */
         total = eof ? outlen : outlen - 4;
@@ -4049,20 +4074,20 @@ local zoff_t lzfsefilecompress(z_entry, cmpr_method)
         if (eof) break;
     }
 
-    free(input); free(output); free(scratch);
+    free(input); free(output); free(candidate); free(scratch);
     z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
     return written;
 no_memory:
-    free(input); free(output); free(scratch);
+    free(input); free(output); free(candidate); free(scratch);
     ziperr(ZE_MEM,"LZFSE allocation failed");
 read_error:
-    free(input); free(output); free(scratch);
+    free(input); free(output); free(candidate); free(scratch);
     ziperr(ZE_READ,"LZFSE input read failed");
 encode_error:
-    free(input); free(output); free(scratch);
+    free(input); free(output); free(candidate); free(scratch);
     ziperr(ZE_COMPERR,"LZFSE encoding failed");
 write_error:
-    free(input); free(output); free(scratch);
+    free(input); free(output); free(candidate); free(scratch);
     ziperr(ZE_WRITE,"LZFSE output write failed");
     return (zoff_t)-1;
 }

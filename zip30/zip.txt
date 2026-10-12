@@ -1756,6 +1756,13 @@ OPTIONS
               Deflate.  If Zopfli is not enabled, -11 with Deflate is an error
               rather than silently falling back to -9.
 
+              lzfse - Apple LZFSE/LZVN in ZIP method 99.  -1 through -9
+              use the unchanged default encoder; -11 tries a slower,
+              eight-way match search with larger hash tables.  It picks
+              the smallest full stream for each 1 MiB input chunk, always
+              including the original encoder as a fallback.  Output uses
+              the same LZFSE bitstream and the unchanged decoder.
+
               shrink - Use the built-in PKZIP Shrink (ZIP method 1) LZW
               compressor, compatible with legacy PKUNZIP.  Shrink has a
               single fixed setting; -1 through -9 and -11 do not change it.
@@ -1848,6 +1855,8 @@ OPTIONS
               when Zopfli support is compiled in; entries remain ZIP method 8.
               Without Zopfli support, -11 with Deflate is an error.  For
               Deflate64, -11 enables higher-effort parsing and block splitting.
+              For LZFSE, -11 tries deeper match histories with a size-based
+              fallback to the original stream; it still uses ZIP method 99.
               Other level-aware methods retain their documented -11 mapping.
               Like -9, -11 ignores the suffix list.
 
