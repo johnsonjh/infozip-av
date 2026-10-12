@@ -1891,6 +1891,9 @@
 #define EF_THEOS     0x6854    /* Jean-Michel Dubois' Theos "Th" */
 #define EF_THEOSO    0x4854    /* old Theos port */
 #define EF_MD5       0x4b46    /* Fred Kantor's MD5 ("FK") */
+#define EF_REFPTR    0x9903    /* WinZip reference pointer metadata */
+#define EF_APKALIGN  0xd935    /* Android APK alignment */
+#define EF_APACHALIGN 0xa11e   /* Apache Compress alignment */
 #define EF_ASIUNIX   0x756e    /* ASi's Unix ("nu") */
 
 #define EB_HEADSIZE       4    /* length of extra field block header */

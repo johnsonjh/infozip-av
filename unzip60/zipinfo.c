@@ -347,6 +347,9 @@ static ZCONST char Far efQDOS[] = "SMS/QDOS";
 static ZCONST char Far efAOSVS[] = "AOS/VS";
 static ZCONST char Far efSpark[] = "Acorn SparkFS";
 static ZCONST char Far efMD5[] = "Fred Kantor MD5";
+static ZCONST char Far efRefPtr[] = "WinZip RefPtr";
+static ZCONST char Far efAPKAlign[] = "Android APK alignment";
+static ZCONST char Far efApacheAlign[] = "Apache alignment";
 static ZCONST char Far efASiUnix[] = "ASi Unix";
 static ZCONST char Far efTandem[] = "Tandem NSK";
 static ZCONST char Far efTheos[] = "Theos";
@@ -1611,6 +1614,15 @@ static int zi_long(__G__ pEndprev, error_in_archive)
                     break;
                 case EF_SPARK:   /* from RISC OS */
                     ef_fieldname = efSpark;
+                    break;
+                case EF_REFPTR:
+                    ef_fieldname = efRefPtr;
+                    break;
+                case EF_APKALIGN:
+                    ef_fieldname = efAPKAlign;
+                    break;
+                case EF_APACHALIGN:
+                    ef_fieldname = efApacheAlign;
                     break;
                 case EF_MD5:
                     ef_fieldname = efMD5;
