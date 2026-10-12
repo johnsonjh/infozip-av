@@ -2504,6 +2504,7 @@ int do_string(__G__ length, option)   /* return PK-type error code */
      */
 
     case EXTRA_FIELD:
+    case EXTRA_FIELD_RAW:
         if (G.extra_field != (uch *)NULL)
             free(G.extra_field);
         if ((G.extra_field = (uch *)malloc(length)) == (uch *)NULL) {
@@ -2535,7 +2536,7 @@ int do_string(__G__ length, option)   /* return PK-type error code */
 
 #ifdef UNICODE_SUPPORT
             G.unipath_filename = NULL;
-            if (G.UzO.U_flag < 2) {
+            if (option != EXTRA_FIELD_RAW && G.UzO.U_flag < 2) {
               /* check if GPB11 (General Purpuse Bit 11) is set indicating
                  the standard path and comment are UTF-8 */
               if (G.pInfo->GPFIsUTF8) {

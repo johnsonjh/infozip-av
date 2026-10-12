@@ -1722,6 +1722,7 @@
 #define DS_FN_C           2             /* read filename from central header */
 #define DS_FN_L           6             /* read filename from local header */
 #define EXTRA_FIELD       3             /* copy extra field into buffer */
+#define EXTRA_FIELD_RAW   9             /* parse extra field without Unicode filename handling */
 #define DS_EF             3
 #ifdef AMIGA
 #  define FILENOTE        4             /* convert file comment to filenote */

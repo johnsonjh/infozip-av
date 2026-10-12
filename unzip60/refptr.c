@@ -351,7 +351,7 @@ refptr_build_index (__G) __GDEF
           G.extra_field = (uch *)NULL;
         }
 
-      if (do_string (__G__ G.crec.extra_field_length, EXTRA_FIELD) != PK_COOL
+      if (do_string (__G__ G.crec.extra_field_length, EXTRA_FIELD_RAW) != PK_COOL
           || do_string (__G__ G.crec.file_comment_length, SKIP) != PK_COOL)
         {
           r = PK_ERR;
@@ -482,7 +482,7 @@ static int refptr_select_source (__G__ c) __GDEF const refptr_candidate *c;
       || (G.lrec.general_purpose_bit_flag & 1)
       || G.lrec.general_purpose_bit_flag != c->flags
       || do_string (__G__ G.lrec.filename_length, SKIP) != PK_COOL
-      || do_string (__G__ G.lrec.extra_field_length, EXTRA_FIELD) != PK_COOL)
+      || do_string (__G__ G.lrec.extra_field_length, EXTRA_FIELD_RAW) != PK_COOL)
     {
       r = PK_ERR;
 
