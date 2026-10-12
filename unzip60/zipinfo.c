@@ -1083,6 +1083,62 @@ int zipinfo(__G)   /* return PK-type error code */
 /*  Function zi_long()  */
 /************************/
 
+/*
+ * Inspect a central-directory comment (without consuming it)
+ * This is used by the verbose Unicode comment CRC diagnostic
+ * A failed read adds no new error or changes to the comment reader
+ */
+
+static int zi_raw_comment_crc(__GPRO__ ulg *result)
+{
+    zoff_t saved = G.cur_zipfile_bufstart - G.extra_bytes
+                    + (G.inptr - G.inbuf);
+    ush left = G.crec.file_comment_length;
+    uch chunk[512];
+    ulg value = CRCVAL_INITIAL;
+    int ok = TRUE;
+
+    while (left) {
+        unsigned take = left > sizeof(chunk) ? sizeof(chunk) : left;
+        if (readbuf(__G__ (char *)chunk, take) != take) {
+            ok = FALSE;
+            break;
+        }
+        value = crc32(value, chunk, take) & 0xffffffffUL;
+        left = (ush)(left - take);
+    }
+    if (seek_zipf(__G__ saved) != PK_OK)
+        return FALSE;
+    if (ok)
+        *result = value;
+    return ok;
+}
+
+/*
+ * 0x000a central-directory NTFS extra contains four reserved bytes,
+ * followed by boudnedde tag/length/value records.  Unknown tags are
+ * validm the defined timestamp tag 0x0001 has exactly three 64-bit time
+ */
+
+static int zi_ntfs_timestamp_ok(ZCONST uch *p, unsigned len)
+{
+    unsigned offset = 4;
+    if (len < 4)
+        return FALSE;
+    while (offset < len) {
+        unsigned tag, size;
+        if (len - offset < 4)
+            return FALSE;
+        tag = makeword(p + offset);
+        size = makeword(p + offset + 2);
+        offset += 4;
+        if (size > len - offset || (tag == 1 && size != 24))
+            return FALSE;
+        offset += size;
+    }
+    return TRUE;
+}
+
 static int zi_long(__G__ pEndprev, error_in_archive)
     /* return PK-type error code */
     __GDEF
@@ -1093,6 +1149,9 @@ static int zi_long(__G__ pEndprev, error_in_archive)
     iztimes z_utime;
 #endif
     int  error, aes_status;
+    int have_comment_crc = -1;
+    ulg comment_crc = 0;
+    int warn_path_crc, warn_comment_crc, warn_ntfs;
     unsigned  hostnum, hostver, extnum, extver, methid, methnum, xattr;
     unsigned  aes_version, aes_strength, aes_method, display_methid;
     char workspace[12], attribs[22];
@@ -1651,6 +1710,7 @@ static int zi_long(__G__ pEndprev, error_in_archive)
             Info(slide, 0, ((char *)slide, LoadFarString(ExtraFieldType),
                  eb_id, LoadFarStringSmall(ef_fieldname), eb_datalen));
 
+            warn_path_crc = warn_comment_crc = warn_ntfs = FALSE;
             /* additional, field-specific information: */
             switch (eb_id) {
                 case EF_OS2:
@@ -1758,11 +1818,37 @@ static int zi_long(__G__ pEndprev, error_in_archive)
                               num == 1? nullStr : PlurSufx));
                     }
                     break;
+                case EF_PKW32:
+                    if (!zi_ntfs_timestamp_ok(ef_ptr, eb_datalen))
+                        warn_ntfs = TRUE;
+                    goto ef_default_display;
                 case EF_UNIPATH:
                 case EF_UNICOMNT:
                     if (eb_datalen >= 5) {
                         unsigned i, n;
                         ulg name_crc = makelong(ef_ptr+1);
+                        if (ef_ptr[0] == 1) {
+                            if (eb_id == EF_UNIPATH) {
+#ifdef UNICODE_SUPPORT
+                                /* filename_full contains the unconverted
+                                 * full-length bytes read from the central
+                                 * header; filename may be translated. */
+                                if (G.filename_full != NULL &&
+                                    (crc32(CRCVAL_INITIAL,
+                                           (uch *)G.filename_full,
+                                           G.crec.filename_length)
+                                     & 0xffffffffUL) != name_crc)
+                                    warn_path_crc = TRUE;
+#endif
+                            } else {
+                                if (have_comment_crc < 0)
+                                    have_comment_crc = zi_raw_comment_crc(
+                                        __G__ &comment_crc) ? 1 : 0;
+                                if (have_comment_crc == 1 &&
+                                    comment_crc != name_crc)
+                                    warn_comment_crc = TRUE;
+                            }
+                        }
 
                         if (eb_datalen <= 29) {
                             Info(slide, 0, ((char *)slide,
@@ -1996,6 +2082,15 @@ ef_default_display:
                     break;
             }
             (*G.message)((zvoid *)&G, (uch *)".", 1L, 0);
+            if (warn_path_crc)
+                Info(slide, 0, ((char *)slide,
+                  "\n    warning: Unicode path CRC mismatch (central filename)"));
+            if (warn_comment_crc)
+                Info(slide, 0, ((char *)slide,
+                  "\n    warning: Unicode comment CRC mismatch (central comment)"));
+            if (warn_ntfs)
+                Info(slide, 0, ((char *)slide,
+                  "\n    warning: malformed NTFS timestamp subrecords in central extra field"));
 
             ef_ptr += eb_datalen;
             ef_len -= eb_datalen;
