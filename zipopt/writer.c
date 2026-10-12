@@ -207,7 +207,7 @@ zo_copy (zo_writer *w, FILE *src, zo_u64 n)
 static int
 zo_seekin (FILE *f, zo_u64 off)
 {
-  if (off > (ZO64MAX >> 1))
+  if (off > (ZO64MAX >> 1) || (zo_u64)(off_t)off != off)
     {
       return 0;
     }

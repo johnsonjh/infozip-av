@@ -92,7 +92,8 @@ zo_seek (zo_archive *a, zo_u64 off)
 #ifdef _WIN32
   if (_fseeki64 (a->fp, (__int64)off, SEEK_SET) != 0)
 #else  /* ifdef _WIN32 */
-  if (off > (ZO_U64_MAX >> 1) || fseeko (a->fp, (off_t)off, SEEK_SET) != 0)
+  if (off > (ZO_U64_MAX >> 1) || (zo_u64)(off_t)off != off
+      || fseeko (a->fp, (off_t)off, SEEK_SET) != 0)
 #endif /* ifdef _WIN32 */
     {
       return zo_bad (a, "seek failed or unsupported 64-bit offset");
