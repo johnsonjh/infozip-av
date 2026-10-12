@@ -146,15 +146,15 @@ the **DEFLATE** (using a custom
 > method `99` with WinZip AES; Xtro‑ZIP automatically determines the proper
 > format.
 >
-> <sup>**⇧**</sup>&nbsp;BWT is a non‑standard Xceed extension that uses
-> method `18` which is assigned to “IBM TERSE”; Xtro‑ZIP automatically
-> determines the proper format (by identifying valid BWT streams).  While the
-> IBM‑specific TERSE and LZ77 compression technologies referenced in the
+> <sup>**⇧**</sup>&nbsp;BWT is a non‑standard Xceed extension that shares
+> method `18` with “IBM TERSE”; Xtro‑ZIP automatically determines the proper
+> format (by identifying valid BWT data).  While IBM‑specific TERSE and LZ77
+> compression technologies referenced in the
 > [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT)
-> unquestionably exist, because there is *no evidence* of actual specifications
-> or any known software implementing these methods, they are excluded from the
-> table, along with other specifically reserved (`7`, `11`, `13`, `15`, `17`,
-> etc.) identifiers.
+> unquestionably exist, there is *no evidence* of actual specifications, nor
+> any known software implementing these methods, so they are excluded from the
+> table, as are other specifically reserved (`7`, `11`, `13`, `15`, `17`, etc.)
+> identifiers.
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
