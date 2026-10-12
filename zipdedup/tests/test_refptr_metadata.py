@@ -159,6 +159,32 @@ def main():
             assert z.getinfo("dup-deflate.bin").compress_type == 92
             assert z.getinfo("source.bin").compress_type == 0
         run(UNZIP, "-tq", valid)
+
+        # Regression: RefPtr may inherit PPMd/LZMA extraction version 6.3.
+        # Keep central and local version-needed fields in sync.
+        def set_ref_version(buf, offsets, version):
+            central, _, _, info = offsets["dup-deflate.bin"]
+            local = info.header_offset
+            assert struct.unpack_from("<H", buf, central + 10)[0] == 92
+            assert struct.unpack_from("<H", buf, local + 8)[0] == 92
+            struct.pack_into("<H", buf, central + 6, version)
+            struct.pack_into("<H", buf, local + 4, version)
+
+        elevated = bytearray(blob)
+        set_ref_version(elevated, entry_offsets(elevated), 63)
+        high_path = d / "refptr-version-63.zip"
+        high_path.write_bytes(elevated)
+        run(UNZIP, "-tq", high_path)
+        future = bytearray(blob)
+        set_ref_version(future, entry_offsets(future), 64)
+        future_path = d / "refptr-version-64.zip"
+        future_path.write_bytes(future)
+        result = subprocess.run(
+            [str(UNZIP), "-t", str(future_path)], capture_output=True
+        )
+        assert result.returncode != 0 and b"need PK compat. v6.4" in (
+            result.stdout + result.stderr
+        ), result
         # Selection must not trigger warnings from another, unselected member.
         check(
             valid,
