@@ -45,6 +45,7 @@ extern int iz_zip_aes_active;
 /* Source-only CMPSC codec, independently written ANSI C89. */
 #ifdef CMPSC16_SUPPORT
 # include "cmpsc16_encode.c"
+# include "cmpsc16_ultra.c"
 #endif
 
 /* Same with our custom ppmd */
@@ -2335,15 +2336,29 @@ local zoff_t cmpsc16filecompress(z_entry,cmpr_method)
     ctx.size=0;
     ctx.write_error=0;
     ctx.store_test=&store_test;
-    ret=izcm_encode(iz_cmpsc_zip_read,iz_cmpsc_zip_write,&ctx,
-                    (unsigned)cmpsc_symbol_width);
+
+    /*
+     * Keep the legacy encoder byte-for-byte unchanged for levels <= 9.
+     * Ultra evaluates longer predecessor-linked phrases and the legacy
+     * result before choosing the smallest complete method-16 payload.
+     */
+
+    if (level == 11)
+        ret=izcmu_encode(iz_cmpsc_zip_read,iz_cmpsc_zip_write,&ctx,
+                         (unsigned)cmpsc_symbol_width);
+    else
+        ret=izcm_encode(iz_cmpsc_zip_read,iz_cmpsc_zip_write,&ctx,
+                        (unsigned)cmpsc_symbol_width);
     if (ret) {
         small_store_discard(&store_test);
+
         if (ctx.write_error) ziperr(ZE_TEMP,"error writing CMPSC data");
         ziperr(ret == -2 ? ZE_MEM : (ret == -3 ? ZE_TEMP : ZE_READ),
                "CMPSC compression failed");
     }
+
     z_entry->att=(ush)(file_binary_final ? BINARY : ASCII);
+
     return small_store_finish(&store_test,cmpr_method,ctx.size);
 }
 #endif /* CMPSC16_SUPPORT */

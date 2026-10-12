@@ -2541,7 +2541,11 @@ The encoder counts recurring 2- through 7-byte sequences,
 builds a dictionary, and uses independent longest-symbol matching.
 It spools input in a temporary file during training; enough disk space
 is required for each input member, including standard input.
-\fB-1\fP through \fB-9\fP and \fB-11\fP have identical behavior.
+\fB-1\fP through \fB-9\fP retain the original 2- through 7-byte
+phrase encoder.  \fB-11\fP is an experimental, slower per-file
+training mode that considers predecessor-linked phrases through 64 bytes,
+evaluates multiple dictionary rankings, and chooses the smallest complete
+method-16 payload, including the original encoder as fallback.
 The embedded dictionary is compressed using raw Deflate (0xC0)
 when beneficial, otherwise stored uncompressed (0x80).
 For small members, the normal automatic store fallback applies when
@@ -2665,8 +2669,10 @@ Select the CMPSC symbol width and per-member expansion dictionary size for
 selects the smallest complete method-16 member, including its embedded
 raw-Deflate-compressed dictionary and fixed-width symbol stream.  Explicit
 widths force the corresponding format for interoperability testing.
-All CMPSC compression levels use the same encoder settings; automatic STORE
-fallback is controlled separately by \fB--disable-store-fallback\fP.
+CMPSC \fB-11\fP enables experimental multi-candidate predecessor-linked
+phrase training and compares full payload sizes to the original encoder;
+other levels retain the previous behavior.  Automatic Store fallback is
+controlled separately by \fB--disable-store-fallback\fP.
 .TP
 .PD 0
 .BI \-\-zopfli-iterations\ n

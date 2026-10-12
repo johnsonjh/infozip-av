@@ -1886,7 +1886,10 @@ OPTIONS
               using the input spool and selects the smallest complete member,
               including the embedded dictionary.  Numeric values force the
               corresponding width for compatibility testing.  CMPSC levels
-              -1 through -9 and -11 remain equivalent.
+              -1 through -9 use the standard encoder; -11 tries a (slower!)
+              per-file trained dictionary with predecessor-linked phrases up
+              to 64 bytes, but retains the smaller original result if training
+              does not improve the total method-16 payload size.
 
        --zopfli-iterations n
        --zopfli-iterations=n
