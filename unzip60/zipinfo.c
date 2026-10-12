@@ -24,6 +24,7 @@
 
 #define UNZIP_INTERNAL
 #include "unzip.h"
+#include "crc32.h"
 
 
 #ifndef NO_ZIPINFO  /* strings use up too much space in small-memory systems */
