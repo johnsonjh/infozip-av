@@ -9,6 +9,10 @@
 #undef ZD_DATE
 #define ZD_DATE "2026-10-11"
 
+#ifndef _FILE_OFFSET_BITS
+# define _FILE_OFFSET_BITS 64
+#endif /* _FILE_OFFSET_BITS */
+
 #ifndef _POSIX_C_SOURCE
 # define _POSIX_C_SOURCE 200809L
 #endif /* ifndef _POSIX_C_SOURCE */
@@ -20,6 +24,8 @@
 #include "../unzip60/unzip.h"
 
 #include <limits.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +44,11 @@ extern unsigned long refptr9903_crc (unsigned long, unsigned int, unsigned int,
 #define ZD_REFPTR 92U
 #define ZD_APKALIGN 0xd935U
 #define ZD_APACHEALIGN 0xa11eU
+
+/* Small limit for TESTING ONLY - production builds always use LONG_MAX */
+#ifndef ZD_POS_MAX
+# define ZD_POS_MAX LONG_MAX
+#endif
 
 /* zipdedup uses UnZip's public API, so unzip.h unfortunately does not define
  * the internal USE_XCEED_BWT macro for this compilation unit so copy here. */
@@ -179,9 +190,41 @@ zd_read (FILE *f, void *p, size_t n)
 static int
 zd_write (FILE *f, const void *p, size_t n)
 {
+  long pos = ftell (f);
+
+  if (pos < 0 || pos > ZD_POS_MAX
+      || n > (size_t)(ZD_POS_MAX - pos))
+    {
+      zd_fail ("output ZIP exceeds this build's LONG_MAX file-offset limit");
+      return 0;
+    }
+
   if (fwrite (p, 1, n, f) != n)
     {
       zd_fail ("write failed");
+      return 0;
+    }
+
+  return 1;
+}
+
+/* Check large inputs before entering the long-based ftell/fseek */
+static int
+zd_input_representable (FILE *in)
+{
+  struct stat sb;
+
+  if (fstat (fileno (in), &sb) != 0 || sb.st_size < 0)
+    {
+      zd_fail ("internal error: unable to determine input size");
+
+      return 0;
+    }
+
+  if (sb.st_size > (off_t)ZD_POS_MAX)
+    {
+      zd_fail ("input ZIP exceeds the builds support file offset limit");
+
       return 0;
     }
 
@@ -1736,7 +1779,8 @@ main (int argc, char **argv)
       return 1;
     }
 
-  if (!zd_load (&a) || !zd_plan (&a, &count, &saved))
+  if (!zd_input_representable (a.in)
+      || !zd_load (&a) || !zd_plan (&a, &count, &saved))
     {
       goto done;
     }
