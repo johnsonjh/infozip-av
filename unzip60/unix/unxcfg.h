@@ -125,7 +125,9 @@ typedef struct stat z_stat;
 #ifdef BSD
 #  include <sys/time.h>
 #  if !defined(__FreeBSD__)
-#   include <sys/timeb.h>
+#   if !defined(__OpenBSD__)
+#    include <sys/timeb.h>
+#   endif
 #  endif
 #  if (defined(_AIX) || defined(__GLIBC__) || defined(__GNU__))
 #    include <time.h>
