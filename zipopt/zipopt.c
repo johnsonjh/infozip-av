@@ -4,7 +4,7 @@
  */
 
 #undef ZO_VER
-#define ZO_VER "0.1"
+#define ZO_VER "0.2"
 
 #undef ZO_DATE
 #define ZO_DATE "2026-01-12"
@@ -113,6 +113,9 @@ zo_method_name (unsigned method)
 
     case 16U:
       return "cmpsc";
+
+    case 18U:
+      return "method18-bwt-or-terse";
 
     case 20U:
       return "zstd-legacy";

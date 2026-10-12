@@ -265,6 +265,11 @@ refptr_method_supported (unsigned method)
       return TRUE;
 # endif /* USE_CMPSC16 */
 
+# ifdef USE_XCEED_BWT
+    case IBMTERSED:
+      return TRUE;
+# endif /* USE_XCEED_BWT */
+
 # ifdef USE_LZFSE
     case LZFSEED:
       return TRUE;
@@ -289,7 +294,7 @@ refptr_method_recognized (unsigned method)
     case IMPLODED: case DCLIMPLODED: case BZIPPED:
     case LZMAED: case XZED: case ZSTD_OLD: case ZSTDED:
     case PPMDED: case WZJPEGED: case WZMP3ED: case WAVPACKED:
-    case CMPSCED: case LZFSEED:
+    case CMPSCED: case LZFSEED: case IBMTERSED:
       return TRUE;
     default:
       return FALSE;
@@ -634,6 +639,11 @@ refptr_decode_source (__G) __GDEF
     case CMPSCED:
       return uz_cmpsc16_decompress (__G);
 # endif /* USE_CMPSC16 */
+
+# ifdef USE_XCEED_BWT
+    case IBMTERSED:
+      return uz_xceedbwt_decompress (__G);
+# endif /* USE_XCEED_BWT */
 
 # ifdef USE_LZFSE
     case LZFSEED:

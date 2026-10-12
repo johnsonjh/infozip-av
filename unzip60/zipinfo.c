@@ -206,7 +206,7 @@ static ZCONST char Far MthdDeflat64[] = "deflated (enhanced-64k)";
 static ZCONST char Far MthdDCLImplode[] = "imploded (PK DCL)";
 static ZCONST char Far MthdBZip2[] = "bzipped";
 static ZCONST char Far MthdLZMA[] = "LZMA-ed";
-static ZCONST char Far MthdTerse[] = "tersed (IBM)";
+static ZCONST char Far MthdTerse[] = "IBM TERSE or Xceed BWT (method 18)";
 static ZCONST char Far MthdLZ77[] = "LZ77-compressed (IBM)";
 static ZCONST char Far MthdZstd[] = "Zstandard-compressed";
 static ZCONST char Far MthdRefPtr[] = "RefPtr";
@@ -2066,7 +2066,7 @@ static int zi_short(__G)   /* return PK-type error code */
 #endif
     static ZCONST char Far method[NUM_METHODS+1][5] = {
         "stor", "shrk", "re:1", "re:2", "re:3", "re:4", "i#:#", "tokn",
-        "def#", "d64#", "dcli", "bzp2", "lzma", "ters", "lz77", "zstd",
+        "def#", "d64#", "dcli", "bzp2", "lzma", "m:18", "lz77", "zstd",
         "zstd", "rptr", "mp3 ", "xz  ", "wj96", "wavp", "ppmd", "cmps", "u###"
     };
 

@@ -68,12 +68,12 @@ The ability to compress and decompress archive members using **Zstandard**
 (method&nbsp;95), **ZIP**&nbsp;**Implode** (method&nbsp;6),
 **DCL**&nbsp;**Implode** (method&nbsp;10), **Deflate64** (method&nbsp;9),
 **IBM&nbsp;CMPSC** (method&nbsp;16), **Shrink** (method&nbsp;1), **Reduce**
-(methods 2 through 5), **PPMd** (method&nbsp;98), and **LZFSE**
+(methods 2 through 5), **PPMd** (method&nbsp;98), and Appleʼs **LZFSE**
 (method&nbsp;99) has been added.
 
 New decompression‑only support for the **WZ‑MP3** (method&nbsp;94), **WZ‑JPEG**
-(method&nbsp;96), and **WavPack** (method&nbsp;97) “multimedia extensions” has
-also been integrated.
+(method&nbsp;96), and **WavPack** (method&nbsp;97) “multimedia extensions”,
+and Xceedʼs **BWT** (method&nbsp;18) has also been integrated.
 
 WinZip‑style de‑duplication **RefPtr** (method&nbsp;92) is supported.
 
@@ -99,6 +99,7 @@ compression is available (enabled via `zip ‑11`):
 | **`12`** | bzip2<sup>1</sup>                                     |     ✅     |    ✅    |
 | **`14`** | LZMA<sup>2</sup>                                      |     ✅     |    ✅    |
 | **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC<sup>‡</sup>                  |     ✅     |    ✅    |
+| **`18`** | BWT<sup>⇧</sup>                                       |     ✅     |          |
 | **`18`** | IBM&nbsp;TERSE                                        |            |          |
 | **`19`** | IBM&nbsp;LZ77&nbsp;(z/Architecture)                   |            |          |
 | **`20`** | Zstandard<sup>3</sup>&nbsp;(deprecated)               |     ✅     |          |
@@ -138,7 +139,13 @@ compression is available (enabled via `zip ‑11`):
 >
 > <sup>**‡**</sup>&nbsp;CMPSC compression is experimental but interoperable.
 >
-> <sup>**⌘**</sup>&nbsp;LZFSE is a non‑standard Apple extension.
+> <sup>**⌘**</sup>&nbsp;LZFSE is a non‑standard Apple extension that shares
+> method `99` with WinZip AES; Xtro‑ZIP automatically determines the proper
+> format.
+>
+> <sup>**⇧**</sup>&nbsp;BWT is a non‑standard Xceed extension that shares
+> method `18` with IBM TERSE; Xtro‑ZIP automatically determines the proper
+> format.
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
@@ -180,7 +187,7 @@ compression method, keeping the method that produces the smallest output
 Relevant archive metadata is preserved and extensive checking is performed to
 ensure that the process is completely lossless.
 
-All available decompression methods are supported for input, but output
+All available *decompression* methods are supported in input files, but output
 currently excludes the non‑standard Apple LZFSE and the special‑purpose IBM
 z/OS CMPSC methods.
 

@@ -242,6 +242,32 @@ zo_extras (zo_archive *a, const unsigned char *p, unsigned n, int central,
 
           break;
 
+        case 0x554e: /* Xceed's Unicode name/comment field. */
+          {
+            unsigned chars, charoff, k;
+            /* Safe to discard ONLY when it EXACTLY duplicates the ASCII
+             * central-directory pathname, without any Unicode comment.
+             * Xceed local records omit the comment length word. */
+            if (len < (central ? 8U : 6U)
+                || memcmp(p + i, "NUCX", 4) != 0)
+              return zo_bad(a, "unsupported Unicode extra field");
+            chars = zo_16(p + i + 4);
+            charoff = central ? 8U : 6U;
+            if ((central && zo_16(p + i + 6) != 0)
+                || chars != e->name_len
+                || chars > (len - charoff) / 2U
+                || len - charoff != chars * 2U)
+              return zo_bad(a, "Unicode name/comment not safely representable");
+            for (k = 0U; k < chars; k++)
+              {
+                unsigned ch = zo_16(p + i + charoff + 2U * k);
+                if (ch > 127U ||
+                    (unsigned char)(ch == '\\' ? '/' : ch) != e->name[k])
+                  return zo_bad(a, "Unicode pathname differs from ZIP name");
+              }
+            break;
+          }
+
         case 0x7075: /* Unicode path: version, name CRC32, UTF-8 bytes. */
         case 0x6375: /* Unicode comment */
           if (len < 5 || p[i] != 1)
@@ -480,7 +506,7 @@ static int
 zo_method_supported (unsigned m)
 {
   if (m <= 6  || m == 8  || m == 9  || m == 10 || m == 12 || m == 14 || m == 16
-   || m == 20 || m == 93 || m == 94 || m == 95 || m == 96 || m == 98
+   || m == 18 || m == 20 || m == 93 || m == 94 || m == 95 || m == 96 || m == 98
    || m == 99)
     {
       return 1;

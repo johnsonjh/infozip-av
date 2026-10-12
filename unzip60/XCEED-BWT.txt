@@ -1,0 +1,28 @@
+Xceed has a proprietary, BZip2-derived BWT streams stored under ZIP
+compression method 18.
+
+Method 18 is also assigned to IBM TERSE sadly.
+
+Support for Xceed BWT does not implement IBM TERSE!
+
+Xceed bitstream framing:
+
+* First byte: ASCII digit '1' through '9' selecting the maximum BWT block
+  size in units of 100,000 bytes.
+* Bit-packed 0x31 marker and block payload for each BWT block.
+* Bit-packed 0x17 end marker, then zero bits through the last byte.
+
+The ordinary BZip2 48-bit block markers and per-block CRCs are absent.
+
+The extractor accepts BWT only after successfully decoding an entire
+stream and valid size and CRC-32 check.
+
+Failure cannot not establish whether the member is IBM TERSE or
+malformed data, at least not until we get IBM TERSE test files.
+
+ZIP member LISTING thus uses a deliberately ambiguous description.
+
+Decoding allocates up to 4.5MB of memory to work.
+
+Future TERSE support will need a separatelyt validated TERSE decoder
+and explicit disambiguation rules

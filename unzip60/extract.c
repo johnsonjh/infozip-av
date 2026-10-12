@@ -415,6 +415,56 @@ static int uz_cmpsc16_decompress(__G)
 }
 #endif /* USE_CMPSC16 */
 
+#ifdef USE_XCEED_BWT
+#include "xceedbwt.c"
+
+typedef struct {
+#ifdef REENTRANT
+    Uz_Globs *global;
+#endif
+    int flush_error;
+} uz_xceedbwt_context;
+
+static int uz_xceedbwt_read(void *opaque)
+{
+#ifdef REENTRANT
+    Uz_Globs *pG = ((uz_xceedbwt_context *)opaque)->global;
+#else
+    (void)opaque;
+#endif
+    return NEXTBYTE;
+}
+
+static int uz_xceedbwt_write(void *opaque, const unsigned char *data, size_t n)
+{
+    uz_xceedbwt_context *ctx = (uz_xceedbwt_context *)opaque;
+#ifdef REENTRANT
+    Uz_Globs *pG = ctx->global;
+#endif
+    if (ctx->flush_error == PK_COOL)
+        ctx->flush_error = flush(__G__ (uch *)data, (ulg)n, 0);
+    return ctx->flush_error != PK_COOL;
+}
+
+static int uz_xceedbwt_decompress(__G)
+    __GDEF
+{
+    uz_xceedbwt_context ctx;
+    int rc;
+    unsigned long hi, lo;
+    ctx.flush_error = PK_COOL;
+#ifdef REENTRANT
+    ctx.global = pG;
+#endif
+    lo = (unsigned long)(G.lrec.ucsize & 0xffffffffUL);
+    hi = (unsigned long)((G.lrec.ucsize >> 16) >> 16);
+    rc = iz_xceedbwt_decode(uz_xceedbwt_read, uz_xceedbwt_write,
+                            &ctx, hi, lo, (unsigned long)G.lrec.crc32);
+    if (ctx.flush_error != PK_COOL) return ctx.flush_error;
+    return rc == 0 ? PK_COOL : (rc == -2 ? PK_MEM3 : PK_ERR);
+}
+#endif /* USE_XCEED_BWT */
+
 #ifdef USE_PPMD
 #  include "ppmd8.c"
 #  include "ppmd8dec.c"
@@ -1840,7 +1890,7 @@ static ZCONST char Far ComprMsgNum[] =
    static ZCONST char Far CmprRefPtr[]     = "RefPtr";
    static ZCONST char Far CmprWZMP3[]      = "WZ-MP3";
    static ZCONST char Far CmprXZ[]         = "XZ";
-   static ZCONST char Far CmprIBMTerse[]   = "IBM/Terse";
+   static ZCONST char Far CmprIBMTerse[]   = "IBM/Terse or Xceed BWT";
    static ZCONST char Far CmprIBMLZ77[]    = "IBM LZ77";
    static ZCONST char Far CmprWinJPEG[]    = "WinZip JPEG";
    static ZCONST char Far CmprWavPack[]    = "WavPack";
@@ -2817,6 +2867,12 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #  define UNKN_LZFSE TRUE
 #endif
 
+#ifdef USE_XCEED_BWT
+#  define UNKN_XCEED_BWT (G.crec.compression_method!=IBMTERSED)
+#else
+#  define UNKN_XCEED_BWT TRUE
+#endif
+
 #ifdef USE_CMPSC16
 #  define UNKN_CMPSC (G.crec.compression_method!=CMPSCED)
 #else
@@ -2834,11 +2890,11 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method<DEFLATED \
       && G.crec.compression_method>ENHDEFLATED \
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT)
 #  else
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method!=DEFLATED\
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT)
 #  endif
 #else
 #  ifdef USE_OLDUNZIP
@@ -2854,13 +2910,13 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>ENHDEFLATED && \
       G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD \
-      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE))
+      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT))
 #  else
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>DEFLATED && \
       G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD \
-      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE))
+      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT))
 #  endif
 #endif
 
@@ -4313,6 +4369,23 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             }
             break;
 #endif
+#ifdef USE_XCEED_BWT
+        case IBMTERSED:
+            if (!uO.tflag && QCOND2)
+                Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
+                  "decod", FnFilter1(G.filename), avmark, avsep,
+                  (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
+                  uO.cflag ? NEWLINE : ""));
+            r = uz_xceedbwt_decompress(__G);
+            if (r != PK_COOL) {
+                Info(slide, 0x401, ((char *)slide,
+                  "   method 18 is not a validated Xceed BWT stream"
+                  " (IBM TERSE is not supported): %s\n",
+                  FnFilter1(G.filename)));
+                error = r;
+            }
+            break;
+#endif /* USE_XCEED_BWT */
 #ifdef USE_CMPSC16
         case CMPSCED:
             if (!uO.tflag && QCOND2) {

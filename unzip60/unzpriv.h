@@ -760,6 +760,17 @@
 # define USE_CMPSC16
 #endif
 
+/* Xceed BWT (method 18) uses up to 4 MB of BWT memory to decode
+ * NO_XCEED_BWT disables only Xceed decoding, not related to IBM TERSE support */
+#if !defined(NO_XCEED_BWT) && !defined(__16BIT__) && \
+    !defined(MEMORY16) && !defined(SMALL_MEM) && !defined(MED_MEM) && \
+    !defined(FUNZIP) && !defined(NO_LIMITS_H) && \
+    !(defined(MSDOS) && !defined(__DJGPP__) && !defined(__GO32__))
+# if UINT_MAX >= 0xffffffffUL && ULONG_MAX >= 0xffffffffUL && CHAR_BIT == 8
+#  define USE_XCEED_BWT
+# endif
+#endif
+
 #define UNZIP_BZ2VERS   46
 #define UNZIP_LZMAVERS  63
 #define UNZIP_ZSTDVERS  63  /* accept Python 3.14 method-93 version-needed */

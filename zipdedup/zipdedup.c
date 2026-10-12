@@ -37,6 +37,17 @@ extern unsigned long refptr9903_crc (unsigned long, unsigned int, unsigned int,
 #define ZD_DIGSIG 0x05054b50UL
 #define ZD_REFPTR 92U
 
+/* zipdedup uses UnZip's public API, so unzip.h unfortunately does not define
+ * the internal USE_XCEED_BWT macro for this compilation unit so copy here. */
+#if !defined(NO_XCEED_BWT) && !defined(__16BIT__) && \
+    !defined(MEMORY16) && !defined(SMALL_MEM) && !defined(MED_MEM) && \
+    !defined(FUNZIP) && !defined(NO_LIMITS_H) && \
+    !(defined(MSDOS) && !defined(__DJGPP__) && !defined(__GO32__)) && \
+    UINT_MAX >= 0xffffffffUL && ULONG_MAX >= 0xffffffffUL && CHAR_BIT == 8
+# define ZD_HAVE_XCEED_BWT 1
+#endif
+
+
 struct zd_entry
 {
   unsigned char *cen;
@@ -884,6 +895,11 @@ zd_supported (unsigned m)
     case 16:
       return 1;
 #endif /* USE_CMPSC16 */
+
+#ifdef ZD_HAVE_XCEED_BWT
+    case 18:
+      return 1;
+#endif /* ZD_HAVE_XCEED_BWT */
 
 #ifdef USE_LZFSE
     /* AES (also method 99) was rejected above by its 0x9901 extra field.
