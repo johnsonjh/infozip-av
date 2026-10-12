@@ -2,6 +2,20 @@
 
 set -e
 
+if [ "$(uname -s 2> /dev/null || :)" = "FreeBSD" ]; then
+  LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-} -L/usr/local/lib -liconv"
+  LOCAL_UNZIP="${LOCAL_UNZIP:-} -I/usr/local/include"
+  LOCAL_ZIP="${LOCAL_ZIP:-} -I/usr/local/include"
+  MAKE=gmake
+fi
+
+test -z "${CC:-}" 2> /dev/null && {
+    CC="$(command -v cc 2> /dev/null || \
+          command -v gcc 2> /dev/null || \
+          command -v clang 2> /dev/null || \
+          printf '%s\n' 'cc')"
+} || :
+
 CPUS="$(nproc 2> /dev/null || printf '%s\n' '1')"
 LTO="-flto=auto"
 WLB="-Wl,-z,relro"
@@ -72,6 +86,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
       LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
       LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
       EXTERNAL_ZLIB="${EXTERNAL_ZLIB:-}" \
+      MAKE="${MAKE:-make}" \
       PREFIX="${PREFIX:?}"
 )
 
@@ -84,6 +99,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
       LOCAL_ZIP="${LOCAL_ZIP:-}" \
       LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
       EXTERNAL_ZLIB="${EXTERNAL_ZLIB:-}" \
+      MAKE="${MAKE:-make}" \
       PREFIX="${PREFIX:?}"
 )
 
@@ -93,6 +109,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
       prefix="${PREFIX:?}" \
       MANDIR="${PREFIX:?}/man1" \
       INSTALL="cp -p" \
+      MAKE="${MAKE:-make}" \
       install
 )
 
@@ -101,6 +118,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
     && "${MAKE:-make}" -f unix/Makefile \
       prefix="${PREFIX:?}" \
       MANDIR="${PREFIX:?}/man1" \
+      MAKE="${MAKE:-make}" \
       install
 )
 
@@ -111,6 +129,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
       ZD_BACKEND="${ZD_ZLIB_BACKEND}" \
       LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
       LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
+      MAKE="${MAKE:-make}" \
     && cp -p "zipdedup" "${PREFIX:?}/bin/zipdedup" \
     && cp -p "man/zipdedup.1" "${PREFIX:?}/man1/zipdedup.1"
 )
@@ -122,6 +141,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
       LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
       LOCAL_ZIP="${LOCAL_ZIP:-}" \
       LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
+      MAKE="${MAKE:-make}" \
     && cp -p "zipopt" "${PREFIX:?}/bin/zipopt" \
     && cp -p "man/zipopt.1" "${PREFIX:?}/man1/zipopt.1"
 )
