@@ -2,6 +2,12 @@
 
 set -e
 
+test -z "${MAKE:-}" 2> /dev/null && {
+  MAKE="$(command -v gmake 2> /dev/null \
+    || command -v make 2> /dev/null \
+    || printf '%s\n' 'make')"
+}
+
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
 ZIPDEDUPDIR="zipdedup"

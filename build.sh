@@ -2,18 +2,23 @@
 
 set -e
 
+test -z "${MAKE:-}" 2> /dev/null && {
+  MAKE="$(command -v gmake 2> /dev/null \
+    || command -v make 2> /dev/null \
+    || printf '%s\n' 'make')"
+}
+
 if [ "$(uname -s 2> /dev/null || :)" = "FreeBSD" ]; then
   LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-} -L/usr/local/lib -liconv"
   LOCAL_UNZIP="${LOCAL_UNZIP:-} -I/usr/local/include"
   LOCAL_ZIP="${LOCAL_ZIP:-} -I/usr/local/include"
-  MAKE=gmake
 fi
 
 test -z "${CC:-}" 2> /dev/null && {
-    CC="$(command -v cc 2> /dev/null || \
-          command -v gcc 2> /dev/null || \
-          command -v clang 2> /dev/null || \
-          printf '%s\n' 'cc')"
+  CC="$(command -v cc 2> /dev/null \
+    || command -v gcc 2> /dev/null \
+    || command -v clang 2> /dev/null \
+    || printf '%s\n' 'cc')"
 } || :
 
 CPUS="$(nproc 2> /dev/null || printf '%s\n' '1')"
