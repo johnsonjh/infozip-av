@@ -136,8 +136,7 @@ compression is available (enabled via `zip ‑11`):
 > hardware acceleration is provided via the (*optional*)
 > [`zlib‑ng`](https://github.com/zlib-ng/zlib-ng) library where available.
 >
-> <sup>**‡**</sup>&nbsp;CMPSC compression support is an inefficient
-> and experimental (but fully interoperable) work‑in‑progress.
+> <sup>**‡**</sup>&nbsp;CMPSC compression is experimental but interoperable.
 >
 > <sup>**⌘**</sup>&nbsp;LZFSE is a non‑standard Apple extension.
 
@@ -180,6 +179,10 @@ compression method, keeping the method that produces the smallest output
 
 Relevant archive metadata is preserved and extensive checking is performed to
 ensure that the process is completely lossless.
+
+All available decompression methods are supported for input, but output
+currently excludes the non‑standard Apple LZFSE and the special‑purpose IBM
+z/OS CMPSC methods.
 
 ```
 $ zipopt original.zip optimized.zip
