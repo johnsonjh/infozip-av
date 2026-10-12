@@ -84,7 +84,7 @@ The usual ZIP **Store** (method&nbsp;0) and **DEFLATE** (method&nbsp;8)
 algorithms remain supported.
 
 Additionally, **ultra** compression levels, which take extra time and use more
-memory to achieve tighter packing, enabled via `zip ‑11`, are supported for
+memory to achieve tighter packing (enabled via `zip ‑11`) are supported for
 the **DEFLATE** (using a custom
 [Zopfli](https://github.com/google/zopfli)‑derived encoder), **Deflate64™**,
 **Zstandard**, IBM z/OS **CMPSC**, and Apple **LZFSE** methods.
@@ -98,7 +98,7 @@ the **DEFLATE** (using a custom
 |  **`4`** | Reduce&nbsp;(level&nbsp;3)                            |       ✅      |      ✅     |
 |  **`5`** | Reduce&nbsp;(level&nbsp;4)                            |       ✅      |      ✅     |
 |  **`6`** | ZIP&nbsp;Implode                                      |       ✅      |      ✅     |
-|  **`8`** | DEFLATE&nbsp;(Zopfli&nbsp;optional)                   |       ✅      |      ✅     |
+|  **`8`** | DEFLATE                                               |       ✅      |      ✅     |
 |  **`9`** | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)               |       ✅      |      ✅     |
 | **`10`** | DCL&nbsp;Implode                                      |       ✅      |      ✅     |
 | **`12`** | bzip2<sup>1</sup>                                     |       ✅      |      ✅     |
