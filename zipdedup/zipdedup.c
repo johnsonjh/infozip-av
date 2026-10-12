@@ -1408,14 +1408,14 @@ zd_end (FILE *out, unsigned long count, unsigned long cd_start,
 static int
 zd_apk_signing_block (struct zd_archive *a)
 {
-  static const unsigned char magic[16] = "APK Sig Block 42";
+  static const unsigned char magic[] = "APK Sig Block 42";
   unsigned char foot[24], head[8], pair[8];
   unsigned long size, begin, pos, end, n;
 
   if (a->cd_off < 24 || !zd_at (a->in, a->cd_off - 24)
       || !zd_read (a->in, foot, sizeof (foot)))
     return 0;
-  if (memcmp (foot + 8, magic, sizeof (magic)) != 0)
+  if (memcmp (foot + 8, magic, sizeof (magic) - 1U) != 0)
     return 0;
   if (!zd_r64 (foot, &size) || size < 24 || size > a->cd_off - 8)
     return 2;
