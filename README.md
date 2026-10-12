@@ -177,8 +177,8 @@ operation would result in a *smaller* output archive (*i.e.*, very small files
 will be skipped).
 
 ```
-$ zipdedup original.zip dedup.zip
-449 new references; approximate savings: 9010081 bytes
+$ zipdedup original.zip deduplicated.zip
+449 new references; approximate savings: 9,010,081 bytes
 ```
 
 Invoke as `zipdedup --help` for complete `zipdedup` usage information.
