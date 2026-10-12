@@ -4,7 +4,7 @@
  */
 
 #undef ZD_VER
-#define ZD_VER "0.2"
+#define ZD_VER "0.3"
 
 #undef ZD_DATE
 #define ZD_DATE "2026-10-11"
@@ -36,6 +36,8 @@ extern unsigned long refptr9903_crc (unsigned long, unsigned int, unsigned int,
 #define ZD_ZLOC 0x07064b50UL
 #define ZD_DIGSIG 0x05054b50UL
 #define ZD_REFPTR 92U
+#define ZD_APKALIGN 0xd935U
+#define ZD_APACHEALIGN 0xa11eU
 
 /* zipdedup uses UnZip's public API, so unzip.h unfortunately does not define
  * the internal USE_XCEED_BWT macro for this compilation unit so copy here. */
@@ -71,7 +73,7 @@ struct zd_archive
   struct zd_entry *members;
   unsigned long *order;
   const char *input, *output;
-  int dry, verbose, quiet;
+  int force, verbose, quiet;
 };
 
 static const char *zd_error;
@@ -1394,6 +1396,136 @@ zd_end (FILE *out, unsigned long count, unsigned long cd_start,
   return zd_write (out, b, 22) && zd_write (out, comment, comlen);
 }
 
+/*
+ * Detect the APK Signing Block envelope before the CD>
+ * It is independent of the archive extension so not a claim that the
+ * signatures are valid.  A broken sequence is still protected if the
+ * trailing magic exists.
+ *
+ * Return 0 for missing, 1 for well-formed, 2 for malformed/broken.
+ */
+
+static int
+zd_apk_signing_block (struct zd_archive *a)
+{
+  static const unsigned char magic[16] = "APK Sig Block 42";
+  unsigned char foot[24], head[8], pair[8];
+  unsigned long size, begin, pos, end, n;
+
+  if (a->cd_off < 24 || !zd_at (a->in, a->cd_off - 24)
+      || !zd_read (a->in, foot, sizeof (foot)))
+    return 0;
+  if (memcmp (foot + 8, magic, sizeof (magic)) != 0)
+    return 0;
+  if (!zd_r64 (foot, &size) || size < 24 || size > a->cd_off - 8)
+    return 2;
+  begin = a->cd_off - 8 - size;
+  if (!zd_at (a->in, begin) || !zd_read (a->in, head, sizeof (head))
+      || memcmp (head, foot, 8) != 0)
+    return 2;
+
+  pos = begin + 8;
+  end = a->cd_off - 24;
+  while (pos < end)
+    {
+      if (end - pos < 12 || !zd_at (a->in, pos)
+          || !zd_read (a->in, pair, 8) || !zd_r64 (pair, &n)
+          || n < 4 || n > end - pos - 8)
+        return 2;
+      pos += 8 + n;
+    }
+  return pos == end ? 1 : 2;
+}
+
+/* Check only the two documented alignment extra formats.  This validates
+ * the promised data offset, without changing any metadata or header bytes.
+ * Unknown/malformed alignment values are not interpreted optimistically. */
+static int
+zd_alignment_fields (const unsigned char *p, unsigned n,
+                     unsigned long data_off, int *seen)
+{
+  unsigned pos = 0, id, len, alignment;
+  while (pos < n)
+    {
+      if (n - pos < 4)
+        return 0;
+      id = zd_u16 (p + pos);
+      len = zd_u16 (p + pos + 2);
+      if (len > n - pos - 4)
+        return 0;
+      if (id == ZD_APKALIGN || id == ZD_APACHEALIGN)
+        {
+          *seen = 1;
+          if (len < 2)
+            return 0;
+          alignment = zd_u16 (p + pos + 4);
+          if (id == ZD_APACHEALIGN)
+            {
+              /* Highest bit is Apache's allow-method-change flag. */
+              alignment &= 0x7fffU;
+              if (!alignment || (alignment & (alignment - 1U)))
+                return 0;
+            }
+          else if (!alignment)
+            return 0;
+          if (data_off % alignment != 0)
+            return 0;
+        }
+      pos += 4 + len;
+    }
+  return 1;
+}
+
+/* Predict physical local-header offsets using precisely the same lengths as
+ * zd_emit().  This is called only if an actual deduplication is planned. */
+static int
+zd_alignment_preserved (struct zd_archive *a, int *seen)
+{
+  unsigned long i, at;
+  *seen = 0;
+  /* Do not impose a new output-offset preflight on archives which contain
+   * neither of the two explicitly protected alignment extra fields. */
+  for (i = 0; i < a->count; i++)
+    {
+      struct zd_entry *e = a->members + i;
+      unsigned cn = zd_u16 (e->cen + 28), cx = zd_u16 (e->cen + 30);
+      unsigned ln = zd_u16 (e->loc + 26), lx = zd_u16 (e->loc + 28);
+      const unsigned char *c = e->cen + 46 + cn;
+      const unsigned char *l = e->loc + 30 + ln;
+      if (zd_has (c, cx, ZD_APKALIGN, NULL, NULL) == 1
+          || zd_has (c, cx, ZD_APACHEALIGN, NULL, NULL) == 1
+          || zd_has (l, lx, ZD_APKALIGN, NULL, NULL) == 1
+          || zd_has (l, lx, ZD_APACHEALIGN, NULL, NULL) == 1)
+        {
+          *seen = 1;
+          break;
+        }
+    }
+  if (!*seen)
+    return 1;
+
+  at = a->count ? a->members[a->order[0]].off : a->cd_off;
+  for (i = 0; i < a->count; i++)
+    {
+      struct zd_entry *e = a->members + a->order[i];
+      unsigned cn = zd_u16 (e->cen + 28), cx = zd_u16 (e->cen + 30);
+      unsigned ln = zd_u16 (e->loc + 26), lx = zd_u16 (e->loc + 28);
+      unsigned long size = e->selected ? e->loclen + 20UL
+                         : e->next_off - e->off;
+      if (at > ULONG_MAX - e->loclen)
+        return 0;
+      if (!zd_alignment_fields (e->cen + 46 + cn, cx,
+                                at + e->loclen, seen)
+          || !zd_alignment_fields (e->loc + 30 + ln, lx,
+                                   at + e->loclen, seen))
+        return 0;
+      if (at > ULONG_MAX - size)
+        return 0;
+      at += size;
+    }
+  return 1;
+}
+
 static int
 zd_emit (struct zd_archive *a, FILE *out)
 {
@@ -1520,7 +1652,7 @@ zd_usage (FILE *out)
 "Xtro-ZIP - zipdedup - WinZip-compatible (\"ZIPX\" method 92) de-duplication\n"
 "Release %s - %s - https://github.com/johnsonjh/infozip-av\n"
 "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>\n\n"
-"Usage: zipdedup [--dry-run] [-v|--verbose] [-q|--quiet] <in.zip> <out.zip>\n"
+"Usage: zipdedup [--force] [-v|--verbose] [-q|--quiet] <in.zip> <out.zip>\n"
 "       zipdedup --help | --version\n", ZD_VER, ZD_DATE);
 /******************************************************************************/
 }
@@ -1529,7 +1661,7 @@ int
 main (int argc, char **argv)
 {
   struct zd_archive a;
-  int i, nargs = 0, ok = 0;
+  int i, nargs = 0, ok = 0, apk_block, align_ok, align_seen;
   unsigned long count = 0, saved = 0;
   const char *paths[2];
   char *tmp = NULL;
@@ -1539,9 +1671,9 @@ main (int argc, char **argv)
   memset (&a, 0, sizeof (a));
   for (i = 1; i < argc; i++)
     {
-      if (!strcmp (argv[i], "--dry-run"))
+      if (!strcmp (argv[i], "--force"))
         {
-          a.dry = 1;
+          a.force = 1;
           continue;
         }
 
@@ -1589,6 +1721,7 @@ main (int argc, char **argv)
   a.input = paths[0];
   a.output = paths[1];
   zd_verbose = a.verbose;
+
   if (!strcmp (a.input, a.output))
     {
       fprintf (stderr, "zipdedup: input and output must differ\n");
@@ -1596,6 +1729,7 @@ main (int argc, char **argv)
     }
 
   a.in = fopen (a.input, "rb");
+
   if (!a.in)
     {
       fprintf (stderr, "zipdedup: cannot open input '%s'\n", a.input);
@@ -1607,17 +1741,50 @@ main (int argc, char **argv)
       goto done;
     }
 
+  apk_block = zd_apk_signing_block (&a);
+
+  if (apk_block)
+    {
+      fprintf (stderr, "zipdedup: warning: APK Signing Block detected%s\n",
+               apk_block == 2 ? " (malformed envelope)" : "");
+
+      if (count && !a.force)
+        {
+          zd_fail ("APK Signing Block prevents rewrite (use --force to override)");
+
+          goto done;
+        }
+
+      if (count)
+        {
+          fprintf (stderr, "zipdedup: warning: --force may invalidate APK signatures\n");
+        }
+    }
+
+  if (count)
+    {
+      align_ok = zd_alignment_preserved (&a, &align_seen);
+
+      if (!align_ok)
+        {
+          fprintf (stderr, "zipdedup: warning: 0xD935/0xA11E alignment cannot be preserved or interpreted\n");
+
+          if (!a.force)
+            {
+              zd_fail ("alignment metadata prevents rewrite (use --force to override)");
+
+              goto done;
+            }
+
+          fprintf (stderr, "zipdedup: warning: --force may invalidate alignment requirements\n");
+        }
+    }
+
   if (!a.quiet)
     {
       printf (
           "%lu new references; approximate savings: %lu bytes\n",
           count, saved);
-    }
-
-  if (a.dry)
-    {
-      ok = 1;
-      goto done;
     }
 
   if (strlen (a.output) > ((size_t)-1) - 32)

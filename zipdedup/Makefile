@@ -60,5 +60,6 @@ test: zipdedup test-refptr9903
 	./test-refptr9903
 	python3 tests/test_zipdedup.py
 	python3 tests/test_refptr_metadata.py
+	python3 tests/test_rewrite_safeguards.py
 	python3 tests/test_lzfse_cmpsc.py
 .PHONY: test

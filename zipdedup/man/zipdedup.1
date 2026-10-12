@@ -13,8 +13,10 @@ are not recompressed. It writes to a distinct new archive, never mutating input.
 The first physical copy is retained as the canonical source.
 .SH OPTIONS
 .TP
-.B --dry-run
-Analyze and report expected savings; do not create an output archive.
+.B --force
+Override the APK Signing Block and known alignment-field rewriting safeguards.
+This will invalidate APK signatures and data alignment!  The diagnostics remain
+visible even with --quiet.  All other archive validation remains unchanged.
 .TP
 .BR -v , " --verbose"
 Show which member is retained for each duplicate.
@@ -34,13 +36,15 @@ UUID/checksum extra field. Metadata, FWKCS MD5 fields, comments, and retained
 compressed streams are preserved. Method 92 extraction needs a compatible
 UnZip/WinZip implementation.
 .SH LIMITATIONS
-Encrypted, split, PKAV-authenticated, signed, or otherwise non-preservable
-archives are rejected. Supported codecs depend on the linked UnZip build.
+Encrypted, split, PKAV-authenticated, central-directory-signed, or otherwise non-preservable
+archives are rejected. APK Signing Blocks and unpreservable recognized alignment
+fields prevent a rewrite unless --force is supplied; no-op archives are copied
+unchanged. This is not a general Android zipalign verifier. Supported codecs depend on the linked UnZip build.
 The current utility is a POSIX program written in strictly ANSI C89 syntax.
 ZIP64 offsets exceeding the platform's C long file-position range are refused.
 An existing output archive is never overwritten.
 .SH EXIT STATUS
-0 for success (including dry run and no duplicate files); 1 for archive or
+0 for success (including no duplicate files); 1 for archive or
 I/O errors; 2 for invalid arguments.
 .SH LICENSE
 MIT-0. See the repository LICENSE for the project's broader licensing.
