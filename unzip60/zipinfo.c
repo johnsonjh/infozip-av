@@ -795,6 +795,11 @@ int zipinfo(__G)   /* return PK-type error code */
     zusz_t endprev;   /* buffers end of previous entry for zi_long()'s check
                        *  of extra bytes */
 
+    /* Keep the normal fatal-skip result while releasing match arrays. */
+#define ZI_SKIP_(length) \
+    if ((length) && ((error = do_string(__G__ length, SKIP)) != 0)) \
+    { error_in_archive = error; if (error > 1) goto zi_skip_cleanup; }
+
 
 /*---------------------------------------------------------------------------
     Malloc space for check on unmatched filespecs (no big deal if one or both
@@ -931,7 +936,7 @@ int zipinfo(__G)   /* return PK-type error code */
                 case 1:
                 case 2:
                     fnprint(__G);
-                    SKIP_(G.crec.file_comment_length)
+                    ZI_SKIP_(G.crec.file_comment_length)
                     break;
 
                 case 3:
@@ -952,7 +957,7 @@ int zipinfo(__G)   /* return PK-type error code */
                     break;
 
                 default:
-                    SKIP_(G.crec.file_comment_length)
+                    ZI_SKIP_(G.crec.file_comment_length)
                     break;
 
             } /* end switch (lflag) */
@@ -994,8 +999,8 @@ int zipinfo(__G)   /* return PK-type error code */
 #endif
 
         } else {        /* not listing this file */
-            SKIP_(G.crec.extra_field_length)
-            SKIP_(G.crec.file_comment_length)
+            ZI_SKIP_(G.crec.extra_field_length)
+            ZI_SKIP_(G.crec.file_comment_length)
             if (endprev != 0) endprev = 0;
 
         } /* end if (list member?) */
@@ -1026,6 +1031,7 @@ int zipinfo(__G)   /* return PK-type error code */
     found.
   ---------------------------------------------------------------------------*/
 
+zi_skip_cleanup:
     if (fn_matched) {
         if (error_in_archive <= PK_WARN)
             for (j = 0;  j < G.filespecs;  ++j)
@@ -1071,6 +1077,7 @@ int zipinfo(__G)   /* return PK-type error code */
             (*G.message)((zvoid *)&G, (uch *)"\n", 1L, 0);
     }
 
+    #undef ZI_SKIP_
     return error_in_archive;
 
 } /* end function zipinfo() */
