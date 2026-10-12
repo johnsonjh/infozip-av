@@ -16,10 +16,10 @@
 
 trap "rm -f conftest* core a.out; exit 1" 1 2 3 15
 
-CC=${1-cc}
-CFLAGS="$2 -I. -DUNIX ${LOCAL_ZIP}"
+CC=${CC:-${1:-cc}}
+CFLAGS="$2 -I. -DUNIX ${LOCAL_ZIP} ${EXTERNAL_ZLIB:-}"
 LFLAGS1=''
-LFLAGS2=''
+LFLAGS2="${LFLAGS2:-} ${LOCAL_GLDFLAGS:-}"
 LN="ln -s"
 
 # Native zlib-ng is an independent, optional backend.  No build-time

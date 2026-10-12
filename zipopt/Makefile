@@ -1,10 +1,14 @@
 # zipopt — private, in-process UnZip build (early implementation stages)
 # SPDX-License-Identifier: MIT-0
-CC ?= cc
+ifneq ($(filter default undefined,$(origin CC)),)
+CC = cc
+endif
 CFLAGS ?= -O2 -std=c89 -Wall -Wextra
-CPPFLAGS += -D_FILE_OFFSET_BITS=64 $(LOCAL_ZIP) $(LOCAL_UNZIP)
+# Keep Zip and UnZip compiler flags isolated.  Only the in-process encoder
+# adapter compiles with LOCAL_ZIP; only private decoder objects use LOCAL_UNZIP.
+CPPFLAGS += -D_FILE_OFFSET_BITS=64
 UZDIR = ../unzip60
-UZFLAGS = -std=gnu89 -O2 -I$(UZDIR) -DUNIX -DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DLARGE_FILE_SUPPORT -DNO_ZLIB_NG -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD $(LOCAL_ZIP) $(LOCAL_UNZIP)
+UZFLAGS = -std=gnu89 -O2 -I$(UZDIR) -DUNIX -DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DLARGE_FILE_SUPPORT -DNO_ZLIB_NG -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD $(LOCAL_UNZIP)
 UZUNITS = unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo api unix
 UZOBJS = $(addprefix build/uz-,$(addsuffix .o,$(UZUNITS)))
 # UnZip frequently changes codec declarations in headers.  Generate private
@@ -19,33 +23,38 @@ CODEC_DEPS = $(wildcard ../zip30/shrink.c ../zip30/reduce.c \
     ../zip30/pkdcl.h ../zip30/ppmd8.h ../zip30/zopfli.h)
 LDLIBS += -lbz2 -llzma -lzstd
 
+# The Zip-side codec adapter is compiled separately to prevent cross-pollution
+# of LOCAL_ZIP/LOCAL_UNZIP and to preserve conditional ABI declarations.
+ZOCODEC = build/zo-codec.o
 all: zipopt zipopt-preflight zipopt-decodecheck
-zipopt: archive.c archive.h extract.c extract.h writer.c writer.h codec.c codec.h $(CODEC_DEPS) display.h zipopt.c $(UZOBJS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c extract.c writer.c -DZO_SHARED_UNZIP_CODECS codec.c zipopt.c $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
+zipopt: archive.c archive.h extract.c extract.h writer.c writer.h codec.c codec.h $(CODEC_DEPS) display.h zipopt.c $(ZOCODEC) $(UZOBJS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c extract.c writer.c zipopt.c $(ZOCODEC) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 zipopt-preflight: archive.c archive.h preflight.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c preflight.c -o $@ $(LOCAL_GLDFLAGS)
 zipopt-decodecheck: archive.c archive.h extract.c extract.h decodecheck.c $(UZOBJS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) $(LDLIBS) -o $@ $(LOCAL_GLDFLAGS)
 build:
 	mkdir -p $@
+$(ZOCODEC): codec.c codec.h archive.h $(CODEC_DEPS) | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LOCAL_ZIP) -DZO_SHARED_UNZIP_CODECS -c codec.c -o $@
 build/uz-unix.o: $(UZDIR)/unix/unix.c | build
 	$(CC) $(UZFLAGS) -MMD -MP -MF $(@:.o=.d) -MT $@ -c $(UZDIR)/unix/unix.c -o $@
 build/uz-%.o: $(UZDIR)/%.c | build
 	$(CC) $(UZFLAGS) -MMD -MP -MF $(@:.o=.d) -MT $@ -c $(UZDIR)/$*.c -o $@
 codec-probe: tests/codec_probe.c codec.c codec.h archive.h $(CODEC_DEPS)
-	$(CC) $(CPPFLAGS) -O2 -std=gnu89 -I../zip30 tests/codec_probe.c codec.c -lbz2 -llzma -lzstd -lm -o $@
+	$(CC) $(CPPFLAGS) -O2 -std=gnu89 -I../zip30 $(LOCAL_ZIP) tests/codec_probe.c codec.c -lbz2 -llzma -lzstd -lm -o $@ $(LOCAL_GLDFLAGS)
 test-display: tests/test_display.c display.h archive.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_display.c -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_display.c -o $@ $(LOCAL_GLDFLAGS)
 test-index: tests/test_index.c archive.c extract.c $(UZOBJS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_index.c archive.c extract.c $(UZOBJS) $(LDLIBS) -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_index.c archive.c extract.c $(UZOBJS) $(LDLIBS) -o $@ $(LOCAL_GLDFLAGS)
 test-structures: tests/test_structures.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_structures.c -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_structures.c -o $@ $(LOCAL_GLDFLAGS)
 test-source-stability: tests/test_source_stability.c archive.c archive.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_source_stability.c archive.c -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_source_stability.c archive.c -o $@ $(LOCAL_GLDFLAGS)
 test-zip64-offset: tests/test_zip64_offset.c archive.c archive.h writer.c writer.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_zip64_offset.c archive.c writer.c -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_zip64_offset.c archive.c writer.c -o $@ $(LOCAL_GLDFLAGS)
 test-interrupt: tests/test_interrupt.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_interrupt.c -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_interrupt.c -o $@ $(LOCAL_GLDFLAGS)
 test: test-display test-index test-structures test-zip64-offset test-interrupt test-source-stability codec-probe zipopt zipopt-preflight zipopt-decodecheck
 	./test-display
 	./test-index

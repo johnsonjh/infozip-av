@@ -42,7 +42,11 @@
 # such as -DDOSWILD).
 
 # UnZip flags
-CC = cc#	try using "gcc" target rather than changing this (CC and LD
+# Honor environment/command-line CC; default to cc.
+ifneq ($(filter default undefined,$(origin CC)),)
+CC = cc
+endif
+# Try using the gcc target rather than changing CC (CC and LD
 LD = $(CC)#	must match, else "unresolved symbol:  ___main" is possible)
 AS = as
 LOC = $(D_USE_BZ2) $(D_USE_LZMA) $(D_USE_ZSTD) $(D_USE_WAVPACK) $(LOCAL_UNZIP)
@@ -570,7 +574,7 @@ generic:	flags	   # now try autoconfigure first
 #	make $(MAKEF) unzips CF="${CF} `cat flags`"
 
 generic_gcc:
-	$(MAKE) $(MAKEF) generic CC="gcc -std=gnu89" IZ_BZIP2="$(IZ_BZIP2)"
+	$(MAKE) $(MAKEF) generic CC="$(CC) -std=gnu89" IZ_BZIP2="$(IZ_BZIP2)"
 
 # extensions to perform SVR4 package-creation after compilation
 generic_pkg:	generic svr4package

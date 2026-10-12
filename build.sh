@@ -8,7 +8,7 @@ WLB="-Wl,-z,relro"
 
 # "-DNOMEMCPY -DIZ_HAVE_UXUIDGID -DNO_LCHMOD" are "important" RHEL flags, do not remove!
 CF_NOOPT="${LTO:-} -I. -DUNIX ${RPM_OPT_FLAGS:--O3} -DNOMEMCPY -DIZ_HAVE_UXUIDGID -DNO_LCHMOD"
-GLDFLAGS="${LTO:-} ${WLB:-} ${LOCAL_GLDFLAGS:-}"
+GLDFLAGS="${LTO:-} ${WLB:-}"
 
 # Enable LZMA-enabled unzipsfx
 D_USE_LZMA_SFX="-DLZMA_SFX"
@@ -32,8 +32,14 @@ D_USE_WZMP3_SFX="-DWZMP3_SFX"
 # Installed zlib-ng is detected automatically.
 #EXTERNAL_ZLIB="-DUSE_ZLIB"
 
-LOCAL_UNZIP="${LOCAL_UNZIP:-} ${EXTERNAL_ZLIB:-}"
-LOCAL_ZIP="${LOCAL_ZIP:-} ${EXTERNAL_ZLIB:-}"
+case " ${EXTERNAL_ZLIB:-} " in
+*" -DUSE_ZLIB_NG "* | *" -DUSE_ZLIB_NG="*) ZD_ZLIB_BACKEND=native ;;
+*" -DUSE_ZLIB "* | *" -DUSE_ZLIB="*) ZD_ZLIB_BACKEND=zlib ;;
+*" -DNO_ZLIB_NG "* | *" -DNO_ZLIB_NG="*) ZD_ZLIB_BACKEND=internal ;;
+*) ZD_ZLIB_BACKEND=${ZD_BACKEND:-auto} ;;
+esac
+
+BUILD_CC=${CC:-cc}
 
 ZIPDIR="zip30"
 UNZIPDIR="unzip60"
@@ -52,8 +58,9 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
 (
   cd "${UNZIPDIR:?}" \
     && "${MAKE:-make}" -j "${CPUS:?}" -f unix/Makefile generic_gcc \
-      CF_NOOPT="${CF_NOOPT:?} ${LOCAL_UNZIP:-}" \
-      LFLAGS2="${GLDFLAGS:?}" \
+      CC="${BUILD_CC}" \
+      CF_NOOPT="${CF_NOOPT:?}" \
+      LFLAGS2="${GLDFLAGS}" \
       D_USE_LZMA_SFX="${D_USE_LZMA_SFX:-}" \
       L_LZMA_SFX="${L_LZMA_SFX:-}" \
       D_USE_ZSTD_SFX="${D_USE_ZSTD_SFX:-}" \
@@ -63,15 +70,20 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
       D_USE_REFPTR_SFX="${D_USE_REFPTR_SFX:-}" \
       D_USE_WZMP3_SFX="${D_USE_WZMP3_SFX:-}" \
       LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
+      LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
+      EXTERNAL_ZLIB="${EXTERNAL_ZLIB:-}" \
       PREFIX="${PREFIX:?}"
 )
 
 (
   cd "${ZIPDIR:?}" \
     && "${MAKE:-make}" -j "${CPUS:?}" -f unix/Makefile generic_gcc \
-      CFLAGS_NOOPT="${CF_NOOPT:?} ${LOCAL_ZIP:-}" \
-      LFLAGS2="${GLDFLAGS:?}" \
+      CC="${BUILD_CC}" \
+      CFLAGS_NOOPT="${CF_NOOPT:?}" \
+      LFLAGS2="${GLDFLAGS}" \
       LOCAL_ZIP="${LOCAL_ZIP:-}" \
+      LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
+      EXTERNAL_ZLIB="${EXTERNAL_ZLIB:-}" \
       PREFIX="${PREFIX:?}"
 )
 
@@ -95,7 +107,10 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
 (
   cd "${ZIPDEDUPDIR:?}" \
     && "${MAKE:-make}" -j "${CPUS:?}" all \
+      CC="${BUILD_CC}" \
+      ZD_BACKEND="${ZD_ZLIB_BACKEND}" \
       LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
+      LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
     && cp -p "zipdedup" "${PREFIX:?}/bin/zipdedup" \
     && cp -p "man/zipdedup.1" "${PREFIX:?}/man1/zipdedup.1"
 )
@@ -103,8 +118,10 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
 (
   cd "${ZIPOPTDIR:?}" \
     && "${MAKE:-make}" -j "${CPUS:?}" all \
+      CC="${BUILD_CC}" \
       LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
       LOCAL_ZIP="${LOCAL_ZIP:-}" \
+      LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
     && cp -p "zipopt" "${PREFIX:?}/bin/zipopt" \
     && cp -p "man/zipopt.1" "${PREFIX:?}/man1/zipopt.1"
 )

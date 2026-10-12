@@ -22,7 +22,10 @@ SHELL = /bin/sh
 LN = ln -s
 
 # (to use the GNU compiler, change cc to gcc in CC)
+# Use an environment or command-line compiler if supplied; otherwise cc.
+ifneq ($(filter default undefined,$(origin CC)),)
 CC = cc
+endif
 BIND = $(CC)
 AS = $(CC) -c
 CPP = /lib/cpp
@@ -205,7 +208,7 @@ generic: flags
 	eval $(MAKE) $(MAKEF) zips `cat flags`
 
 generic_gcc:
-	$(MAKE) $(MAKEF) generic CC="gcc -std=gnu89" CPP="gcc -E"
+	$(MAKE) $(MAKEF) generic CC="$(CC) -std=gnu89" CPP="$(CC) -std=gnu89 -E"
 
 # AT&T 6300 PLUS (don't know yet how to allocate 64K bytes):
 att6300nodir:

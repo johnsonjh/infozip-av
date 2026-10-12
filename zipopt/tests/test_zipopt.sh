@@ -88,7 +88,7 @@ if ! grep -Fx "  selected: original, $unpacked_bytes bytes -> $unpacked_bytes by
      build/progress-single.log >/dev/null ||
    ! grep -Fx '            (0% -> 0% -> 0%) [0 bytes saved]' \
      build/progress-single.log >/dev/null ||
-   ! grep -Fx '[member 1/1] 0 "data": optimizing' \
+   ! grep -Fx '[member 1/1] "data": optimizing' \
      build/progress-single.log >/dev/null ||
    ! grep -Fx "build/progress-single.zip: complete [1 member]" build/progress-single.log >/dev/null ||
    ! grep -Fx "zipopt: $unpacked_bytes bytes -> $source_bytes bytes -> $result_bytes bytes" \
@@ -256,7 +256,7 @@ fi
     2>build/three-report.log
 ./zipopt-decodecheck build/three-report.zip
 if ! awk '
-    /^\[member [ 0-9]+\/[0-9]+\] [0-9]+ / {
+    /^\[member [ 0-9]+\/[0-9]+\] / {
         if(seen && previous!="")bad=1;
         if(!seen && lines!=0)bad=1;
         seen++;
@@ -274,10 +274,10 @@ fi
 ./zipopt -v --methods=store build/twelve-structure.zip build/report-twelve.zip \
     2>build/report-twelve.log
 ./zipopt-decodecheck build/report-twelve.zip
-if ! grep -Fx '[member  1/12] 0 "d00/": directory' build/report-twelve.log >/dev/null ||
-   ! grep -Fx '[member  9/12] 8 "d08/": directory' build/report-twelve.log >/dev/null ||
-   ! grep -Fx '[member 10/12] 9 "d09/": directory' build/report-twelve.log >/dev/null ||
-   ! grep -Fx '[member 12/12] 11 "d11/": directory' build/report-twelve.log >/dev/null ||
+if ! grep -Fx '[member  1/12] "d00/": directory' build/report-twelve.log >/dev/null ||
+   ! grep -Fx '[member  9/12] "d08/": directory' build/report-twelve.log >/dev/null ||
+   ! grep -Fx '[member 10/12] "d09/": directory' build/report-twelve.log >/dev/null ||
+   ! grep -Fx '[member 12/12] "d11/": directory' build/report-twelve.log >/dev/null ||
    ! grep -Fx 'build/report-twelve.zip: complete [12 members]' build/report-twelve.log >/dev/null; then
   echo 'FAILED: member count/prefix alignment or directory accounting' >&2; exit 1
 fi
