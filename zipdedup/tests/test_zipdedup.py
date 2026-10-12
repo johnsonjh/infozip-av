@@ -110,7 +110,7 @@ def test_normal(base):
     source = base / "ordinary.zip"
     out = base / "dedup.zip"
     make_test_zip(source)
-    run(TOOL, "--dry-run", source, out)
+    run(TOOL, "--dry-run", source, out, rc=2)
     assert not out.exists()
     run(TOOL, "-v", source, out)
     check_rewrite(
