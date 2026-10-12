@@ -49,8 +49,7 @@
 * data **de‑duplication**
 * ZIP **optimization**
 * CRC/SHA/AES/compression **hardware** **acceleration**<sup>†</sup>
-* full [**PKAV**](https://github.com/johnsonjh/pkstuff#authenticity-verification)
-  support
+* [**PKAV**](https://github.com/johnsonjh/pkstuff#authenticity-verification)
   * Create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x
 * [**FWKCS**](http://justsolve.archiveteam.org/wiki/FWKCS)
   [MD5](https://en.wikipedia.org/wiki/MD5)
