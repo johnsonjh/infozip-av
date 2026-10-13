@@ -1785,6 +1785,10 @@ struct zlist far *z;    /* zip entry to compress */
       fprintf(mesg, " (imploded %d%%)\n", percent(isize, s));
     else if (m == DCLIMPLODE)
       fprintf(mesg, " (DCL imploded %d%%)\n", percent(isize, s));
+#ifdef LPAQ8_ENCODE_SUPPORT
+    else if (m == LPAQ8)
+      fprintf(mesg, " (LPAQ8 compressed %d%%)\n", percent(isize, s));
+#endif
 #ifdef CMPSC16_SUPPORT
     else if (m == CMPSC16)
       fprintf(mesg, " (CMPSC compressed %d%%)\n", percent(isize, s));
@@ -1837,6 +1841,10 @@ struct zlist far *z;    /* zip entry to compress */
       fprintf(logfile, " (imploded %d%%)\n", percent(isize, s));
     else if (m == DCLIMPLODE)
       fprintf(logfile, " (DCL imploded %d%%)\n", percent(isize, s));
+#ifdef LPAQ8_ENCODE_SUPPORT
+    else if (m == LPAQ8)
+      fprintf(logfile, " (LPAQ8 compressed %d%%)\n", percent(isize, s));
+#endif
 #ifdef CMPSC16_SUPPORT
     else if (m == CMPSC16)
       fprintf(logfile, " (CMPSC compressed %d%%)\n", percent(isize, s));
