@@ -48,7 +48,7 @@
 * **ultra** compression levels
 * data **de‑duplication**
 * ZIP **optimization**
-* CRC/SHA/AES/compression **hardware** **acceleration**<sup>†</sup>
+* CRC/SHA/AES/compression **hardware** **acceleration**<sup>1</sup>
 * [**PKAV**](https://github.com/johnsonjh/pkstuff#authenticity-verification)
   (create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x)
 * [**FWKCS**](http://justsolve.archiveteam.org/wiki/FWKCS)
@@ -101,48 +101,40 @@ the **DEFLATE** (using a custom
 |  **`8`** | DEFLATE                                               |       ✅      |      ✅     |
 |  **`9`** | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)               |       ✅      |      ✅     |
 | **`10`** | DCL&nbsp;Implode                                      |       ✅      |      ✅     |
-| **`12`** | bzip2<sup>1</sup>                                     |       ✅      |      ✅     |
-| **`14`** | LZMA<sup>2</sup>                                      |       ✅      |      ✅     |
+| **`12`** | bzip2<sup>2</sup>                                     |       ✅      |      ✅     |
+| **`14`** | LZMA<sup>3</sup>                                      |       ✅      |      ✅     |
 | **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                              |       ✅      |      ✅     |
-| **`18`** | BWT<sup>⇧</sup>                                       |       ✅      |             |
-| **`20`** | Zstandard<sup>3</sup>&nbsp;(deprecated)               |       ✅      |             |
-| **`92`** | Reference&nbsp;Link<sup>5</sup>&nbsp;(de‑duplication) |       ✅      |      ✅     |
-| **`93`** | Zstandard<sup>3</sup>                                 |       ✅      |      ✅     |
+| **`18`** | BWT<sup>4</sup>                                       |       ✅      |             |
+| **`20`** | LPAQ8<sup>5</sup>                                     |       ✅      |             |
+| **`20`** | Zstandard&nbsp;(deprecated)                           |       ✅      |             |
+| **`92`** | Reference&nbsp;Link<sup>6</sup>&nbsp;(de‑duplication) |       ✅      |      ✅     |
+| **`93`** | Zstandard<sup>7</sup>                                 |       ✅      |      ✅     |
 | **`94`** | WZ‑MP3                                                |       ✅      |             |
-| **`95`** | XZ/LZMA2<sup>2</sup>                                  |       ✅      |      ✅     |
-| **`96`** | WZ‑JPEG<sup>2</sup>                                   |       ✅      |             |
-| **`97`** | WavPack<sup>4</sup>                                   |       ✅      |             |
+| **`95`** | XZ/LZMA2<sup>3</sup>                                  |       ✅      |      ✅     |
+| **`96`** | WZ‑JPEG<sup>3</sup>                                   |       ✅      |             |
+| **`97`** | WavPack<sup>0</sup>                                   |       ✅      |             |
 | **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;(8)&nbsp;Rev&nbsp;1     |       ✅      |      ✅     |
-| **`99`** | LZFSE<sup>⌘</sup>                                     |       ✅      |      ✅     |
+| **`99`** | LZFSE<sup>9</sup>                                     |       ✅      |      ✅     |
 
 > [!NOTE]
-> Methods 1 through 6 are legacy algorithms and are no longer
+> Methods 1 through 6 are *legacy algorithms* and are no longer
 > recommended for normal use.
 >
-> <sup>**1**</sup>&nbsp;bzip2 support requires
-> [`libbz2`](https://sourceware.org/bzip2/).
->
-> <sup>**2**</sup>&nbsp;LZMA, XZ/LZMA2, and WZ‑JPEG support requires
-> [`liblzma`](https://tukaani.org/xz/).
->
-> <sup>**3**</sup>&nbsp;Zstandard support requires
-> [`libzstd`](https://facebook.github.io/zstd/).
->
-> <sup>**4**</sup>&nbsp;WavPack support requires
-> [`libwavpack`](https://www.wavpack.com/).
->
-> <sup>**5**</sup>&nbsp;De‑duplicated archive creation supported via
-> [`zipdedup`](#de-duplication-zipdedup).
->
-> <sup>**†**</sup>&nbsp;CRC/SHA/AES/compression hardware acceleration is
+> <sup>**1**</sup>&nbsp;CRC/SHA/AES/compression hardware acceleration is
 > automatically detected at runtime and is currently supported on AMD64 and
 > ARM64 systems running Linux, FreeBSD, OpenBSD, and macOS.  Additional
 > hardware acceleration is provided via the (*optional*)
 > [`zlib‑ng`](https://github.com/zlib-ng/zlib-ng) library where available.
 >
-> <sup>**⇧**</sup>&nbsp;BWT is a non‑standard Xceed extension that shares
+> <sup>**2**</sup>&nbsp;bzip2 support requires
+> [`libbz2`](https://sourceware.org/bzip2/).
+>
+> <sup>**3**</sup>&nbsp;LZMA, XZ/LZMA2, and WZ‑JPEG support requires
+> [`liblzma`](https://tukaani.org/xz/).
+>
+> <sup>**4**</sup>&nbsp;BWT is a non‑standard Xceed extension that shares
 > method `18` with “IBM TERSE”; Xtro‑ZIP automatically determines the proper
-> format (by identifying valid BWT data).  While IBM‑specific TERSE and LZ77
+> format by identifying valid BWT data.  While IBM‑specific TERSE and LZ77
 > compression technologies referenced in the
 > [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT)
 > unquestionably exist, because there is *no evidence* of formal specifications
@@ -150,9 +142,22 @@ the **DEFLATE** (using a custom
 > table, as are other specifically reserved (`7`, `11`, `13`, `15`, `17`, etc.)
 > identifiers.
 >
-> <sup>**⌘**</sup>&nbsp;LZFSE is a non‑standard Apple extension that shares
+> <sup>**5**</sup>&nbps;LPAQ8 is a non-standard PAQZIP extension that shares
+> method `20` with the (deprecated) Zstandard (now method&nbsp;93); Xtro‑ZIP
+> automatically determines the proper format by analyzing the data stream.
+>
+> <sup>**6**</sup>&nbsp;De‑duplicated archive creation supported via
+> [`zipdedup`](#de-duplication-zipdedup).
+>
+> <sup>**7**</sup>&nbsp;Zstandard support requires
+> [`libzstd`](https://facebook.github.io/zstd/).
+>
+> <sup>**8**</sup>&nbsp;WavPack support requires
+> [`libwavpack`](https://www.wavpack.com/).
+>
+> <sup>**9**</sup>&nbsp;LZFSE is a non‑standard Apple extension that shares
 > method `99` with WinZip AES; Xtro‑ZIP automatically determines the proper
-> format (using metadata analysis).
+> format using metadata analysis.
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
@@ -611,6 +616,11 @@ No errors detected in compressed data of pkz110.exe.
 * The **Shrink**, **Reduce**, and **ZIP Implode** decompression
   implementations are based on MIT licensed code from
   [Jason Summers](https://github.com/jsummers/oldunzip).
+
+* The **LPAQ8** decompression implementation is based on the
+  [`MIT`](unzip60/LICENSE-TinyZZZ-MIT) licensed code of
+  [TinyZZZ](https://gitee.com/wangxuan95/TinyZZZ) from
+  [Dr.W.X WangXuan95](https://gitee.com/wangxuan95).
 
 * The **DCL**&nbsp;**Implode** compression and decompression implementations
   use the [`MIT‑0`](LICENSE) licensed

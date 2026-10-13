@@ -1162,11 +1162,15 @@ zd_supported (unsigned m)
       return 1;
 #endif /* ifdef USE_LZMA */
 
-#ifdef USE_ZSTD
+#if defined(USE_ZSTD) || (defined(USE_LPAQ8) && !defined(NO_LPAQ8))
     case 20:
+      return 1;
+#endif /* if defined(USE_ZSTD) || (defined(USE_LPAQ8) && !defined(NO_LPAQ8)) */
+
+#ifdef USE_ZSTD
     case 93:
       return 1;
-#endif /* ifdef USE_ZSTD */
+#endif /* fdef USE_ZSTD */
 
 #ifdef USE_PPMD
     case 98:

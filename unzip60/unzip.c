@@ -547,6 +547,10 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
      static ZCONST char Far UseZstd[] =
      "Zstandard (ZIP method 93 and 20; using libzstd v%s)";
 #  endif
+#  ifdef IZ_LPAQ8_ENABLED
+     static ZCONST char Far UseLPAQ8[] =
+     "PAQZIP LPAQ8 (ZIP method 20; built-in decoder)";
+#  endif
 #  ifdef USE_WZJPEG
      static ZCONST char Far UseWZJPEG[] =
      "WinZip WZ-JPEG (ZIP method 96; using liblzma v%s)";
@@ -561,7 +565,7 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif
 #  ifdef USE_CMPSC16
      static ZCONST char Far UseCMPSC[] =
-     "IBM z/OS CMPSC (ZIP method 16; built-in C89 decoder)";
+     "IBM z/OS CMPSC (ZIP method 16; built-in decoder)";
 #  endif
 #  ifdef USE_PPMD
      static ZCONST char Far UsePPMd[] =
@@ -2735,6 +2739,11 @@ static void show_version_info(__G)
           ZSTD_versionString());
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
           (char *)(slide+256)));
+        ++numopts;
+#endif
+#ifdef IZ_LPAQ8_ENABLED
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+          LoadFarStringSmall(UseLPAQ8)));
         ++numopts;
 #endif
 #ifdef USE_WZJPEG

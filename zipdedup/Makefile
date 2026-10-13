@@ -4,12 +4,15 @@ ifneq ($(filter default undefined,$(origin CC)),)
 CC = cc
 endif
 CFLAGS = -O3 -std=c89 -pedantic -Wall -Wextra -flto=auto
-ZD_METHODS = -DUSE_DEFLATE64 -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD -DUSE_PPMD -DUSE_WZMP3 -DUSE_WZJPEG -DUSE_CMPSC16 -DUSE_LZFSE
+ZD_METHODS = $(LPAQ8_METHOD_FLAGS) -DUSE_DEFLATE64 -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD -DUSE_PPMD -DUSE_WZMP3 -DUSE_WZJPEG -DUSE_CMPSC16 -DUSE_LZFSE
+# Default-on, optional historical LPAQ8 decoding.  Override with
+# LPAQ8_METHOD_FLAGS=-DNO_LPAQ8 for resource-constrained builds.
+LPAQ8_METHOD_FLAGS ?= -DUSE_LPAQ8
 UZDIR = ../unzip60
 # CMPSC/LZFSE are selected by unzpriv.h according to target capability.
 # LZFSE uses GCC/Clang C89-mode 64-bit integers on ILP32/LLP64 (Win32/Win64);
 # only 16-bit and non-64-bit-integer compilers are excluded.
-UZFLAGS = -std=gnu89 -O3 -fPIC -DUNIX -DDLL -DLARGE_FILE_SUPPORT -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD $(LOCAL_UNZIP)
+UZFLAGS = $(LPAQ8_METHOD_FLAGS) -std=gnu89 -O3 -fPIC -DUNIX -DDLL -DLARGE_FILE_SUPPORT -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD $(LOCAL_UNZIP)
 # ZipDedup builds private UnZip-style objects.  ZD_BACKEND, not LOCAL_UNZIP,
 # selects the external compression/CRC backend (auto/native/zlib/internal).
 # LOCAL_UNZIP carries only CFLAGS and must not be interpreted as a backend.

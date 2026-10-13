@@ -749,9 +749,12 @@
 /*  Defines  */
 /*************/
 
-/* PPMd ZIP method 98 needs PKWARE extraction version 6.3.
+/*
+ * PPMd ZIP method 98 needs PKWARE extraction version 6.3.
  * It is enabled by default on non-16-bit targets; define NO_PPMD to omit it.
- * Requires at least 1MB of contiguous memory */
+ * Requires at least 1MB of contiguous memory
+ */
+
 #if !defined(NO_PPMD) && !defined(__16BIT__)
 #  define USE_PPMD
 #endif
@@ -760,8 +763,35 @@
 # define USE_CMPSC16
 #endif
 
-/* Xceed BWT (method 18) uses up to 4 MB of BWT memory to decode
- * NO_XCEED_BWT disables only Xceed decoding, not related to IBM TERSE support */
+/*
+ * Historical PAQZIP LPAQ8 decoder, ZIP method 20.
+ */
+
+#if defined(NO_LPAQ8) || defined(__16BIT__) || defined(MEMORY16) || \
+    defined(SMALL_MEM) || defined(MED_MEM) || defined(NO_LIMITS_H) || \
+    (defined(MSDOS) && !defined(__DJGPP__) && !defined(__GO32__))
+# ifdef USE_LPAQ8
+#  undef USE_LPAQ8
+# endif
+#else
+# if UINT_MAX == 0xffffffffUL && INT_MAX == 2147483647 && \
+     ULONG_MAX >= 0xffffffffUL && CHAR_BIT == 8
+#  ifndef USE_LPAQ8
+#   define USE_LPAQ8
+#  endif
+#  define IZ_LPAQ8_ENABLED 1
+# else
+#  ifdef USE_LPAQ8
+#   undef USE_LPAQ8
+#  endif
+# endif
+#endif
+
+/*
+ * Xceed BWT (method 18) uses up to 4 MB of BWT memory to decode
+ * NO_XCEED_BWT disables only Xceed decoding, not related to IBM TERSE support
+ */
+
 #if !defined(NO_XCEED_BWT) && !defined(__16BIT__) && \
     !defined(MEMORY16) && !defined(SMALL_MEM) && !defined(MED_MEM) && \
     !defined(FUNZIP) && !defined(NO_LIMITS_H) && \

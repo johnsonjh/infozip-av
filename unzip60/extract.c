@@ -42,8 +42,16 @@
 #    include "windll/windll.h"
 #  endif
 #endif
+
 #include "crc32.h"
 #include "crypt.h"
+
+/* PAQZIP LPAQ8 decoder: enabled by unzpriv.h on capable targets */
+#ifdef IZ_LPAQ8_ENABLED
+# include "lpaq8dec.h"
+# include "lpaq8dec.c"
+#endif
+
 
 #ifndef NO_AES
 /* The whole ciphertext is authenticated before the decompressor sees any
@@ -1071,8 +1079,10 @@ static int uz_xz_decompress(__G)
  * bytes are checked explicitly for the standard frame magic before feeding
  * them to libzstd so that skippable-frame magic cannot be accepted as a ZIP
  * member payload. */
-static int uz_zstd_decompress(__G)
+static int uz_zstd_decompress_prefixed(__G__ supplied_prefix, supplied_len)
     __GDEF
+    const uch *supplied_prefix;
+    unsigned supplied_len;
 {
     ZSTD_DCtx *dctx;
     ZSTD_inBuffer input;
@@ -1088,10 +1098,15 @@ static int uz_zstd_decompress(__G)
     int using_prefix;
     size_t zr;
 
-    if (G.csize + (zoff_t)G.incnt < 4)
+    if (supplied_len != 0U && (supplied_len != 4U || supplied_prefix == NULL))
+        return PK_ERR;
+    if (supplied_len == 0U && G.csize + (zoff_t)G.incnt < 4)
         return PK_ERR;
     for (i = 0; i < 4; ++i) {
-        c = NEXTBYTE;
+        if (supplied_len == 4U)
+            c = (int)supplied_prefix[i];
+        else
+            c = NEXTBYTE;
         if (c == EOF)
             return PK_ERR;
         prefix[i] = (uch)c;
@@ -1175,8 +1190,129 @@ static int uz_zstd_decompress(__G)
     ZSTD_freeDCtx(dctx);
     return r;
 }
+static int uz_zstd_decompress(__G)
+    __GDEF
+{
+    return uz_zstd_decompress_prefixed(__G__ NULL, 0U);
+}
 #endif /* USE_ZSTD */
 
+
+#ifdef IZ_LPAQ8_ENABLED
+/* All callbacks share the current UnZip context even in DLL builds! */
+typedef struct {
+#ifdef REENTRANT
+    Uz_Globs *pG;
+#endif
+    uch prefix[4];
+    unsigned prefix_pos;
+} iz_lpaq_ctx;
+
+static int iz_lpaq_read(void *opaque)
+{
+    iz_lpaq_ctx *context = (iz_lpaq_ctx *)opaque;
+#ifdef REENTRANT
+    Uz_Globs *pG = context->pG;
+#endif
+    if (context->prefix_pos != 4U)
+        return (int)context->prefix[context->prefix_pos++];
+    return NEXTBYTE;
+}
+
+static int iz_lpaq_write(void *opaque, const unsigned char *p, size_t n)
+{
+    iz_lpaq_ctx *context = (iz_lpaq_ctx *)opaque;
+#ifdef REENTRANT
+    Uz_Globs *pG = context->pG;
+#else
+    (void)context;
+#endif
+    while (n != 0U) {
+        size_t capacity = (size_t)WSIZE, chunk;
+#ifdef DLL
+        if (G.redirect_slide) {
+            redirSlide = G.redirect_buffer;
+            capacity = (size_t)G.redirect_size;
+        } else {
+            redirSlide = slide;
+        }
+#endif
+        if (capacity == 0U)
+            return -1;
+        chunk = n < capacity ? n : capacity;
+        memcpy(redirSlide, p, chunk);
+        if (FLUSH((unsigned)chunk) != PK_COOL)
+            return -1;
+        n -= chunk;
+        p += chunk;
+    }
+    return 0;
+}
+
+/* The caller consumed exactly four classification bytes. */
+static int iz_lpaq_decompress(__G__ prefix, original_csize)
+    __GDEF
+    const uch prefix[4];
+    zoff_t original_csize;
+{
+    iz_lpaq_ctx context;
+    unsigned mode = 0U;
+    int r;
+    if (original_csize < 9 ||
+        (zoff_t)(size_t)original_csize != original_csize ||
+        (zusz_t)(unsigned long)G.lrec.ucsize != (zusz_t)G.lrec.ucsize)
+        return PK_ERR;
+#ifdef REENTRANT
+    context.pG = pG;
+#endif
+    memcpy(context.prefix, prefix, 4);
+    context.prefix_pos = 0U;
+    r = lpaq8_decode_verified(iz_lpaq_read, &context,
+                               iz_lpaq_write, &context,
+                               (size_t)original_csize,
+                               (unsigned long)G.lrec.ucsize,
+                               (unsigned long)G.lrec.crc32,
+                               &mode);
+    if (r == LPAQ8_NOMEM)
+        return PK_MEM3;
+    if (r == LPAQ8_OUTPUT_ERROR)
+        return PK_DISK;
+    if (r != LPAQ8_OK || context.prefix_pos != 4U ||
+        G.csize + (zoff_t)G.incnt != 0)
+        return PK_ERR;
+    return PK_COOL;
+}
+#endif /* IZ_LPAQ8_ENABLED */
+
+#if defined(IZ_LPAQ8_ENABLED) || defined(USE_ZSTD)
+/* Method 20 alone has two incompatible historical signatures. */
+static int iz_method20_decompress(__G)
+    __GDEF
+{
+    uch prefix[4];
+    zoff_t original_csize;
+    int c, i;
+    original_csize = G.csize + (zoff_t)G.incnt;
+    if (original_csize < 4)
+        return PK_ERR;
+    for (i = 0; i < 4; ++i) {
+        c = NEXTBYTE;
+        if (c == EOF)
+            return PK_ERR;
+        prefix[i] = (uch)c;
+    }
+#ifdef IZ_LPAQ8_ENABLED
+    if (prefix[0] == 'p' && prefix[1] == 'Q' && prefix[2] == 8U)
+        return iz_lpaq_decompress(__G__ prefix, original_csize);
+#endif
+#ifdef USE_ZSTD
+    if (prefix[0] == 0x28 && prefix[1] == 0xb5 &&
+        prefix[2] == 0x2f && prefix[3] == 0xfd)
+        return uz_zstd_decompress_prefixed(__G__ prefix, 4U);
+#endif
+    return PK_ERR;
+}
+#endif
 #define GRRDUMP(buf,len) { \
     int i, j; \
  \
@@ -2849,8 +2985,10 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #ifdef USE_ZSTD
 #  define UNKN_ZSTD (G.crec.compression_method!=ZSTD_OLD && \
                      G.crec.compression_method!=ZSTDED)
+#elif defined(IZ_LPAQ8_ENABLED)
+#  define UNKN_ZSTD (G.crec.compression_method!=ZSTD_OLD)
 #else
-#  define UNKN_ZSTD TRUE      /* Zstandard unknown */
+#  define UNKN_ZSTD TRUE      /* method 20/93 unavailable */
 #endif
 
 #ifdef USE_WAVP
@@ -4339,16 +4477,26 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             break;
 #endif /* USE_XZ */
 
-#ifdef USE_ZSTD
+#if defined(USE_ZSTD) || defined(IZ_LPAQ8_ENABLED)
+# if defined(IZ_LPAQ8_ENABLED) || defined(USE_ZSTD)
         case ZSTD_OLD:
+# endif
+# ifdef USE_ZSTD
         case ZSTDED:
+# endif
             if (!uO.tflag && QCOND2) {
                 Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
                   "decod", FnFilter1(G.filename), avmark, avsep,
                   (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
                   uO.cflag ? NEWLINE : ""));
             }
-            r = uz_zstd_decompress(__G);
+            r = G.lrec.compression_method == ZSTD_OLD ?
+                    iz_method20_decompress(__G) :
+#ifdef USE_ZSTD
+                    uz_zstd_decompress(__G);
+#else
+                    PK_ERR;
+#endif
             if (r != PK_COOL) {
                 if (r < PK_DISK) {
                     if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
@@ -4356,18 +4504,31 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
                           LoadFarStringSmall(ErrUnzipFile),
                           r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
                           LoadFarString(InvalidComprData),
-                          "Zstandard", FnFilter1(G.filename)));
+#ifdef IZ_LPAQ8_ENABLED
+                          (G.lrec.compression_method == ZSTD_OLD ?
+                           "method 20 (Zstandard or LPAQ8)" : "Zstandard"),
+#else
+                          "Zstandard",
+#endif
+                          FnFilter1(G.filename)));
                     else
                         Info(slide, 0x401, ((char *)slide,
                           LoadFarStringSmall(ErrUnzipNoFile),
                           r == PK_MEM3 ? LoadFarString(NotEnoughMem) :
-                          LoadFarString(InvalidComprData), "Zstandard"));
+                          LoadFarString(InvalidComprData),
+#ifdef IZ_LPAQ8_ENABLED
+                          (G.lrec.compression_method == ZSTD_OLD ?
+                           "method 20 (Zstandard or LPAQ8)" : "Zstandard")
+#else
+                          "Zstandard"
+#endif
+                          ));
                     error = (r == PK_MEM3) ? PK_MEM3 : PK_ERR;
                 } else
                     error = r;
             }
             break;
-#endif /* USE_ZSTD */
+#endif /* USE_ZSTD || IZ_LPAQ8_ENABLED */
 
 #ifdef USE_LZFSE
         case LZFSEED:

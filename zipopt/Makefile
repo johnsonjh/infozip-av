@@ -7,8 +7,11 @@ CFLAGS ?= -O2 -std=c89 -Wall -Wextra
 # Keep Zip and UnZip compiler flags isolated.  Only the in-process encoder
 # adapter compiles with LOCAL_ZIP; only private decoder objects use LOCAL_UNZIP.
 CPPFLAGS += -D_FILE_OFFSET_BITS=64
+# LPAQ8 decoding (otional)
+# Override with PAQ8_METHOD_FLAGS=-DNO_LPAQ8 for memory constrained systems.
+LPAQ8_METHOD_FLAGS ?= -DUSE_LPAQ8
 UZDIR = ../unzip60
-UZFLAGS = -std=gnu89 -O2 -I$(UZDIR) -DUNIX -DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DLARGE_FILE_SUPPORT -DNO_ZLIB_NG -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD $(LOCAL_UNZIP)
+UZFLAGS = $(LPAQ8_METHOD_FLAGS) -std=gnu89 -O2 -I$(UZDIR) -DUNIX -DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DLARGE_FILE_SUPPORT -DNO_ZLIB_NG -DUSE_BZIP2 -DUSE_LZMA -DUSE_XZ -DUSE_ZSTD $(LOCAL_UNZIP)
 UZUNITS = unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo api unix
 UZOBJS = $(addprefix build/uz-,$(addsuffix .o,$(UZUNITS)))
 # UnZip frequently changes codec declarations in headers.  Generate private

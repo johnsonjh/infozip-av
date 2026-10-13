@@ -234,8 +234,12 @@ refptr_method_supported (unsigned method)
       return TRUE;
 # endif /* ifdef USE_XZ */
 
-# ifdef USE_ZSTD
+# if defined(IZ_LPAQ8_ENABLED) || defined(USE_ZSTD)
     case ZSTD_OLD:
+      return TRUE;
+# endif /* if defined(IZ_LPAQ8_ENABLED) || defined(USE_ZSTD) */
+
+# ifdef USE_ZSTD
     case ZSTDED:
       return TRUE;
 # endif /* ifdef USE_ZSTD */
@@ -624,8 +628,12 @@ refptr_decode_source (__G) __GDEF
       return uz_xz_decompress (__G);
 # endif /* ifdef USE_XZ */
 
-# ifdef USE_ZSTD
+# if defined(IZ_LPAQ8_ENABLED) || defined(USE_ZSTD)
     case ZSTD_OLD:
+      return iz_method20_decompress (__G);
+# endif /* if defined(IZ_LPAQ8_ENABLED) || defined(USE_ZSTD) */
+
+# ifdef USE_ZSTD
     case ZSTDED:
       return uz_zstd_decompress (__G);
 # endif /* ifdef USE_ZSTD */
