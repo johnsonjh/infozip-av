@@ -2,7 +2,7 @@
 
 set -e
 
-test -z "${MAKE:-}" 2> /dev/null && {
+test -z "${MAKE:-}" && {
   MAKE="$(command -v gmake 2> /dev/null \
     || command -v make 2> /dev/null \
     || printf '%s\n' 'make')"
@@ -20,7 +20,7 @@ if [ "$(uname -s 2> /dev/null || :)" = "FreeBSD" ]; then
   LOCAL_ZIP="${LOCAL_ZIP:-} -I/usr/local/include"
 fi
 
-test -z "${CC:-}" 2> /dev/null && {
+test -z "${CC:-}" && {
   CC="$(command -v cc 2> /dev/null \
     || command -v gcc 2> /dev/null \
     || command -v clang 2> /dev/null \
@@ -28,8 +28,14 @@ test -z "${CC:-}" 2> /dev/null && {
 } || :
 
 CPUS="$(nproc 2> /dev/null || printf '%s\n' '1')"
-LTO="-flto=auto"
-WLB="-Wl,-z,relro"
+
+test -z "${LTO:-}" && {
+  LTO="-flto=auto"
+}
+
+test -z "${WLB:-}" && {
+  WLB="-Wl,-z,relro"
+}
 
 # "-DNOMEMCPY -DIZ_HAVE_UXUIDGID -DNO_LCHMOD" are "important" RHEL flags, do not remove!
 CF_NOOPT="${LTO:-} -I. -DUNIX ${RPM_OPT_FLAGS:--O3} -DNOMEMCPY -DIZ_HAVE_UXUIDGID -DNO_LCHMOD"
