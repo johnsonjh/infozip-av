@@ -103,7 +103,7 @@ the **DEFLATE** (using a custom
 | **`10`** | DCL&nbsp;Implode                                      |       ✅      |      ✅     |
 | **`12`** | bzip2<sup>1</sup>                                     |       ✅      |      ✅     |
 | **`14`** | LZMA<sup>2</sup>                                      |       ✅      |      ✅     |
-| **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC<sup>‡</sup>                  |       ✅      |      ✅     |
+| **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                              |       ✅      |      ✅     |
 | **`18`** | BWT<sup>⇧</sup>                                       |       ✅      |             |
 | **`20`** | Zstandard<sup>3</sup>&nbsp;(deprecated)               |       ✅      |             |
 | **`92`** | Reference&nbsp;Link<sup>5</sup>&nbsp;(de‑duplication) |       ✅      |      ✅     |
@@ -140,12 +140,6 @@ the **DEFLATE** (using a custom
 > hardware acceleration is provided via the (*optional*)
 > [`zlib‑ng`](https://github.com/zlib-ng/zlib-ng) library where available.
 >
-> <sup>**‡**</sup>&nbsp;CMPSC compression is experimental but interoperable.
->
-> <sup>**⌘**</sup>&nbsp;LZFSE is a non‑standard Apple extension that shares
-> method `99` with WinZip AES; Xtro‑ZIP automatically determines the proper
-> format.
->
 > <sup>**⇧**</sup>&nbsp;BWT is a non‑standard Xceed extension that shares
 > method `18` with “IBM TERSE”; Xtro‑ZIP automatically determines the proper
 > format (by identifying valid BWT data).  While IBM‑specific TERSE and LZ77
@@ -155,6 +149,10 @@ the **DEFLATE** (using a custom
 > any known software implementing these methods, so they are excluded from the
 > table, as are other specifically reserved (`7`, `11`, `13`, `15`, `17`, etc.)
 > identifiers.
+>
+> <sup>**⌘**</sup>&nbsp;LZFSE is a non‑standard Apple extension that shares
+> method `99` with WinZip AES; Xtro‑ZIP automatically determines the proper
+> format (using metadata analysis).
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
