@@ -112,7 +112,7 @@ the **DEFLATE** (using a custom
 | **`94`** | WZ‑MP3                                                |       ✅      |             |
 | **`95`** | XZ/LZMA2<sup>3</sup>                                  |       ✅      |      ✅     |
 | **`96`** | WZ‑JPEG<sup>3</sup>                                   |       ✅      |             |
-| **`97`** | WavPack<sup>0</sup>                                   |       ✅      |             |
+| **`97`** | WavPack<sup>8</sup>                                   |       ✅      |             |
 | **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;(8)&nbsp;Rev&nbsp;1     |       ✅      |      ✅     |
 | **`99`** | LZFSE<sup>9</sup>                                     |       ✅      |      ✅     |
 
