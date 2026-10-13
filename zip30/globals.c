@@ -32,6 +32,7 @@ int pathput = 1;        /* 1=store path with name */
 int scanimage = 1;      /* 1=scan through image files */
 #endif
 int method = BEST;      /* one of BEST, DEFLATE (only), or STORE (only) */
+int lpaq8_l2_enable = 0;
 int cmpsc_symbol_width = 0; /* 0=auto, otherwise 9..13 */
 int disable_store_fallback = 0; /* 1=keep selected method if larger than STORE */
 int dosify = 0;         /* 1=make new entries look like MSDOS */

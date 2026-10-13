@@ -105,7 +105,7 @@ the **DEFLATE** (using a custom
 | **`14`** | LZMA<sup>3</sup>                                      |       ✅      |      ✅     |
 | **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                              |       ✅      |      ✅     |
 | **`18`** | BWT<sup>4</sup>                                       |       ✅      |             |
-| **`20`** | LPAQ8<sup>5</sup>                                     |       ✅      |             |
+| **`20`** | LPAQ8<sup>5</sup>                                     |       ✅      |      ✅     |
 | **`20`** | Zstandard&nbsp;(deprecated)                           |       ✅      |             |
 | **`92`** | Reference&nbsp;Link<sup>6</sup>&nbsp;(de‑duplication) |       ✅      |      ✅     |
 | **`93`** | Zstandard<sup>7</sup>                                 |       ✅      |      ✅     |
@@ -617,9 +617,9 @@ No errors detected in compressed data of pkz110.exe.
   implementations are based on MIT licensed code from
   [Jason Summers](https://github.com/jsummers/oldunzip).
 
-* The **LPAQ8** decompression implementation is based on the
-  [`MIT`](unzip60/LICENSE-TinyZZZ-MIT) licensed code of
-  [TinyZZZ](https://gitee.com/wangxuan95/TinyZZZ) from
+* The **LPAQ8** compression and decompression implementations are based on the
+  [`MIT`](unzip60/LICENSE-TinyZZZ-MIT) licensed
+  [TinyZZZ](https://gitee.com/wangxuan95/TinyZZZ) code from
   [Dr.W.X WangXuan95](https://gitee.com/wangxuan95).
 
 * The **DCL**&nbsp;**Implode** compression and decompression implementations

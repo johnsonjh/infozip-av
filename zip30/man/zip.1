@@ -2460,9 +2460,12 @@ The comment can be taken from a file:
 .PD
 .B \-\-compression\-method\ \fRcm
 Set the default compression method.  The main methods supported by
-\fIzip\fP are \fBstore\fP, \fBshrink\fP, \fBreduce\fP, \fBimplode\fP, \fBdeflate\fP, \fBdcl-implode\fP,
-\fBlzma\fP, \fBxz\fP, \fBzstd\fP, \fBcmpsc\fP, \fBppmd\fP, and \fBlzfse\fP (with methods requiring external libraries
-available only when compiled in).
+\fIzip\fP are \fBstore\fP, \fBshrink\fP,
+\fBreduce\fP, \fBimplode\fP,
+\fBdeflate\fP, \fBdcl-implode\fP,
+\fBlzma\fP, \fBxz\fP, \fBzstd\fP, \fBlpaq8\fP,
+\fBcmpsc\fP, \fBppmd\fP, and \fBlzfse\fP
+(with methods requiring external libraries available only when compiled in).
 Compression method can be set to:
 
 \fBstore\fP \- Setting the compression method to \fBstore\fP forces
@@ -2529,8 +2532,23 @@ Each ZIP member contains exactly one standard Zstandard frame.  Levels
 native levels 1 through 22 directly.  Zip advertises extraction version 2.0,
 following WinZip practice, and disables the optional Zstd frame checksum; the
 ZIP CRC-32 remains the integrity check.  Deprecated Zstandard method 20 is
-accepted by UnZip but is never created by Zip.  If compression is not
-beneficial, the normal store fallback is used.
+accepted by UnZip; Zip writes method 20 only for LPAQ8, never Zstandard.
+If compression is not beneficial, the normal store fallback is used.
+
+\fBlpaq8\fP \- Encode (historical) PAQZIP LPAQ8 (ZIP method 20).
+LPAQ8 defaults to compression level 1, matching historical PAQZIP; explicit
+\fB-1\fP through \fB-9\fP select the corresponding predictor size, and
+\fB-11\fP is identical to \fB-9\fP.  \fB-0\fP stores. Mode 1 (text) is
+automatically used if the first 32 KiB contains only 7-bit bytes; otherwise
+mode 0 (binary) is used, matching the behavior of the historical PAQZIP.
+Support for executable mode 2, which was never complete in the original
+PAQZIP, is now but available only if \fB--lpaq8-l2-enable\fP is selected.
+Input is spooled to a temporary file to establish its size, including for
+standard input. Uncompressed members must be smaller than 2,147,483,647 bytes.
+Small-member Store (no compression) fallback follows Zip's normal policy. The
+compressor is not available to zipopt as a compression candidate.
+Define \fBNO_LPAQ8_ENCODER\fP to exclude the codec; it is excluded on
+16-bit/constrained builds.
 
 \fBcmpsc\fP \- Encode IBM z/OS CMPSC (ZIP method 16) using the
 per-file trained expansion dictionary with 9-, 10-, 11-, 12-, or 13-bit
@@ -2664,6 +2682,14 @@ files, or the stored blocks used internally by Deflate.  When disabled,
 compression may produce an archive larger than its input.  Fallback is
 normally attempted only for input that fits the small-member buffer and
 when Zip can safely rewrite the local header.
+.TP
+.PD
+.B \-\-lpaq8-l2-enable
+Permit executable E8/E9 preprocessing mode 2 when using \fB-Z lpaq8\fP.
+The input must be identified as a binary MZ executable; this flag does
+not force mode 2. Without the flag, only binary/text modes 0 and 1
+are produced.  Archives created with this option may be INCOMPATIBLE with the
+histroical PAQZIP.  This option is an error with all other compression methods.
 .TP
 .PD 0
 .BI \-\-cmpsc-symbol-width\ auto|9|10|11|12|13

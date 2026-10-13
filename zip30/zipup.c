@@ -42,19 +42,24 @@ extern int iz_zip_aes_active;
 # include "lzfse.c"
 #endif
 
-/* Source-only CMPSC codec, independently written ANSI C89. */
+/* LPAQ8 encoder */
+#ifdef LPAQ8_ENCODE_SUPPORT
+# include "lpaq8enc.c"
+#endif
+
+/* CMPSC codec */
 #ifdef CMPSC16_SUPPORT
 # include "cmpsc16_encode.c"
 # include "cmpsc16_ultra.c"
 #endif
 
-/* Same with our custom ppmd */
+/* custom ppmd */
 #ifdef PPMD_SUPPORT
 # include "ppmd8.c"
 # include "ppmd8enc.c"
 #endif
 
-/* Our Zopfli is a self-contained amalgamation */
+/* Our custom Zopfli (self-contained amalgamation) */
 #ifdef ZOPFLI_SUPPORT
 # include "zopfli.c"
 #endif
@@ -229,6 +234,9 @@ local zoff_t zopflifilecompress OF((struct zlist far *z_entry, int *cmpr_method)
 local zoff_t deflate64filecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
 local zoff_t dclfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#ifdef LPAQ8_ENCODE_SUPPORT
+local zoff_t lpaq8filecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#endif
 #ifdef CMPSC16_SUPPORT
 local zoff_t cmpsc16filecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
@@ -1363,6 +1371,11 @@ struct zlist far *z;    /* zip entry to compress */
       s = deflate64filecompress(z, &m);
     }
 #endif
+#ifdef LPAQ8_ENCODE_SUPPORT
+    else if (m == LPAQ8) {
+      s = lpaq8filecompress(z, &m);
+    }
+#endif
 #ifdef CMPSC16_SUPPORT
     else if (m == CMPSC16) {
       s = cmpsc16filecompress(z, &m);
@@ -2288,6 +2301,10 @@ local zoff_t dclfilecompress(z_entry, cmpr_method)
     z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
     return small_store_finish(&store_test, cmpr_method, s.output_size);
 }
+
+#ifdef LPAQ8_ENCODE_SUPPORT
+#include "lpaq8_zip_adapter.inc"
+#endif
 
 #ifdef CMPSC16_SUPPORT
 typedef struct {

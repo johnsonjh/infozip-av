@@ -1637,6 +1637,9 @@ local void help_extended()
 "              deflate64   - ZIP Deflate64 (method 9; -1..-9 presets)",
 #endif
 "              dcl-implode - PKWARE DCL Implode (method 10)",
+#ifdef LPAQ8_ENCODE_SUPPORT
+"              lpaq8       - PAQZIP LPAQ8 (method 20; -1..-9 presets)",
+#endif
 #ifdef BZIP2_SUPPORT
 "              bzip2       - bzip2 (method 12; -1..-9 presets)",
 #endif
@@ -1659,6 +1662,9 @@ local void help_extended()
 "",
 "Compression tuning:",
 "  --disable-store-fallback[-]      disable/enable automatic store fallback",
+#ifdef LPAQ8_ENCODE_SUPPORT
+"  --lpaq8-l2-enable                LPAQ8 l2 processing (PAQZIP incompatible!)",
+#endif
 "  --dcl-implode-mode ascii|binary  DCL-implode mode (default binary)",
 "  --dcl-implode-dict 1k|2k|4k      DCL-implode dict size (default automatic)",
 "  --dcl-implode-optimal[-]         override DCL optimal (-11 also enables it)",
@@ -1984,6 +1990,9 @@ local void version_info()
     "DCL-Implode          (ZIP method 10; DCL-Implode; using PKDCLX v1.1.2)",
 #ifdef CMPSC16_SUPPORT
     "IBM CMPSC            (ZIP method 16; 9-13-bit per-file trained dictionary)",
+#endif
+#ifdef LPAQ8_ENCODE_SUPPORT
+    "PAQZIP LPAQ8         (ZIP method 20; PAQZIP-comaptible LPAQ8 supported)",
 #endif
 #ifdef LZMA_SUPPORT
     lzma_opt_ver,
@@ -2910,7 +2919,8 @@ int set_filetype(out_path)
 #define o_aes_mode      0x155
 #define o_aes_iterations 0x156
 #define o_disable_store_fallback 0x157
-#define o_cmpsc_width  0x158
+#define o_cmpsc_width   0x158
+#define o_lpaq8_l2      0x159
 #define o_sp            0x134
 #define o_su            0x135
 #define o_sU            0x136
@@ -3106,6 +3116,7 @@ struct option_struct far options[] = {
     {"",   "dcl-implode-dict", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_dict, "DCL dictionary: 1k, 2k, or 4k"},
     {"",   "dcl-implode-optimal", o_NO_VALUE, o_NEGATABLE, o_dcl_optimal, "DCL optimal parse"},
     {"",   "disable-store-fallback", o_NO_VALUE, o_NEGATABLE, o_disable_store_fallback, "Disable automatic store fallback"},
+    {"",   "lpaq8-l2-enable", o_NO_VALUE, o_NOT_NEGATABLE, o_lpaq8_l2, "Allow LPAQ8 EXE prefilter mode 2"},
     {"",   "cmpsc-symbol-width", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_cmpsc_width, "CMPSC symbol width (auto or 9..13)"},
     {"",   "zstd-level", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_zstd_level, "Zstd native compression level 1..22"},
 #if defined(MSDOS) || defined(OS2)
@@ -3196,6 +3207,7 @@ char **argv;            /* command line tokens */
   int dcl_mode_set = 0;          /* --dcl-implode-mode was specified */
   int dcl_dict_set = 0;          /* --dcl-implode-dict was specified */
   int dcl_optimal_set = 0;       /* explicit --dcl-implode-optimal[-] */
+  int lpaq8_level_set = 0;       /* explicit -0..-9 or -11 */
 #ifdef UNICODE_TEST
   int create_files = 0;
 #endif
@@ -3305,6 +3317,7 @@ char **argv;            /* command line tokens */
   pathput = 1;         /* 1=store path with name */
   method = BEST;       /* one of BEST, DEFLATE (only), or STORE (only) */
   cmpsc_symbol_width = 0;
+  lpaq8_l2_enable = 0;
   disable_store_fallback = 0;
   dosify = 0;          /* 1=make new entries look like MSDOS */
   verbose = 0;         /* 1=report oddities in zip file structure */
@@ -3691,13 +3704,13 @@ char **argv;            /* command line tokens */
 #endif
 
         case '0':
-          method = STORE; level = 0; break;
+          method = STORE; level = 0; lpaq8_level_set = 1; break;
         case '1':  case '2':  case '3':  case '4':
         case '5':  case '6':  case '7':  case '8':  case '9':
           /* Set the compression efficacy */
-          level = (int)option - '0';  break;
+          level = (int)option - '0'; lpaq8_level_set = 1; break;
         case o_11:
-          level = 11; break;
+          level = 11; lpaq8_level_set = 1; break;
         case 'A':   /* Adjust unzipsfx'd zipfile:  adjust offsets only */
           adjust = 1; break;
 #if defined(WIN32)
@@ -4429,6 +4442,14 @@ char **argv;            /* command line tokens */
           disable_store_fallback = negated ? 0 : 1;
           break;
 
+        case o_lpaq8_l2:
+#ifndef LPAQ8_ENCODE_SUPPORT
+          ZIPERR(ZE_COMPERR, "LPAQ8 compression support not enabled");
+#else
+          lpaq8_l2_enable = 1;
+#endif
+          break;
+
         case o_cmpsc_width:
 #ifndef CMPSC16_SUPPORT
           free(value);
@@ -4501,6 +4522,12 @@ char **argv;            /* command line tokens */
             method = DEFLATE64;
 #else
             ZIPERR(ZE_COMPERR, "Compression method deflate64 not enabled");
+#endif
+          } else if (strcmp(value, "lpaq8") == 0) {
+#ifdef LPAQ8_ENCODE_SUPPORT
+            method = LPAQ8;
+#else
+            ZIPERR(ZE_COMPERR, "Compression method lpaq8 not enabled");
 #endif
           } else if (strcmp(value, "cmpsc") == 0) {
 #ifdef CMPSC16_SUPPORT
@@ -4606,8 +4633,14 @@ char **argv;            /* command line tokens */
 #else
 #define CM_STR ""
 #endif
-            zipwarn("valid compression methods include: store, dcl-implode, deflate" SH_STR RE_STR IM_STR D64_STR BZ_STR LZ_STR PP_STR ZS_STR CM_STR LF_STR, "");
+#ifdef LPAQ8_ENCODE_SUPPORT
+#define LP_STR ", lpaq8"
+#else
+#define LP_STR ""
+#endif
+            zipwarn("valid compression methods include: store, dcl-implode, deflate" SH_STR RE_STR IM_STR D64_STR BZ_STR LZ_STR PP_STR ZS_STR CM_STR LP_STR LF_STR, "");
 #undef CM_STR
+#undef LP_STR
 #undef BZ_STR
 #undef LZ_STR
 #undef PP_STR
@@ -4930,6 +4963,19 @@ char **argv;            /* command line tokens */
     RETURN(finish(ZE_OK));
   }
 
+
+  /*
+   * PAQZIP historically defaults LPAQ8 to level 1, so do we!
+   * Option ordering does not affect this
+   */
+
+  if (method == LPAQ8) {
+    if (!lpaq8_level_set) level = 1;
+    else if (level == 11) level = 9;
+    else if (level == 0) method = STORE;
+  }
+  if (lpaq8_l2_enable && method != LPAQ8)
+    ZIPERR(ZE_PARMS, "--lpaq8-l2-enable requires -Z lpaq8");
 
   /* -11 enables optimal DCL parsing unless overridden */
   /* Resolved here AFTER option parsing so the negated form wins! */

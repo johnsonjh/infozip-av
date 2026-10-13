@@ -345,6 +345,7 @@ extern int scanimage;           /* Scan through image files */
 #define LZMA 14                 /* LZMA method */
 #define CMPSC16 16              /* IBM z/OS CMPSC method */
 #define ZSTD_OLD 20             /* deprecated Zstandard method (read only) */
+#define LPAQ8 20                /* PAQZIP LPAQ8 method (write) */
 #define ZSTD 93                 /* Zstandard method */
 #define XZ 95                   /* XZ/LZMA2 method */
 #define PPMD 98                 /* PPMd Variant I, ZIP method 98 */
@@ -376,6 +377,19 @@ extern int scanimage;           /* Scan through image files */
     !defined(NO_PROTO) && !defined(NO_CONST) && !defined(NO_STDLIB_H) && \
     !defined(NO_STDDEF_H) && !defined(NO_SIZE_T) && !defined(NO_VOID)
 # define CMPSC16_SUPPORT
+#endif
+
+#include <limits.h>
+/* LPAQ8 encoding requires a flat 32-bit C89 arithmetic model. */
+#if !defined(NO_LPAQ8_ENCODER) && !defined(NO_LPAQ8) && \
+    !defined(MEMORY16) && !defined(__16BIT__) && \
+    !defined(SMALL_MEM) && !defined(MED_MEM) && \
+    !defined(NO_PROTO) && !defined(NO_CONST) && \
+    !defined(NO_STDLIB_H) && !defined(NO_STDDEF_H) && \
+    !defined(NO_SIZE_T) && !defined(NO_VOID) && \
+    (UINT_MAX == 0xffffffffU) && (INT_MAX == 2147483647) && \
+    (UCHAR_MAX == 255)
+# define LPAQ8_ENCODE_SUPPORT
 #endif
 
 /* LZFSE requires flat memory and a 64-bit integer type (native LP64 or
@@ -415,6 +429,7 @@ extern int scanimage;           /* Scan through image files */
      (m) == LZFSE)
 
 extern int method;              /* Restriction on compression method */
+extern int lpaq8_l2_enable; /* explicitly permit PAQZIP executable mode 2 */
 extern int cmpsc_symbol_width; /* 0=auto, otherwise 9..13 */
 extern int disable_store_fallback; /* Disable automatic whole-file store fallback */
 
