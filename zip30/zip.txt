@@ -1818,10 +1818,10 @@ OPTIONS
               --zstd-level option can select native levels 1 through 22 directly.
               Zip writes version-needed-to-extract 2.0, following WinZip
               practice, and disables the optional Zstd frame checksum; the ZIP
-              CRC-32 remains the integrity check.  Deprecated Zstandard method
-              20 is accepted by UnZip, but Zip writes method 20 only for LPAQ8,
-              never for Zstandard.  If compression is not beneficial, the
-              normal store fallback is used.
+              CRC-32 remains the integrity check.  Deprecated Zstandard legacy
+              method 20 is accepted by UnZip; optional --zstd-deprecated-method
+              writes Zstandard as method 20 instead of default method 93.
+              If compression is not beneficial, fallback to Store method is used.
 
               lpaq8 - Encode (historical) PAQZIP LPAQ8 (ZIP method 20) format.
               (Distinguishable from deprecated method-20 Zstandard by its pQ
@@ -1943,6 +1943,13 @@ OPTIONS
               choice uses the actual input size and therefore also works for
               stdin and other inputs whose size was initially unknown.  This
               option requires -Z dcl-implode.
+
+       --zstd-deprecated-method
+              Use deprecated ZIP method 20 instead of method 93 when writing
+              Zstandard streams.  Requires -Z zstd; otherwise it is an error.
+              The compressed Zstandard frame is unchanged.  ZIP method 20 is
+              also used by other histroical algoriths, use only when required
+              for compatibility with broken or legacy readers.
 
        --zstd-level N
        --zstd-level=N

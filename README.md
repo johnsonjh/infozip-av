@@ -106,7 +106,7 @@ the **DEFLATE** (using a custom
 | **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                              |       ✅      |      ✅     |
 | **`18`** | BWT<sup>4</sup>                                       |       ✅      |             |
 | **`20`** | LPAQ8<sup>5</sup>                                     |       ✅      |      ✅     |
-| **`20`** | Zstandard&nbsp;(deprecated)                           |       ✅      |             |
+| **`20`** | Zstandard&nbsp;(deprecated)                           |       ✅      |      ✅     |
 | **`92`** | Reference&nbsp;Link<sup>6</sup>&nbsp;(de‑duplication) |       ✅      |      ✅     |
 | **`93`** | Zstandard<sup>7</sup>                                 |       ✅      |      ✅     |
 | **`94`** | WZ‑MP3                                                |       ✅      |             |

@@ -201,6 +201,12 @@ extern int iz_zip_aes_active;
 #  include "theos/zipup.h"
 #endif
 
+#ifdef ZSTD_SUPPORT
+# define ZIP_OUTPUT_METHOD(m) (((m) == ZSTD && zstd_deprecated_method) ? ZSTD_OLD : (m))
+#else
+# define ZIP_OUTPUT_METHOD(m) (m)
+#endif
+
 /* Local functions */
 #ifndef RISCOS
    local int suffixes OF((char *, char *));
@@ -1250,7 +1256,7 @@ struct zlist far *z;    /* zip entry to compress */
   }
 #endif
   z->lflg = z->flg;
-  z->how = (ush)m;                              /* may be changed later  */
+  z->how = (ush)ZIP_OUTPUT_METHOD(m);            /* may be changed later  */
   z->siz = (zoff_t)(m == STORE && q >= 0 ? q : 0); /* will be changed later */
   z->len = (zoff_t)(q != -1L ? q : 0);          /* may be changed later  */
 #ifndef NO_AES
@@ -1260,7 +1266,7 @@ struct zlist far *z;    /* zip entry to compress */
       iz_aes_version = iz_aes_quantum ? 3 : (((q >= 0 && q < 20) || m == BZIP2) ? 2 : 1);
       iz_aes_overhead = iz_aes_quantum ? 44U : iz_aes_salt_size((unsigned)iz_aes_strength) + 12;
       if (iz_aes_quantum && z->ver < 20) z->ver = 20;
-      if ((r=iz_aes_append_extra(z,iz_aes_version,iz_aes_strength,m))!=ZE_OK)
+      if ((r=iz_aes_append_extra(z,iz_aes_version,iz_aes_strength,ZIP_OUTPUT_METHOD(m)))!=ZE_OK)
           return r;
       z->how = 99;
       /* WinZip AES never uses the traditional ZipCrypto timestamp value as
@@ -1519,7 +1525,7 @@ struct zlist far *z;    /* zip entry to compress */
       if (m != method && !iz_aes_quantum)
         final_aes_version = ((isize < 20) || m == BZIP2) ? 2U : 1U;
       iz_aes_version = (int)final_aes_version;
-      iz_aes_change_info(z,final_aes_version,(unsigned)m);
+      iz_aes_change_info(z,final_aes_version,(unsigned)ZIP_OUTPUT_METHOD(m));
       tempzn += iz_aes_quantum ? 20 : 10;
   }
 #endif
@@ -1620,9 +1626,9 @@ struct zlist far *z;    /* zip entry to compress */
 #endif
     {
 #ifndef NO_AES
-      if (!iz_aes_entry && z->how != (ush)m)
+      if (!iz_aes_entry && z->how != (ush)ZIP_OUTPUT_METHOD(m))
 #else
-      if (z->how != (ush)m)
+      if (z->how != (ush)ZIP_OUTPUT_METHOD(m))
 #endif
          error("can't rewrite method");
       if (m == STORE && q < 0)
@@ -1659,9 +1665,9 @@ struct zlist far *z;    /* zip entry to compress */
 # endif /* !VMS && !CMS_MVS */
 #endif /* 0 */
 #ifndef NO_AES
-      z->how = iz_aes_entry ? 99 : (ush)m;
+      z->how = iz_aes_entry ? 99 : (ush)ZIP_OUTPUT_METHOD(m);
 #else
-      z->how = (ush)m;
+      z->how = (ush)ZIP_OUTPUT_METHOD(m);
 #endif
       switch (m)
       {
@@ -2790,8 +2796,8 @@ local zoff_t xzfilecompress(z_entry, cmpr_method)
 #ifdef ZSTD_SUPPORT
 #define ZSTD_ZIP_OUTBUF 16384U
 
-/* ZIP method 93: one standard Zstandard frame per ZIP member.  Deprecated
- * method 20 is accepted by UnZip but is never created by Zip.
+/* ZIP method 93 (or explicitly requested deprecated method 20):
+ * one standard Zstandard frame per ZIP member.
  *
  * Interoperability profile: WinZip method-93 examples use version-needed 2.0
  * and omit the optional Zstd frame checksum.  Python 3.14 currently chooses

@@ -1649,7 +1649,7 @@ local void help_extended()
 #ifdef LZMA_SUPPORT
 "              lzma        - LZMA (method 14; -1..-9 presets)",
 #ifdef ZSTD_SUPPORT
-"              zstd        - Zstandard (method 93; -1..-9 presets)",
+"              zstd        - Zstandard (method 93; legacy method 20)",
 #endif
 "              xz          - XZ LZMA2 (method 95; -1..-9 presets)",
 #endif
@@ -1673,6 +1673,7 @@ local void help_extended()
 #endif
 #ifdef ZSTD_SUPPORT
 "  --zstd-level n                   Zstandard native compression level (1..22)",
+"  --zstd-deprecated-method         Write Zstd as deprecated legacy method 20",
 #endif
 #ifdef CMPSC16_SUPPORT
 "  --cmpsc-symbol-width auto|n      CMPSC symbol width (9..13) (default: auto)",
@@ -2921,6 +2922,7 @@ int set_filetype(out_path)
 #define o_disable_store_fallback 0x157
 #define o_cmpsc_width   0x158
 #define o_lpaq8_l2      0x159
+#define o_zstd_deprecated_method 0x15a
 #define o_sp            0x134
 #define o_su            0x135
 #define o_sU            0x136
@@ -3119,6 +3121,7 @@ struct option_struct far options[] = {
     {"",   "lpaq8-l2-enable", o_NO_VALUE, o_NOT_NEGATABLE, o_lpaq8_l2, "Allow LPAQ8 EXE prefilter mode 2"},
     {"",   "cmpsc-symbol-width", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_cmpsc_width, "CMPSC symbol width (auto or 9..13)"},
     {"",   "zstd-level", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_zstd_level, "Zstd native compression level 1..22"},
+    {"",   "zstd-deprecated-method", o_NO_VALUE, o_NOT_NEGATABLE, o_zstd_deprecated_method, "Write Zstd as deprecated legacy method 20"},
 #if defined(MSDOS) || defined(OS2)
     {"$",  "volume-label", o_NO_VALUE,      o_NOT_NEGATABLE, '$',  "store volume label"},
 #endif
@@ -3330,6 +3333,7 @@ char **argv;            /* command line tokens */
   dcl_implode_dict = 0;
   dcl_implode_optimal = 0;
   zstd_level = 0;
+  zstd_deprecated_method = 0;
   iz_aes_mode = 0;
   iz_aes_quantum = 0;
   iz_aes_strength = 256;
@@ -4471,6 +4475,14 @@ char **argv;            /* command line tokens */
 #endif
           break;
 
+        case o_zstd_deprecated_method:
+#ifndef ZSTD_SUPPORT
+          ZIPERR(ZE_COMPERR, "Zstandard support not enabled");
+#else
+          zstd_deprecated_method = 1;
+#endif
+          break;
+
         case o_zstd_level:
 #ifndef ZSTD_SUPPORT
           free(value);
@@ -4999,6 +5011,9 @@ char **argv;            /* command line tokens */
   }
   if (zstd_level != 0 && method != ZSTD) {
     ZIPERR(ZE_PARMS, "--zstd-level requires -Z zstd");
+  }
+  if (zstd_deprecated_method && method != ZSTD) {
+    ZIPERR(ZE_PARMS, "--zstd-deprecated-method requires -Z zstd");
   }
 
   /* open log file */

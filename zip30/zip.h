@@ -344,7 +344,7 @@ extern int scanimage;           /* Scan through image files */
 #define BZIP2 12                /* BZIP2 method */
 #define LZMA 14                 /* LZMA method */
 #define CMPSC16 16              /* IBM z/OS CMPSC method */
-#define ZSTD_OLD 20             /* deprecated Zstandard method (read only) */
+#define ZSTD_OLD 20             /* deprecated Zstandard method (optional write) */
 #define LPAQ8 20                /* PAQZIP LPAQ8 method (write) */
 #define ZSTD 93                 /* Zstandard method */
 #define XZ 95                   /* XZ/LZMA2 method */
@@ -455,6 +455,7 @@ extern int iz_aes_strength;
 extern int iz_aes_quantum;
 extern unsigned long iz_aes_iterations; /* AE-3 PBKDF2 iterations */
 extern int zstd_level;          /* 0=generic mapping, otherwise native 1..22 */
+extern int zstd_deprecated_method; /* write deprecated Zstd method 20 when selected */
 extern int translate_eol;       /* Translate end-of-line LF -> CR LF */
 #ifdef VMS
    extern int vmsver;           /* Append VMS version number to file names */
