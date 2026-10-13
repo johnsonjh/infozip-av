@@ -158,6 +158,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
       LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
       LOCAL_ZIP="${LOCAL_ZIP:-}" \
       LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
+      EXTERNAL_ZLIB="${EXTERNAL_ZLIB:-}" \
       MAKE="${MAKE:-make}" \
     && cp -p "zipopt" "${PREFIX:?}/bin/zipopt" \
     && cp -p "man/zipopt.1" "${PREFIX:?}/man1/zipopt.1"

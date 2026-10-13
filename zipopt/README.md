@@ -1,6 +1,6 @@
 # zipopt — lossless per-member ZIP compression optimizer
 
-**NOTE: AI/LLM generated README based on the source code, so it's likely terrible.**
+**NOTE: Pure AI/LLM generated README based on the source code, so it's likely terrible.**
 
 `zipopt` is a standalone, in-process optimizer built against this source tree.
 It uses the source tree's compression codecs and a **private** embedded UnZip
@@ -9,7 +9,8 @@ platforms are supported; native Windows and DOS builds have not been ported or
 tested.  The implementation uses C89 source syntax, with the same 64-bit integer
 compiler extension already required on 32-bit-long targets by the LZFSE fork.
 
-Build on Unix with GCC/Clang, libbz2, liblzma and libzstd development headers:
+Build on Unix with GNU Make (`gmake` on systems where `make` is BSD Make),
+GCC/Clang, libbz2, liblzma and libzstd development headers:
 
     make -C zipopt all
     make -C zipopt test
@@ -24,10 +25,55 @@ Invoke:
     zipopt/zipopt --dcl-implode-optimal input.zip output.zip
     zipopt/zipopt --fwkcs-md5 --methods=store input.zip output.zip
 
+New configurable compression settings:
+
+    zipopt/zipopt --version
+    zipopt/zipopt --methods=reduce input.zip output.zip
+    zipopt/zipopt --compress-level=all=5 input.zip output.zip
+    zipopt/zipopt --compress-level=all=5 --compress-level=zstd=9 input.zip output.zip
+    zipopt/zipopt --zstd-level=22 --methods=zstd input.zip output.zip
+    zipopt/zipopt --methods=deflate --disable-zopfli input.zip output.zip
+
+`--compress-level=NAME=N` accepts a Zip-style level of 1..9 or 11 for
+adjustable candidates (Deflate, Deflate64, DCL Implode, bzip2, LZMA, XZ,
+Zstandard, and PPMd). `NAME=all` affects only adjustable codecs; fixed
+methods (STORE, Shrink, Reduce, Implode) cannot receive explicit levels.
+Use `NAME=dcl-implode` to affect both DCL variants. Settings are evaluated in
+command-line order; the last relevant override wins. The initial defaults
+remain unchanged, including Zopfli Deflate with 15 iterations, native Zstd 22,
+and nonoptimal DCL. Deflate levels 1..9 use a zlib-compatible raw Deflate
+backend, level 11 uses Zopfli; `--disable-zopfli` uses the ordinary backend
+at level 9 instead. `--zopfli-iterations` requires that Zopfli is actually
+selected. `--compress-level=dcl-implode=11` and `all=11` enable DCL optimal
+parsing; a later non-11 level disables it. `--zstd-level=1..22` sets the
+native Zstandard level, also respecting last-option-wins. Explicit
+per-candidate controls are rejected if that candidate is not selected.
+`--version` reports the release and the CRC acceleration actually available
+in zipopt's private UnZip decoder. Ordinary Deflate now uses
+`ZO_DEFLATE_BACKEND=auto` by default. Like Zip and UnZip's configure scripts,
+zipopt tests whether native zlib-ng headers and library **compile and link**
+with the active compiler and flags. If they do, levels 1..9 use native zlib-ng;
+otherwise zipopt uses the bundled Info-ZIP encoder in `zip30/deflate.c` and
+`zip30/trees.c`. This fallback has no external zlib dependency and is not
+thread-safe, consistent with zipopt's sequential candidate execution.
+
+`ZO_DEFLATE_BACKEND=native`, `zlib` and `internal` force a specific backend;
+`native` fails at build time when native zlib-ng is not linkable.
+`EXTERNAL_ZLIB=-DUSE_ZLIB`, `-DUSE_ZLIB_NG` or `-DNO_ZLIB_NG` selects the
+same backends as in Zip and UnZip. Explicit conflicting requests fail rather
+than silently selecting a different library. The `IZ_ZLIBNG_CFLAGS` and
+`IZ_ZLIBNG_LIBS` variables (otherwise pkg-config, with `-lz-ng` fallback)
+and `IZ_ZLIB_CFLAGS` / `IZ_ZLIB_LIBS` are supported. `make -C zipopt
+print-deflate-backend` reports the effective selection without building.
+Changing backends regenerates the codec adapter and relinks the executable;
+`make clean` is still recommended when changing other build configuration
+flags. The embedded UnZip decoder continues to use its internal Deflate
+implementation independently of the selected compression backend.
+
 `--methods=` accepts comma-separated names from the registry in `codec.c`:
 store, shrink, reduce-l1 through reduce-l4, implode-4k-2, implode-4k-3,
 implode-8k-2, implode-8k-3, deflate, deflate64, dcl-implode-binary,
-dcl-implode-ascii, bzip2, lzma, zstd, xz, and ppmd. The aliases `implode`
+dcl-implode-ascii, bzip2, lzma, zstd, xz, and ppmd. The aliases `implode`, `reduce`,
 and `dcl-implode` expand to all corresponding variants. `--methods=help`
 prints the complete compiled-in candidate list (also printed for unknown method
 names). Default `all` runs all

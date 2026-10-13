@@ -13,8 +13,15 @@
 #include "codec.h"
 #include "display.h"
 #include "extract.h"
-#include "writer.h"
 #include "fwkcs_md5.h"
+#include "writer.h"
+
+#define NO_AES
+#if defined(USE_ZLIB_NG) && !defined(USE_ZLIB)
+# define USE_ZLIB
+#endif /* if defined( USE_ZLIB_NG ) && !defined( USE_ZLIB ) */
+
+#include "../unzip60/iz_accel_status.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -173,21 +180,27 @@ zo_method_name (unsigned method)
 static void
 zo_usage (void)
 {
-/******************************************************************************/
-fprintf (stdout,
-        "Xtro-ZIP - zipopt - Advanced ZIP archive optimizer\n"
-        "Release %s - %s - https://github.com/johnsonjh/infozip-av\n"
-        "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com\n\n",
-        ZO_VER, ZO_DATE);
+  /******************************************************************************/
+  fprintf (
+      stdout,
+      "Xtro-ZIP - zipopt - Advanced ZIP archive optimizer\n"
+      "Release %s - %s - https://github.com/johnsonjh/infozip-av\n"
+      "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com\n\n",
+      ZO_VER, ZO_DATE);
 
   puts ("Usage: zipopt [option(s)...] <in.zip> <out.zip>\n"
         "  --methods=<help|list|all>      specify methods (default: all)\n"
         "  --fwkcs-md5                    write FWKCS MD5 metadata to output\n"
         "  --dcl-implode-optimal          enable DCL-Implode optimal parser");
-  puts ("  --zopfli-iterations=N          Zopfli passes (1..10000; default 15)\n"
+  puts (
+        "  --compress-level=algo=LEVEL    set encoder compress level (1..9, 11)\n"
+        "  --zstd-level=N                 native Zstd compress level (1..22)\n"
+        "  --disable-zopfli               ordinary Deflate instead of Zopfli\n"
+        "  --zopfli-iterations=N          Zopfli passes (1..10000; default 15)\n"
         "  -v, --verbose                  verbose output display mode\n"
+        "  -V, --version                  display version and acceleration\n"
         "  -h, --help                     display this help text");
-/******************************************************************************/
+  /******************************************************************************/
 }
 
 static void
@@ -198,6 +211,7 @@ zo_methods_help (void)
   puts ("zipopt --methods=list: valid compression candidates:");
   puts ("  all                      all candidates (default)");
   puts ("  implode                  all four ZIP-Implode variants");
+  puts ("  reduce                   all four ZIP-Reduce variants");
   puts ("  dcl-implode              both DCL-Implode modes");
 
   for (i = 0; i < zo_candidate_count; i++)
@@ -236,6 +250,122 @@ zo_iterations (const char *p, unsigned *out)
     }
 
   *out = (unsigned)v;
+
+  return 1;
+}
+
+/*
+ * Numeric values are Zip-style levels,
+ * not native library presets
+ */
+
+static int
+zo_level (const char *p, unsigned max, unsigned *out)
+{
+  unsigned long v;
+  char *end;
+
+  if (!p || *p < '0' || *p > '9')
+    {
+      return 0;
+    }
+
+  errno = 0;
+  v = strtoul (p, &end, 10);
+
+  if (errno == ERANGE || !end || *end || v < 1UL || v > (unsigned long)max
+      || (max == 11U && v == 10UL))
+    {
+      return 0;
+    }
+
+  *out = (unsigned)v;
+
+  return 1;
+}
+
+/*
+ * These are the only candidates that
+ * have a Zip-compatible level scale
+ */
+
+static int
+zo_adjustable (unsigned i)
+{
+  unsigned m = zo_candidates[i].method;
+
+  return m == 8U || m == 9U || m == 10U || m == 12U || m == 14U || m == 93U
+         || m == 95U || m == 98U;
+}
+
+static unsigned
+zo_default_level (unsigned i)
+{
+  return zo_candidates[i].method == 93U   ? 22U
+         : zo_candidates[i].method == 10U ? 9U
+                                          : zo_candidates[i].parameter;
+}
+
+/*
+ * 0: bad name; 1: level applied.
+ * A group affects all supported codecs
+ */
+
+static int
+zo_set_level (const char *name, unsigned n, zo_settings *settings,
+              unsigned char *requested, int *dcl_group_requested)
+{
+  unsigned i, match = 0;
+
+  for (i = 0; i < zo_candidate_count; i++)
+    {
+      const char *candidate = zo_candidates[i].name;
+      int selected = !strcmp (name, "all") || !strcmp (name, candidate)
+                     || (!strcmp (name, "dcl-implode")
+                         && zo_candidates[i].method == 10U);
+      if (!selected)
+        {
+          continue;
+        }
+
+      if (!zo_adjustable (i))
+        {
+          if (!strcmp (name, "all"))
+            {
+              continue;
+            }
+
+          return 0;
+        }
+
+      match = 1;
+      settings->levels[i] = n == 11U && zo_candidates[i].method == 93U ? 22U
+                            : n == 11U && zo_candidates[i].method != 8U
+                                    && zo_candidates[i].method != 9U
+                                    && zo_candidates[i].method != 10U
+                                ? 9U
+                                : n;
+      if (!strcmp (name, "dcl-implode"))
+        {
+          *dcl_group_requested = 1;
+        }
+      else if (strcmp (name, "all"))
+        {
+          requested[i] = 1;
+        }
+    }
+
+  if (!match)
+    {
+      return 0;
+    }
+
+  if (!strcmp (name, "all") || !strcmp (name, "dcl-implode")
+      || !strcmp (name, "dcl-implode-binary")
+      || !strcmp (name, "dcl-implode-ascii"))
+    {
+      settings->dcl_optimal = n == 11U;
+    }
 
   return 1;
 }
@@ -298,13 +428,18 @@ zo_selected_methods (const char *s, unsigned char *enabled)
 
       matched = 0;
 
-      if (zo_name (p, n, "implode") || zo_name (p, n, "dcl-implode"))
+      if (zo_name (p, n, "implode") || zo_name (p, n, "dcl-implode")
+          || zo_name (p, n, "reduce"))
         {
-          unsigned wanted = zo_name (p, n, "implode") ? 6U : 10U;
+          unsigned wanted = zo_name (p, n, "implode")  ? 6U
+                            : zo_name (p, n, "reduce") ? 2U
+                                                       : 10U;
 
           for (i = 0; i < zo_candidate_count; i++)
             {
-              if (zo_candidates[i].method == wanted)
+              if ((wanted == 2U && zo_candidates[i].method >= 2U
+                   && zo_candidates[i].method <= 5U)
+                  || (wanted != 2U && zo_candidates[i].method == wanted))
                 {
                   enabled[i] = 1;
                   matched = 1;
@@ -525,18 +660,45 @@ main (int argc, char **argv)
   unsigned size_width = 0, verbose_count = 0;
   unsigned member_width = 0;
   int rc = 1, verbose = 0, original_win, iterations_set = 0;
+  int zstd_native_set = 0, disable_zopfli_set = 0;
+  int dcl_group_requested = 0, dcl_explicit_option = 0;
+  unsigned char requested[ZO_MAX_CANDIDATES];
   int fwkcs_md5 = 0;
   zo_settings settings;
   int j;
 
+  memset (&settings, 0, sizeof (settings));
+  memset (requested, 0, sizeof (requested));
+
   settings.zopfli_iterations = 15U;
-  settings.dcl_optimal = 0;
+
+  for (k = 0; k < zo_candidate_count && k < ZO_MAX_CANDIDATES; k++)
+    {
+      settings.levels[k] = zo_default_level (k);
+    }
+
   memset (&w, 0, sizeof (w));
   memset (&a, 0, sizeof (a));
+
+  if (zo_candidate_count > ZO_MAX_CANDIDATES)
+    {
+      fprintf (stderr,
+               "zipopt: candidate configuration exceeds internal limit\n");
+      return 1;
+    }
 
   for (j = 1; j < argc; j++)
     {
       const char *arg = argv[j];
+
+      if (!strcmp (arg, "-V") || !strcmp (arg, "--version"))
+        {
+          fprintf (stdout, "zipopt v%s (%s)%s\n", ZO_VER, ZO_DATE,
+                   (iz_accel_status_list () != NULL)
+                       ? " [Hardware CRC acceleration enabled]"
+                       : "");
+          return 0;
+        }
 
       if (!strcmp (arg, "-h") || !strcmp (arg, "--help"))
         {
@@ -552,9 +714,54 @@ main (int argc, char **argv)
         {
           method_arg = arg + 10;
         }
+      else if (!strcmp (arg, "--disable-zopfli"))
+        {
+          settings.disable_zopfli = 1;
+          disable_zopfli_set = 1;
+        }
+      else if (!strncmp (arg, "--zstd-level=", 13))
+        {
+          if (!zo_level (arg + 13, 22U, &settings.levels[16]))
+            {
+              fprintf (stderr, "zipopt: --zstd-level must be 1..22\n");
+              return 2;
+            }
+
+          zstd_native_set = 1;
+          requested[16] = 1;
+        }
+      else if (!strncmp (arg, "--compress-level=", 17))
+        {
+          const char *spec = arg + 17;
+          const char *eq = strrchr (spec, '=');
+          unsigned level;
+          char name[64];
+          size_t name_len;
+          if (!eq || eq == spec
+              || (name_len = (size_t)(eq - spec)) >= sizeof (name)
+              || !zo_level (eq + 1, 11U, &level))
+            {
+              fprintf (stderr,
+                       "zipopt: invalid --compress-level syntax or level\n");
+              return 2;
+            }
+
+          memcpy (name, spec, name_len);
+          name[name_len] = '\0';
+          if (!zo_set_level (name, level, &settings, requested,
+                             &dcl_group_requested))
+            {
+              fprintf (stderr,
+                       "zipopt: unsupported compression level target: %s\n",
+                       name);
+              return 2;
+            }
+        }
       else if (!strcmp (arg, "--dcl-implode-optimal"))
         {
           settings.dcl_optimal = 1;
+          dcl_explicit_option = 1;
+          settings.levels[12] = settings.levels[13] = 11U;
         }
       else if (!strcmp (arg, "--fwkcs-md5"))
         {
@@ -607,7 +814,7 @@ main (int argc, char **argv)
         }
     }
 
-  if (!strcmp (method_arg, "help"))
+  if (!strcmp (method_arg, "help") || !strcmp (method_arg, "list"))
     {
       zo_methods_help ();
 
@@ -655,6 +862,53 @@ main (int argc, char **argv)
       return 2;
     }
 
+  for (k = 0; k < zo_candidate_count; k++)
+    {
+      if (requested[k] && !enabled[k])
+        {
+          fprintf (
+              stderr,
+              "zipopt: compression level requires selected candidate %s\n",
+              zo_candidates[k].name);
+          free (enabled);
+
+          return 2;
+        }
+    }
+
+  if (dcl_group_requested && !enabled[12] && !enabled[13])
+    {
+      fprintf (stderr, "zipopt: DCL level requires a DCL candidate\n");
+      free (enabled);
+
+      return 2;
+    }
+
+  if (disable_zopfli_set && !enabled[10])
+    {
+      fprintf (stderr, "zipopt: --disable-zopfli requires Deflate\n");
+      free (enabled);
+
+      return 2;
+    }
+
+  if (zstd_native_set && !enabled[16])
+    {
+      fprintf (stderr, "zipopt: --zstd-level requires Zstandard\n");
+      free (enabled);
+
+      return 2;
+    }
+
+  if (iterations_set
+      && (settings.disable_zopfli || settings.levels[10] != 11U))
+    {
+      fprintf (stderr, "zipopt: --zopfli-iterations requires active Zopfli\n");
+      free (enabled);
+
+      return 2;
+    }
+
   if (iterations_set)
     {
       int deflate_present = 0;
@@ -678,7 +932,7 @@ main (int argc, char **argv)
         }
     }
 
-  if (settings.dcl_optimal)
+  if (dcl_explicit_option)
     {
       int dcl_present = 0;
 
@@ -843,7 +1097,7 @@ main (int argc, char **argv)
               if (!zo_decoded_md5 (decoded, w.entries[(size_t)i].md5))
                 {
                   goto done;
-	        }
+                }
 
               w.entries[(size_t)i].has_md5 = 1;
             }
@@ -852,8 +1106,9 @@ main (int argc, char **argv)
 
           if (e->has_fwkcs)
             {
-              fputs (fwkcs_md5 ? "  FWKCS input MD5 verified; retained in output\n"
-                               : "  FWKCS input MD5 verified; omitted from output\n",
+              fputs (fwkcs_md5
+                         ? "  FWKCS input MD5 verified; retained in output\n"
+                         : "  FWKCS input MD5 verified; omitted from output\n",
                      stderr);
             }
 
@@ -1076,8 +1331,9 @@ main (int argc, char **argv)
 
         if (e->has_fwkcs)
           {
-            fputs (fwkcs_md5 ? "  FWKCS input MD5 verified; retained in output\n"
-                             : "  FWKCS input MD5 verified; omitted from output\n",
+            fputs (fwkcs_md5
+                       ? "  FWKCS input MD5 verified; retained in output\n"
+                       : "  FWKCS input MD5 verified; omitted from output\n",
                    stderr);
           }
       }

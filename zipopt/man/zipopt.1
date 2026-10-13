@@ -4,8 +4,12 @@ zipopt \- losslessly optimize ZIP archive members by trying available compressor
 .SH SYNOPSIS
 .B zipopt
 .RB [ \-v | \-\-verbose ]
+.RB [ \-V | \-\-version ]
 .RB [ \-\-methods= LIST ]
 .RB [ \-\-zopfli-iterations= N ]
+.RB [ \-\-compress-level= NAME=LEVEL ]
+.RB [ \-\-zstd-level= N ]
+.RB [ \-\-disable-zopfli ]
 .RB [ \-\-dcl-implode-optimal ]
 .I input.zip output.zip
 .SH DESCRIPTION
@@ -71,11 +75,33 @@ reduce-l4, implode-4k-2, implode-4k-3, implode-8k-2, implode-8k-3,
 deflate, deflate64, dcl-implode-binary, dcl-implode-ascii, bzip2, lzma,
 zstd, xz, ppmd. Use
 .B implode
-to select all four ZIP Implode variants and
+to select all four ZIP Implode variants,
+.B reduce
+to select all four Reduce factors, and
 .B dcl-implode
 for both DCL modes. Use
 .B \-\-methods=help
 to display every available method; invalid names also print this list.
+.TP
+.BR \-V , " \-\-version"
+Display version and applicable accelerated CRC support.
+.TP
+.BI \-\-compress-level= NAME=LEVEL
+Set Zip-style compression level 1 through 9, or 11, for an adjustable
+candidate or all adjustable candidates with NAME=all. Fixed methods
+such as Shrink, Reduce, Implode, and STORE do not accept levels.
+The last relevant setting wins. Deflate levels 1 through 9 use ordinary
+raw Deflate; level 11 uses Zopfli unless explicitly disabled.
+DCL level 11 enables optimal parsing; lower levels disable it.
+For Zstandard, level 11 selects the native level 22.
+.TP
+.BI \-\-zstd-level= N
+Select a native Zstandard level from 1 through 22. This option requires
+the Zstandard candidate. Order relative to --compress-level is significant.
+.TP
+.B \-\-disable-zopfli
+Use ordinary Deflate instead of Zopfli. Requires Deflate to be selected.
+An explicit --zopfli-iterations option is incompatible.
 .TP
 .BI \-\-zopfli-iterations= N
 Set Zopfli iteration count for Deflate -11 (1..10000, default 15).

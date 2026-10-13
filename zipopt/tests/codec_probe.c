@@ -105,6 +105,23 @@ main (int argc, char **argv)
     }
 
   crc ^= 0xffffffffUL;
+
+  if (zo_candidate_count > ZO_MAX_CANDIDATES)
+    {
+      return 2;
+    }
+
+  memset (&settings, 0, sizeof (settings));
+
+  for (id = 0; id < zo_candidate_count; id++)
+    {
+      settings.levels[id] = zo_candidates[id].method == 93U ? 22U
+                            : zo_candidates[id].method == 10U
+                                ? 9U
+                                : zo_candidates[id].parameter;
+    }
+
+  id = (unsigned)strtoul (argv[1], NULL, 10);
   settings.zopfli_iterations = 15;
   settings.dcl_optimal = 0;
 

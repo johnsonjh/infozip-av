@@ -19,10 +19,15 @@ typedef struct zo_candidate
 extern const zo_candidate zo_candidates[];
 extern const unsigned zo_candidate_count;
 
+/* 32 to allow more candidates later */
+# define ZO_MAX_CANDIDATES 32U
+
 typedef struct zo_settings
 {
   unsigned zopfli_iterations; /* 1..10000, default 15 */
-  int dcl_optimal;            /* opt-in only */
+  int dcl_optimal;            /* default off; explicit level 11 enables */
+  int disable_zopfli;
+  unsigned levels[ZO_MAX_CANDIDATES]; /* candidate levels by registry order */
 } zo_settings;
 
 /* Return nonzero only if a complete, valid codec output stream was written. */

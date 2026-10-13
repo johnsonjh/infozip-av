@@ -31,7 +31,14 @@ pvsreport/
 /zipdedup/tests/__pycache__/
 /zipdedup/zipdedup
 /zipopt/build
+/zipopt/codec-probe
+/zipopt/test-display
+/zipopt/test-index
+/zipopt/test-interrupt
+/zipopt/test-source-stability
 /zipopt/tests/__pycache__/
+/zipopt/test-structures
+/zipopt/test-zip64-offset
 /zipopt/zipopt
 /zipopt/zipopt-decodecheck
 /zipopt/zipopt-preflight

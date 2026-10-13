@@ -9,18 +9,27 @@
  */
 
 #define _FILE_OFFSET_BITS 64
+
 #include "../zip30/deflate64.h"
 #include "../zip30/pkdcl.h"
 #include "../zip30/ppmd8.h"
 #include "../zip30/zopfli.h"
 
 #include "codec.h"
+#include "zip_deflate.h"
+
 #include <bzlib.h>
 #include <limits.h>
 #include <lzma.h>
 #include <stdlib.h>
 #include <string.h>
 #include <zstd.h>
+
+#if defined(ZO_USE_ZLIB_NG)
+# include <zlib-ng.h>
+#elif defined(ZO_USE_ZLIB)
+# include <zlib.h>
+#endif /* if defined( ZO_USE_ZLIB_NG ) */
 
 /* The source amalgamation mirrors the existing zipup.c strategy. */
 #include "../zip30/deflate64.c"
@@ -140,7 +149,7 @@ zo_copy (struct zo_io *s)
 }
 
 static int
-zo_bzip (struct zo_io *s)
+zo_bzip (struct zo_io *s, int level)
 {
   bz_stream bs;
   unsigned char in[16384], out[16384];
@@ -148,7 +157,7 @@ zo_bzip (struct zo_io *s)
 
   memset (&bs, 0, sizeof (bs));
 
-  if (BZ2_bzCompressInit (&bs, 9, 0, 30) != BZ_OK)
+  if (BZ2_bzCompressInit (&bs, level, 0, 30) != BZ_OK)
     {
       return 0;
     }
@@ -198,7 +207,7 @@ zo_bzip (struct zo_io *s)
 }
 
 static int
-zo_xz_lzma (struct zo_io *s, int xz)
+zo_xz_lzma (struct zo_io *s, int xz, unsigned level)
 {
   lzma_stream ls = LZMA_STREAM_INIT;
   lzma_options_lzma opt;
@@ -210,14 +219,14 @@ zo_xz_lzma (struct zo_io *s, int xz)
 
   if (xz)
     {
-      if (lzma_easy_encoder (&ls, 9, LZMA_CHECK_NONE) != LZMA_OK)
+      if (lzma_easy_encoder (&ls, level, LZMA_CHECK_NONE) != LZMA_OK)
         {
           return 0;
         }
     }
   else
     {
-      if (lzma_lzma_preset (&opt, 9))
+      if (lzma_lzma_preset (&opt, level))
         {
           return 0;
         }
@@ -298,7 +307,7 @@ zo_xz_lzma (struct zo_io *s, int xz)
 }
 
 static int
-zo_zstd (struct zo_io *s)
+zo_zstd (struct zo_io *s, int level)
 {
   ZSTD_CCtx *ctx;
   unsigned char in[16384], out[16384];
@@ -315,7 +324,7 @@ zo_zstd (struct zo_io *s)
       return 0;
     }
 
-  rc = ZSTD_CCtx_setParameter (ctx, ZSTD_c_compressionLevel, 22);
+  rc = ZSTD_CCtx_setParameter (ctx, ZSTD_c_compressionLevel, level);
 
   if (ZSTD_isError (rc))
     {
@@ -427,13 +436,17 @@ zo_ppmd_putchar (IByteOutPtr v, Byte b)
 }
 
 static int
-zo_ppmd (struct zo_io *s)
+zo_ppmd (struct zo_io *s, unsigned level)
 {
   CPpmd8 m;
   struct zo_ppmd pp;
   unsigned char in[8192];
   unsigned n, i;
-  unsigned props = (16U - 1U) | ((256U - 1U) << 4);
+  static const unsigned char orders[9] = { 6, 7, 8, 8, 8, 8, 10, 12, 16 };
+  static const unsigned short memories[9]
+      = { 2, 4, 8, 16, 32, 50, 64, 128, 256 };
+  unsigned order = orders[level - 1U], mem_mb = memories[level - 1U];
+  unsigned props = (order - 1U) | ((mem_mb - 1U) << 4);
   unsigned char h[2];
 
   h[0] = (unsigned char)props;
@@ -449,14 +462,14 @@ zo_ppmd (struct zo_io *s)
   pp.io = s;
   Ppmd8_Construct (&m);
 
-  if (!Ppmd8_Alloc (&m, 256UL << 20, &zo_allocator))
+  if (!Ppmd8_Alloc (&m, (size_t)mem_mb << 20, &zo_allocator))
     {
       return 0;
     }
 
   m.Stream.Out = &pp.vt;
   Ppmd8_Init_RangeEnc (&m);
-  Ppmd8_Init (&m, 16, PPMD8_RESTORE_METHOD_RESTART);
+  Ppmd8_Init (&m, order, PPMD8_RESTORE_METHOD_RESTART);
 
   while ((n = zo_rd (s, in, sizeof (in))) != 0 && !s->failed)
     {
@@ -477,6 +490,81 @@ zo_ppmd (struct zo_io *s)
 
   return !s->failed;
 }
+
+/*
+ * Deflate through an selected external backend
+ */
+
+#if defined(ZO_USE_ZLIB_NG) || defined(ZO_USE_ZLIB)
+static int
+zo_deflate (struct zo_io *s, unsigned level)
+{
+# if defined(ZO_USE_ZLIB_NG)
+  zng_stream z;
+# else  /* if defined( ZO_USE_ZLIB_NG ) */
+  z_stream z;
+# endif /* if defined( ZO_USE_ZLIB_NG ) */
+  unsigned char input[16384], output[16384];
+  int rc, flush, done = 0;
+  unsigned n;
+
+  memset (&z, 0, sizeof (z));
+# if defined(ZO_USE_ZLIB_NG)
+  if (zng_deflateInit2 (&z, (int)level, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY)
+      != Z_OK)
+# else  /* if defined( ZO_USE_ZLIB_NG ) */
+  if (deflateInit2 (&z, (int)level, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY)
+      != Z_OK)
+# endif /* if defined( ZO_USE_ZLIB_NG ) */
+    {
+      return 0;
+    }
+
+  z.next_in = Z_NULL;
+  z.avail_in = 0;
+
+  while (!done && !s->failed)
+    {
+      if (z.avail_in == 0)
+        {
+          n = zo_rd (s, input, sizeof (input));
+          z.next_in = input;
+          z.avail_in = n;
+        }
+
+      flush = z.avail_in == 0 ? Z_FINISH : Z_NO_FLUSH;
+
+      do
+        {
+          z.next_out = output;
+          z.avail_out = sizeof (output);
+# if defined(ZO_USE_ZLIB_NG)
+          rc = zng_deflate (&z, flush);
+# else  /* if defined( ZO_USE_ZLIB_NG ) */
+          rc = deflate (&z, flush);
+# endif /* if defined( ZO_USE_ZLIB_NG ) */
+          if ((rc != Z_OK && rc != Z_STREAM_END)
+              || zo_wr (s, output, (unsigned)(sizeof (output) - z.avail_out)))
+            {
+              s->failed = 1;
+              break;
+            }
+
+          if (rc == Z_STREAM_END)
+            {
+              done = 1;
+            }
+        }
+      while (!s->failed && !done && z.avail_out == 0);
+    }
+# if defined(ZO_USE_ZLIB_NG)
+  zng_deflateEnd (&z);
+# else  /* if defined( ZO_USE_ZLIB_NG ) */
+  deflateEnd (&z);
+# endif /* if defined( ZO_USE_ZLIB_NG ) */
+  return done && !s->failed;
+}
+#endif /* ZO_USE_ZLIB_NG || ZO_USE_ZLIB */
 
 #define ZO_Z_CHUNK 1000000U
 #define ZO_Z_HISTORY 32768U
@@ -640,6 +728,21 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
   s.failed = 0;
   c = &zo_candidates[id];
 
+  if (id == 16U)
+    {
+      if (settings->levels[id] < 1U || settings->levels[id] > 22U)
+        {
+          return 0;
+        }
+    }
+  else if ((id == 10U || id == 11U || id == 14U || id == 15U || id == 17U
+            || id == 18U)
+           && (settings->levels[id] < 1U
+               || settings->levels[id] > (id == 10U || id == 11U ? 11U : 9U)))
+    {
+      return 0;
+    }
+
   switch (id)
     {
     case 0:
@@ -670,13 +773,27 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
       break;
 
     case 10:
-      rc = zo_zopfli (&s, settings->zopfli_iterations);
+      if (settings->disable_zopfli || settings->levels[id] != 11U)
+        {
+          unsigned dlevel
+              = settings->levels[id] == 11U ? 9U : settings->levels[id];
+#if defined(ZO_USE_ZLIB_NG) || defined(ZO_USE_ZLIB)
+          rc = zo_deflate (&s, dlevel);
+#else  /* if defined( ZO_USE_ZLIB_NG ) || defined( ZO_USE_ZLIB ) */
+          rc = zo_zip_internal_deflate (zo_rd, zo_wr, &s, dlevel);
+#endif /* if defined( ZO_USE_ZLIB_NG ) || defined( ZO_USE_ZLIB ) */
+        }
+      else
+        {
+          rc = zo_zopfli (&s, settings->zopfli_iterations);
+        }
 
       break;
 
     case 11:
       memset (&stats, 0, sizeof (stats));
-      rc = d64_encode (zo_rd, zo_wr, &s, 11, &stats) == 0;
+      rc = d64_encode (zo_rd, zo_wr, &s, (int)settings->levels[id], &stats)
+           == 0;
 
       break;
 
@@ -686,33 +803,33 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
                zo_dcl_rd, zo_dcl_wr, &s,
                id == 12 ? PKDCL_CMP_BINARY : PKDCL_CMP_ASCII, PKDCL_DICT_AUTO,
                PKDCL_FLAG_EXTRA
-                   | (settings->dcl_optimal ? PKDCL_FLAG_OPTIMAL : 0U))
+                   | (settings->levels[id] == 11U ? PKDCL_FLAG_OPTIMAL : 0U))
            == PKDCL_CMP_NO_ERROR;
 
       break;
 
     case 14:
-      rc = zo_bzip (&s);
+      rc = zo_bzip (&s, (int)settings->levels[id]);
 
       break;
 
     case 15:
-      rc = zo_xz_lzma (&s, 0);
+      rc = zo_xz_lzma (&s, 0, settings->levels[id]);
 
       break;
 
     case 16:
-      rc = zo_zstd (&s);
+      rc = zo_zstd (&s, (int)settings->levels[id]);
 
       break;
 
     case 17:
-      rc = zo_xz_lzma (&s, 1);
+      rc = zo_xz_lzma (&s, 1, settings->levels[id]);
 
       break;
 
     case 18:
-      rc = zo_ppmd (&s);
+      rc = zo_ppmd (&s, settings->levels[id]);
 
       break;
 
