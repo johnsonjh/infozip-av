@@ -142,7 +142,7 @@ the **DEFLATE** (using a custom
 > table, as are other specifically reserved (`7`, `11`, `13`, `15`, `17`, etc.)
 > identifiers.
 >
-> <sup>**5**</sup>&nbps;LPAQ8 is a non-standard PAQZIP extension that shares
+> <sup>**5**</sup>&nbsp;LPAQ8 is a non-standard PAQZIP extension that shares
 > method `20` with the (deprecated) Zstandard (now method&nbsp;93); Xtro‑ZIP
 > automatically determines the proper format by analyzing the data stream.
 >
