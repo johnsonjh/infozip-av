@@ -41,6 +41,8 @@ typedef struct xb_state
   int (*reader) (void *);
   int (*writer) (void *, const unsigned char *, size_t);
   void *opaque;
+  unsigned long (*crc_update) (void *, unsigned long,
+                                const unsigned char *, size_t);
   unsigned int current_byte, available_bits;
   int bad_input, write_failed;
   unsigned int block_max;
@@ -181,12 +183,42 @@ xb_symbol (xb_state *s, const xb_huff *h)
   return -1;
 }
 
+static unsigned long
+xb_crc_fallback (unsigned long crc, const unsigned char *buf, size_t n)
+{
+  unsigned long x = (crc ^ 0xffffffffUL) & 0xffffffffUL;
+  size_t i;
+  unsigned int j;
+
+  for (i = 0U; i < n; i++)
+    {
+      x ^= (unsigned long)buf[i];
+      for (j = 0U; j < 8U; j++)
+        {
+          x = (x >> 1) ^ ((x & 1UL) ? 0xedb88320UL : 0UL);
+        }
+    }
+
+  return (x ^ 0xffffffffUL) & 0xffffffffUL;
+}
+
+static void
+xb_crc_buffer (xb_state *s)
+{
+  if (s->crc_update)
+    {
+      s->crc = s->crc_update (s->opaque, s->crc, s->output,
+                              s->output_count) & 0xffffffffUL;
+    }
+  else
+    {
+      s->crc = xb_crc_fallback (s->crc, s->output, s->output_count);
+    }
+}
+
 static int
 xb_emit (xb_state *s, unsigned int ch)
 {
-  unsigned long x;
-  unsigned j;
-
   if (s->size_lo == 0xffffffffUL)
     {
       if (s->size_hi == 0xffffffffUL)
@@ -208,18 +240,11 @@ xb_emit (xb_state *s, unsigned int ch)
       return -1;
     }
 
-  x = (s->crc ^ (unsigned long)ch) & 0xffffffffUL;
-
-  for (j = 0U; j < 8U; j++)
-    {
-      x = ((x >> 1) ^ ((x & 1UL) ? 0xedb88320UL : 0UL)) & 0xffffffffUL;
-    }
-
-  s->crc = x;
   s->output[s->output_count++] = (unsigned char)ch;
 
   if (s->output_count == XB_OUTBUF)
     {
+      xb_crc_buffer (s);
       if (s->writer (s->opaque, s->output, s->output_count))
         {
           s->write_failed = 1;
@@ -556,10 +581,14 @@ xb_block (xb_state *s)
 }
 
 int
-iz_xceedbwt_decode (int (*read_byte) (void *),
-                    int (*write_data) (void *, const unsigned char *, size_t),
-                    void *opaque, unsigned long usize_hi,
-                    unsigned long usize_lo, unsigned long expected_crc)
+iz_xceedbwt_decode_crc (int (*read_byte) (void *),
+                         int (*write_data) (void *, const unsigned char *,
+                                            size_t),
+                         unsigned long (*crc_update) (void *, unsigned long,
+                                                      const unsigned char *,
+                                                      size_t),
+                         void *opaque, unsigned long usize_hi,
+                         unsigned long usize_lo, unsigned long expected_crc)
 {
   xb_state *s;
   unsigned int first, marker, nblocks = 0U;
@@ -582,10 +611,11 @@ iz_xceedbwt_decode (int (*read_byte) (void *),
   s->reader = read_byte;
   s->writer = write_data;
   s->opaque = opaque;
+  s->crc_update = crc_update;
   s->expect_hi = usize_hi;
   s->expect_lo = usize_lo;
   s->expected_crc = expected_crc;
-  s->crc = 0xffffffffUL;
+  s->crc = 0UL;
   first = xb_bits (s, 8U);
 
   if (s->bad_input || first < (unsigned int)'1' || first > (unsigned int)'9')
@@ -633,7 +663,12 @@ iz_xceedbwt_decode (int (*read_byte) (void *),
               goto done;
             }
 
-          if ((s->crc ^ 0xffffffffUL) != s->expected_crc
+          if (s->output_count)
+            {
+              xb_crc_buffer (s);
+            }
+
+          if (s->crc != s->expected_crc
               || s->size_hi != s->expect_hi || s->size_lo != s->expect_lo)
             {
               goto done;
@@ -674,4 +709,14 @@ done:
   free (s);
 
   return rc;
+}
+
+int
+iz_xceedbwt_decode (int (*read_byte) (void *),
+                    int (*write_data) (void *, const unsigned char *, size_t),
+                    void *opaque, unsigned long usize_hi,
+                    unsigned long usize_lo, unsigned long expected_crc)
+{
+  return iz_xceedbwt_decode_crc (read_byte, write_data, NULL, opaque,
+                                 usize_hi, usize_lo, expected_crc);
 }

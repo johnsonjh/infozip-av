@@ -24,4 +24,13 @@ int iz_xceedbwt_decode (int (*read_byte) (void *),
                         void *opaque, unsigned long usize_hi,
                         unsigned long usize_lo, unsigned long expected_crc);
 
+int iz_xceedbwt_decode_crc (int (*read_byte) (void *),
+                            int (*write_data) (void *, const unsigned char *,
+                                               size_t),
+                            unsigned long (*crc_update) (void *, unsigned long,
+                                                         const unsigned char *,
+                                                         size_t),
+                            void *opaque, unsigned long usize_hi,
+                            unsigned long usize_lo, unsigned long expected_crc);
+
 #endif /* ifndef IZ_XCEEDBWT_H */

@@ -454,6 +454,14 @@ static int uz_xceedbwt_write(void *opaque, const unsigned char *data, size_t n)
     return ctx->flush_error != PK_COOL;
 }
 
+static unsigned long uz_xceedbwt_crc(void *opaque, unsigned long crc,
+                                     const unsigned char *buf, size_t n)
+{
+    (void)opaque;
+    return (unsigned long)(crc32((ulg)crc, (ZCONST uch *)buf,
+                                 (extent)n) & 0xffffffffUL);
+}
+
 static int uz_xceedbwt_decompress(__G)
     __GDEF
 {
@@ -466,8 +474,9 @@ static int uz_xceedbwt_decompress(__G)
 #endif
     lo = (unsigned long)(G.lrec.ucsize & 0xffffffffUL);
     hi = (unsigned long)((G.lrec.ucsize >> 16) >> 16);
-    rc = iz_xceedbwt_decode(uz_xceedbwt_read, uz_xceedbwt_write,
-                            &ctx, hi, lo, (unsigned long)G.lrec.crc32);
+    rc = iz_xceedbwt_decode_crc(uz_xceedbwt_read, uz_xceedbwt_write,
+                                uz_xceedbwt_crc, &ctx, hi, lo,
+                                (unsigned long)G.lrec.crc32);
     if (ctx.flush_error != PK_COOL) return ctx.flush_error;
     return rc == 0 ? PK_COOL : (rc == -2 ? PK_MEM3 : PK_ERR);
 }
