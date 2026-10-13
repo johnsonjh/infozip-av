@@ -145,8 +145,8 @@ the **DEFLATE** (using a custom
 > format (by identifying valid BWT data).  While IBM‑specific TERSE and LZ77
 > compression technologies referenced in the
 > [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT)
-> unquestionably exist, there is *no evidence* of actual specifications, nor
-> any known software implementing these methods, so they are excluded from the
+> unquestionably exist, because there is *no evidence* of formal specifications
+> nor any software known to implement these methods, they are excluded from the
 > table, as are other specifically reserved (`7`, `11`, `13`, `15`, `17`, etc.)
 > identifiers.
 >
