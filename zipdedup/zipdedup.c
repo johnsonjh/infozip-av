@@ -24,6 +24,14 @@
 #include "fwkcs_md5.h"
 #include "../unzip60/unzip.h"
 
+#if defined(USE_ZLIB_NG)
+# include "../unzip60/iz_native_zlibng.h"
+#elif defined(USE_ZLIB)
+# include <zlib.h>
+#else
+extern unsigned long crc32 (unsigned long, const unsigned char *, size_t);
+#endif
+
 #include <limits.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -758,15 +766,15 @@ static int zd_hash_failed;
 static unsigned long
 zd_crc32_step (unsigned long crc, const unsigned char *p, unsigned long n)
 {
-  unsigned j;
-
-  while (n--)
+  while (n != 0)
     {
-      crc ^= (unsigned long)*p++;
-      for (j = 0; j < 8; j++)
-        {
-          crc = (crc & 1UL) ? ((crc >> 1) ^ 0xedb88320UL) : (crc >> 1);
-        }
+      unsigned int take = n > (unsigned long)UINT_MAX
+                          ? UINT_MAX : (unsigned int)n;
+      crc = (unsigned long)crc32 (crc ^ 0xffffffffUL, p, take)
+            ^ 0xffffffffUL;
+      crc &= 0xffffffffUL;
+      p += take;
+      n -= take;
     }
   return crc & 0xffffffffUL;
 }

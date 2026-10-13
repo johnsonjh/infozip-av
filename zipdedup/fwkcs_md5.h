@@ -13,9 +13,15 @@
 #  error FWKCS MD5 needs 8-bit bytes and at least 32-bit unsigned long
 # endif /* if CHAR_BIT != 8 || ULONG_MAX < 0xffffffffUL */
 
+#if UINT_MAX == 0xffffffffUL
+ typedef unsigned int xm_md5_word;
+#else
+ typedef unsigned long xm_md5_word;
+#endif
+
 typedef struct xm_md5_ctx
 {
-  unsigned long state[4];
+  xm_md5_word state[4];
   unsigned long count[2];
   unsigned char buffer[64];
 } xm_md5_ctx;
@@ -28,8 +34,13 @@ typedef struct xm_md5_ctx
                    & XM_MD5_MASK))
 
 static void
-xm_md5_transform (unsigned long *state, const unsigned char *block)
+xm_md5_transform (xm_md5_word *state, const unsigned char *block)
 {
+#if defined(__GNUC__) && (defined(__x86_64__) || defined(__amd64__)) && \
+    UINT_MAX == 0xffffffffUL && !defined(NO_FWKCS_FAST_MD5)
+  typedef unsigned int z_uint4;
+# include "../zip30/fwkcs_fast_md5.inc"
+#else
   static const unsigned long k[64]
       = { 0xd76aa478UL, 0xe8c7b756UL, 0x242070dbUL, 0xc1bdceeeUL, 0xf57c0fafUL,
           0x4787c62aUL, 0xa8304613UL, 0xfd469501UL, 0x698098d8UL, 0x8b44f7afUL,
@@ -98,6 +109,7 @@ xm_md5_transform (unsigned long *state, const unsigned char *block)
   state[1] = (state[1] + b) & XM_MD5_MASK;
   state[2] = (state[2] + c) & XM_MD5_MASK;
   state[3] = (state[3] + d) & XM_MD5_MASK;
+#endif
 }
 
 static void

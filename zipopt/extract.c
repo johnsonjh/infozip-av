@@ -26,19 +26,19 @@ struct zo_sink
 
 static struct zo_sink *zo_active_sink;
 
+extern ulg crc32 (ulg crc, const uch *buf, size_t len);
+
 static unsigned long
 zo_crc (unsigned long crc, const unsigned char *p, ulg n)
 {
-  unsigned j;
-
-  while (n--)
+  while (n != 0)
     {
-      crc ^= *p++;
-
-      for (j = 0; j < 8; j++)
-        {
-          crc = (crc & 1UL) ? ((crc >> 1) ^ 0xedb88320UL) : (crc >> 1);
-        }
+      unsigned int take = n > (ulg)UINT_MAX ? UINT_MAX : (unsigned int)n;
+      crc = (unsigned long)crc32 ((ulg)(crc ^ 0xffffffffUL), p,
+                                 (size_t)take) ^ 0xffffffffUL;
+      crc &= 0xffffffffUL;
+      p += take;
+      n -= take;
     }
 
   return crc & 0xffffffffUL;
