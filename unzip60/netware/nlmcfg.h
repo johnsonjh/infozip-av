@@ -19,7 +19,7 @@
 #    define DATE_FORMAT DF_MDY
 #  endif
 #  define lenEOL          2
-#  define PutNativeEOL  {*q++ = native(CR); *q++ = native(LF);}
+#  define PutNativeEOL  {*q++ = native(UNZ_CR); *q++ = native(LF);}
 #  define USE_FWRITE    /* write() fails to support textmode output */
 #  if (!defined(NOTIMESTAMP) && !defined(TIMESTAMP))
 #    define TIMESTAMP

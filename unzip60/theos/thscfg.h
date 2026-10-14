@@ -24,7 +24,7 @@
 #define DIR_END '/'
 #define INT_SPRINTF
 #define lenEOL        1
-#define PutNativeEOL  *q++ = native(CR);
+#define PutNativeEOL  *q++ = native(UNZ_CR);
 #define PIPE_ERROR (errno = 9999)
 #define isatty(a) _isatty(a)
 #undef match

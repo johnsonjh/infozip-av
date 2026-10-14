@@ -1,8 +1,11 @@
 *~
+/all.sh
 a.out
 /APPNOTE*.TXT
 *.bak*
 /build/
+/build-win32/
+/build-win32.sh
 /CMPSC-work/
 *.core
 core

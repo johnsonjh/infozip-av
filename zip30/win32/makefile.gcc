@@ -11,6 +11,12 @@
 # to the declaration of LOC here:
 LOC = $(LOCAL_ZIP)
 
+# NOASM=1 selects the portable C matcher and CRC implementation.
+# Required for x86-64, and recommended for reproducible MinGW builds.
+ifdef NOASM
+LOC += -DNO_ASM
+endif
+
 # ------------ GNU C ------------
 CC=gcc
 CFLAGS=-O2 -Wall -DWIN32 -DFORCE_WIN32_OVER_UNIX
@@ -44,7 +50,11 @@ OSDEP_H = win32/osdep.h
 ZIPUP_H = win32/zipup.h
 
 # variables
-ifndef USEZLIB
+ifneq ($(strip $(NOASM)),)
+CRCA_O =
+CRCAUO =
+OBJA =
+else ifndef USEZLIB
 CRCA_O = crc_i386.o
 CRCAUO = crci386_.o
 OBJA  = match.o $(CRCA_O)
@@ -97,6 +107,10 @@ crc32.o: crc32.c $(ZIP_H) crc32.h
 crypt.o: crypt.c $(ZIP_H) crypt.h crc32.h ttyio.h
 ttyio.o: ttyio.c $(ZIP_H) crypt.h ttyio.h
 
+zipup.o: win32/zipup.h fwkcs_fast_md5.inc deflate64.c deflate64.h d64opt.inc d64split.inc d64joint.inc
+crypt.o crypt_.o: wzaes.c wzaes.h izsha1_ni.h iz_aes_x86.h iz_arm_crypto.h iz_arm_caps.h ae3_impl.h
+crc32.o crc32_.o: crc32_pclmul.h crc32_arm.h iz_arm_caps.h
+
 win32zip.o: win32/win32zip.c $(ZIP_H) win32/win32zip.h win32/nt.h
 	$(CC) -c $(CCFLAGS) -I. win32/win32zip.c
 
@@ -141,7 +155,7 @@ crci386_.o: crc_i386.S
 	$(AS) $(ASFLAGS) -DUTIL -o$@ crc_i386.S
 
 ziprc.o: win32/zip.rc revision.h
-	- $(RC) -o $@ win32/zip.rc
+	$(RC) -o $@ win32/zip.rc
 
 zip.exe: $(OBJZ) ziprc.o
 	$(LD) $(LDFLAGS) $(OBJZ) ziprc.o $(LIBS)
@@ -150,10 +164,10 @@ zipcloak.exe: $(OBJC)
 	$(LD) $(LDFLAGS) $(OBJC) $(LIBS)
 
 zipnote.exe: $(OBJN)
-	$(LD) $(LDFLAGS) $(OBJN)
+	$(LD) $(LDFLAGS) $(OBJN) $(LIBS)
 
 zipsplit.exe: $(OBJS)
-	$(LD) $(LDFLAGS) $(OBJS)
+	$(LD) $(LDFLAGS) $(OBJS) $(LIBS)
 
 clean:
 	rm -f *.o $(ZIPS)

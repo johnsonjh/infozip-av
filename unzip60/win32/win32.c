@@ -55,9 +55,24 @@
 
 #define UNZIP_INTERNAL
 #include "../unzip.h"
+/* UnZip's __G macro conflicts with GCC's x86 intrinsic parameter __G,
+ * which MinGW-w64 <windows.h> may bring in through <winnt.h>.
+ * Hide the macro while parsing system headers, then restore the exact
+ * reentrant/non-reentrant form used by Info-ZIP.
+ */
+#ifdef __MINGW32__
+#  undef __G
+#endif
 #include <windows.h>    /* must be AFTER unzip.h to avoid struct G problems */
 #ifdef __RSXNT__
 #  include "../win32/rsxntwin.h"
+#endif
+#ifdef __MINGW32__
+#  ifdef REENTRANT
+#    define __G pG
+#  else
+#    define __G
+#  endif
 #endif
 #include "../win32/nt.h"
 
@@ -1046,7 +1061,7 @@ int SetFileSize(FILE *file, zusz_t filesize)
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)
+int close_outfile(__G)
     __GDEF
 {
     FILETIME Modft;    /* File time type defined in NT, `last modified' time */
@@ -1054,6 +1069,7 @@ void close_outfile(__G)
     FILETIME Creft;    /* NT file time type, `file creation' time */
     HANDLE hFile = INVALID_HANDLE_VALUE;        /* File handle defined in NT */
     int gotTime;
+    int close_status = PK_OK;
 #ifdef NTSD_EAS
     uch *ebSDptr;
     unsigned ebSDlen;
@@ -1080,11 +1096,17 @@ void close_outfile(__G)
      * CreateFile call, so that the file can be created
      * with GENERIC_WRITE access, otherwise the SetFileTime
      * call will fail. */
-    fclose(G.outfile);
+    if (fclose(G.outfile) != 0) {
+        int saved_errno = errno;
+        Info(slide, 0x421, ((char *)slide,
+          "warning: error closing extracted file %s: %s\n",
+          FnFilter1(G.filename), strerror(saved_errno)));
+        close_status = (saved_errno == ENOSPC) ? PK_DISK : PK_WARN;
+    }
 
     /* don't set the time stamp and attributes on standard output */
     if (uO.cflag)
-        return;
+        return close_status;
 
     /* skip restoring time stamps on user's request */
     if (uO.D_flag <= 1) {
@@ -1153,7 +1175,7 @@ void close_outfile(__G)
         }
     }
 
-    return;
+    return close_status;
 
 #undef Ansi_Fname
 
@@ -1274,7 +1296,8 @@ int set_direc_attribs(__G__ d)
 
         /* set NTFS SD extra fields */
         err = SetSD(__G__ Ansi_Dirname, NtAtt(d)->perms,
-                        NtAtt(d)->buf, NtAtt(d)->SDlen - EB_HEADSIZE);
+                        (uch *)NtAtt(d)->buf,
+                        NtAtt(d)->SDlen - EB_HEADSIZE);
         if (err == IZ_EF_TRUNC) {
             if (!QCOND2)
                 Info(slide, 1, ((char *)slide, "%-22s  ",

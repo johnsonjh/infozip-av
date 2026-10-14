@@ -1195,7 +1195,7 @@ static int partflush(__G__ rawbuf, size, unshrink)
                 ++p;
             G.didCRlast = FALSE;
             for (q = transbuf;  (extent)(p-rawbuf) < (extent)size;  ++p) {
-                if (*p == CR) {           /* lone CR or CR/LF: treat as EOL  */
+                if (*p == UNZ_CR) {           /* lone CR or CR/LF: treat as EOL  */
                     PutNativeEOL
                     if ((extent)(p-rawbuf) == (extent)size-1)
                         /* last char in buffer */
@@ -2337,7 +2337,7 @@ int do_string(__G__ length, option)   /* return PK-type error code */
              * (since used before A_TO_N(), check for CR instead of '\r')
              */
             while (*p) {
-                while (*p == CR)
+                while (*p == UNZ_CR)
                     ++p;
                 *q++ = *p++;
             }
@@ -2386,7 +2386,7 @@ int do_string(__G__ length, option)   /* return PK-type error code */
                     pause = TRUE;
                     if (p[1] == LF)        /* ASCII LF */
                         *q++ = *++p;
-                    else if (p[1] == CR && p[2] == LF) {  /* ASCII CR LF */
+                    else if (p[1] == UNZ_CR && p[2] == LF) {  /* ASCII CR LF */
                         *q++ = *++p;
                         *q++ = *++p;
                     }

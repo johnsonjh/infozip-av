@@ -86,7 +86,7 @@
 #  define DATE_FORMAT DF_MDY
 #endif
 #define lenEOL        1
-#define PutNativeEOL  *q++ = native(CR);
+#define PutNativeEOL  *q++ = native(UNZ_CR);
 #define NOANSIFILT  /* MWRKS C creates broken code for the ANSI-ESC filter */
 #define MALLOC_WORK
 #define INT_SPRINTF

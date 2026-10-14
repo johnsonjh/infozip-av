@@ -290,7 +290,8 @@ zDIRSCAN *d;            /* directory stream to read from */
    */
   if (e == NULL)
     return (char *) NULL;
-  if (strchr(e->d_fd.cFileName, '?') && e->d_fd.cAlternateFileName) {
+  if (strchr(e->d_fd.cFileName, '?') &&
+      e->d_fd.cAlternateFileName[0] != '\0') {
     /* Have '?' in name, assume wide character we can't handle is in
        the name and use short name if there is one.
     */

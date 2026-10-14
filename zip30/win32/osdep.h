@@ -438,18 +438,14 @@
 #endif
 
 #ifdef _MBCS
+#  if defined(__MINGW32__)
+     /* Use the MinGW CRT's MB_CUR_MAX for both MSVCRT and UCRT.
+        The old __p___mb_cur_max fallback is not provided by every CRT. */
+#    include <stdlib.h>
+#  endif
 #  if (!defined(__EMX__) && !defined(__MINGW32__) && !defined(__CYGWIN__))
 #    include <stdlib.h>
 #    include <mbstring.h>
-#  endif
-#  if (defined(__MINGW32__) && !defined(MB_CUR_MAX))
-#    ifdef __MSVCRT__
-       IZ_IMP extern int *__p___mb_cur_max(void);
-#      define MB_CUR_MAX (*__p___mb_cur_max())
-#    else
-       IZ_IMP extern int *_imp____mb_cur_max_dll;
-#      define MB_CUR_MAX (*_imp____mb_cur_max_dll)
-#    endif
 #  endif
 #  if (defined(__LCC__) && !defined(MB_CUR_MAX))
      IZ_IMP extern int *_imp____mb_cur_max;

@@ -196,7 +196,7 @@
 # endif
 #endif
 #define lenEOL        2
-#define PutNativeEOL  {*q++ = native(CR); *q++ = native(LF);}
+#define PutNativeEOL  {*q++ = native(UNZ_CR); *q++ = native(LF);}
 
 #define countof(a) (sizeof(a)/sizeof(*(a)))
 

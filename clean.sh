@@ -58,6 +58,8 @@ test -d "${PREFIX:?}/bin" && {
   rmdir "${PREFIX:?}/bin"
 }
 
+rm -rf ./build-win32 2> /dev/null || :
+
 test -d "${PREFIX:?}" && rmdir "${PREFIX:?}"
 
 git clean -ndx 2> /dev/null || :

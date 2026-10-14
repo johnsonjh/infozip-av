@@ -2238,8 +2238,12 @@ static int zi_short(__G)   /* return PK-type error code */
             } else if (methnum >= NUM_METHODS) {
                 if (aes_method <= 999)
                     sprintf(&aesbase[1], "%03u", aes_method);
-                else
-                    sprintf(&aesbase[0], "%04X", aes_method);
+                else {
+                    /* The AES extra field encodes a 16-bit ZIP method.
+                     * Retain four hex digits even when unsigned is wider.
+                     */
+                    sprintf(&aesbase[0], "%04X", aes_method & 0xffffU);
+                }
             }
             {
                 int ai;

@@ -101,6 +101,11 @@
 #define GOT_UTIMBUF
 
 #ifdef _MBCS
+#  if defined(__MINGW32__)
+     /* Let the selected MinGW CRT define MB_CUR_MAX (MSVCRT or UCRT).
+        Its legacy __p___mb_cur_max accessor is not always exported. */
+#    include <stdlib.h>
+#  endif
 #  if (!defined(__EMX__) && !defined(__DJGPP__) && !defined(__CYGWIN__))
 #  if (!defined(__MINGW32__) || defined(__MSVCRT__))
 #    include <stdlib.h>
@@ -111,15 +116,6 @@
 #    define MBSCHR(str, c) (char *)_mbschr((const uch *)(str), (c))
 #    define MBSRCHR(str, c) (char *)_mbsrchr((const uch *)(str), (c))
 #  endif
-#  endif
-#  if (defined(__MINGW32__) && !defined(MB_CUR_MAX))
-#    ifdef __MSVCRT__
-       extern int *__p___mb_cur_max(void);
-#      define MB_CUR_MAX (*__p___mb_cur_max())
-#    else
-       extern int *_imp____mb_cur_max_dll;
-#      define MB_CUR_MAX (*_imp____mb_cur_max_dll)
-#    endif
 #  endif
 #  if (defined(__LCC__) && !defined(MB_CUR_MAX))
      extern int *_imp____mb_cur_max;
@@ -184,7 +180,7 @@
 #endif
 #define DATE_SEPCHAR  dateseparator()
 #define lenEOL        2
-#define PutNativeEOL  {*q++ = native(CR); *q++ = native(LF);}
+#define PutNativeEOL  {*q++ = native(UNZ_CR); *q++ = native(LF);}
 
 #if (defined(__RSXNT__) && !defined(HAVE_MKTIME))
 #  define HAVE_MKTIME           /* use mktime() in time conversion routines */

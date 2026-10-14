@@ -355,7 +355,7 @@
 #  define INT_SPRINTF
 #  define timezone      _timezone
 #  define lenEOL        2
-#  define PutNativeEOL  {*q++ = native(CR); *q++ = native(LF);}
+#  define PutNativeEOL  {*q++ = native(UNZ_CR); *q++ = native(LF);}
 #  undef SHORT_NAMES
 #  if (!defined(NOTIMESTAMP) && !defined(TIMESTAMP))
 #    define TIMESTAMP
@@ -490,7 +490,7 @@
 #  endif
 #  define DATE_FORMAT     dateformat()
 #  define lenEOL          2
-#  define PutNativeEOL    {*q++ = native(CR); *q++ = native(LF);}
+#  define PutNativeEOL    {*q++ = native(UNZ_CR); *q++ = native(LF);}
 #  if (!defined(NO_EF_UT_TIME) && !defined(USE_EF_UT_TIME))
 #    define USE_EF_UT_TIME
 #  endif
@@ -1519,10 +1519,11 @@
       /* 64-bit lseek */
 #     define zlseek _lseeki64
 
-#     if defined(_MSC_VER) && (_MSC_VER >= 1400)
-        /* Beginning with VS 8.0 (Visual Studio 2005, MSC 14), the Microsoft
-           C rtl publishes its (previously internal) implmentations of
-           "fseeko" and "ftello" for 64-bit file offsets. */
+#     if (defined(_MSC_VER) && (_MSC_VER >= 1400)) || \
+         defined(__MINGW64_VERSION_MAJOR)
+        /* VS 8.0 and later provide these 64-bit stream functions.
+           MinGW-w64 also provides them, including when targeting the
+           older MSVCRT runtime (__MSVCRT_VERSION__ < 0x800). */
         /* 64-bit fseeko */
 #       define zfseeko _fseeki64
         /* 64-bit ftello */
@@ -1553,7 +1554,7 @@
        zoff_t zftello OF((FILE *));
 
 #     endif /* ? (__MSVCRT_VERSION__ >= 0x800) */
-#     endif /* ? (_MSC_VER >= 1400) */
+#     endif /* VS 8.0+ or MinGW-w64 */
 
       /* 64-bit fopen */
 #     define zfopen fopen
@@ -2007,7 +2008,7 @@
 #define HSIZE       (1 << MAX_BITS)    /* size of global work area */
 
 #define LF     10        /* '\n' on ASCII machines; must be 10 due to EBCDIC */
-#define CR     13        /* '\r' on ASCII machines; must be 13 due to EBCDIC */
+#define UNZ_CR 13        /* '\r' on ASCII machines; must be 13 due to EBCDIC */
 #define CTRLZ  26        /* DOS & OS/2 EOF marker (used in fileio.c, vms.c) */
 
 #ifdef EBCDIC

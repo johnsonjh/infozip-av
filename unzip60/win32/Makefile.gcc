@@ -128,7 +128,7 @@ LD_RELEASE_OPT = -s
 
 # Prefered target CPU (instruction scheduling optimized for...)
 ifndef CC_CPU_OPT
-CC_CPU_OPT = -mcpu=pentiumpro
+CC_CPU_OPT = -mtune=generic
 endif
 
 # Smallest code  (-Os is new since EGC 1.1, use -O1 for 2.8.1 and earlier)
@@ -296,12 +296,12 @@ FORCE:
 	$(AS) $(ASFLAGS) $(ASVER) $(GENFLAGS) $<
 
 # Dependencies
-crc32$(OBJ):    crc32.c $(UNZIP_H) zip.h crc32.h
-crypt$(OBJ):    crypt.c $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h
+crc32$(OBJ):    crc32.c $(UNZIP_H) zip.h crc32.h crc32_pclmul.h crc32_arm.h iz_arm_caps.h
+crypt$(OBJ):    crypt.c $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h izsha1.c izsha1.h izsha1_ni.h iz_arm_crypto.h iz_arm_caps.h wzaes.c wzaes.h ae3_impl.h iz_aes_x86.h
 envargs$(OBJ):  envargs.c $(UNZIP_H)
 explode$(OBJ):  explode.c $(UNZIP_H)
-extract$(OBJ):  extract.c $(UNZIP_H) crc32.h crypt.h
-fileio$(OBJ):   fileio.c $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h
+extract$(OBJ):  extract.c $(UNZIP_H) crc32.h crypt.h refptr.c wavpackzip.c wzmp3.c wzmp3.h
+fileio$(OBJ):   fileio.c $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h fwkcs_fast_md5.inc
 funzip$(OBJ):   funzip.c $(UNZIP_H) crc32.h crypt.h ttyio.h
 globals$(OBJ):  globals.c $(UNZIP_H)
 inflate$(OBJ):  inflate.c inflate.h $(UNZIP_H)
@@ -326,7 +326,7 @@ nt$(OBJ): win32/nt.c $(UNZIP_H) win32/nt.h
 	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) -I. $<
 
 winapprc$(OBJ):	win32/winapp.rc unzvers.h
-	- $(RC) -o $@ $<
+	$(RC) -o $@ $<
 
 # UnZipSFX compilation section
 crc32x$(OBJ): crc32.c $(UNZIP_H) zip.h crc32.h

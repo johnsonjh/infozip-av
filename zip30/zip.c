@@ -1983,7 +1983,7 @@ local void version_info()
     "Reduce               (ZIP methods 2-5; Reduce LZ77-SCRNCH supported)",
 #endif
 #ifdef IMPLODE_SUPPORT
-    "ZIP-Implode          (ZIP method 6; Implode LZSS–Shannon-Fano supported)",
+    "ZIP-Implode          (ZIP method 6; Implode LZSS-Shannon-Fano supported)",
 #endif
 #ifdef DEFLATE64_SUPPORT
     "Deflate64            (ZIP method 9; Deflate64(tm) supported)",

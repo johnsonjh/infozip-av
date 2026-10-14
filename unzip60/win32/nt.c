@@ -38,9 +38,24 @@
 #define WIN32_LEAN_AND_MEAN
 #define UNZIP_INTERNAL
 #include "../unzip.h"
+/* UnZip's __G macro conflicts with GCC's x86 intrinsic parameter __G,
+ * which MinGW-w64 <windows.h> may bring in through <winnt.h>.
+ * Hide the macro while parsing system headers, then restore the exact
+ * reentrant/non-reentrant form used by Info-ZIP.
+ */
+#ifdef __MINGW32__
+#  undef __G
+#endif
 #include <windows.h>
 #ifdef __RSXNT__
 #  include "../win32/rsxntwin.h"
+#endif
+#ifdef __MINGW32__
+#  ifdef REENTRANT
+#    define __G pG
+#  else
+#    define __G
+#  endif
 #endif
 #include "../win32/nt.h"
 
