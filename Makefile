@@ -10,7 +10,7 @@ all:
 clean: clean.sh
 	./clean.sh
 
-build: build.sh
-	./build.sh
+build: build-unix.sh
+	./build-unix.sh
 
 .PHONY: all clean build
