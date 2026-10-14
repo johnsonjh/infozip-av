@@ -1247,6 +1247,14 @@ void version_local()
 #  define COMPILER_NAME2        ""
 #endif
 
+#if defined(_WIN64) || defined(__WIN64__) || defined(__WIN64) || \
+    defined(WIN64) || defined(__x86_64__) || defined(__x86_64) || \
+    defined(__amd64__) || defined(__amd64)
+#  define IZ_WIN_BITNESS " (64-bit)"
+#else
+#  define IZ_WIN_BITNESS " (32-bit)"
+#endif
+
 /* Define the compile date string */
 #ifdef __DATE__
 #  define COMPILE_DATE " on " __DATE__
@@ -1255,7 +1263,7 @@ void version_local()
 #endif
 
     printf(CompiledWith, COMPILER_NAME1, COMPILER_NAME2,
-           "\nWindows 9x / Windows NT", " (32-bit)", COMPILE_DATE);
+           "\nWindows", IZ_WIN_BITNESS, COMPILE_DATE);
 
     return;
 

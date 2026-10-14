@@ -2571,6 +2571,15 @@ void version(__G)
 #endif
 #endif
 
+/* Report the target executable's bitness, not the host Windows version. */
+#if defined(_WIN64) || defined(__WIN64__) || defined(__WIN64) || \
+    defined(WIN64) || defined(__x86_64__) || defined(__x86_64) || \
+    defined(__amd64__) || defined(__amd64)
+#  define IZ_WIN_BITNESS " (64-bit)"
+#else
+#  define IZ_WIN_BITNESS " (32-bit)"
+#endif
+
     len = sprintf((char *)slide, CompiledWith,
 
 #if defined(_MSC_VER)  /* MSC == VC++, but what about SDK compiler? */
@@ -2657,7 +2666,7 @@ void version(__G)
       "unknown compiler (SDK?)", "",
 #endif /* ?compilers */
 
-      "\nWindows 9x / Windows NT/2K/XP/2K3", " (32-bit)",
+      "\nWindows", IZ_WIN_BITNESS,
 
 #ifdef __DATE__
       " on ", __DATE__
