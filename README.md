@@ -67,8 +67,8 @@
 
 The ability to compress and decompress archive members using **Zstandard**
 (method&nbsp;20 and 93), **LZMA** (method&nbsp;14), **XZ**/**LZMA2**
-(method&nbsp;95), **ZIP**&nbsp;**Implode** (method&nbsp;6),
-**DCL**&nbsp;**Implode** (method&nbsp;10), **Deflate64** (method&nbsp;9),
+(method&nbsp;95), **ZIP**‑**Implode** (method&nbsp;6),
+**DCL**‑**Implode** (method&nbsp;10), **Deflate64** (method&nbsp;9),
 **IBM&nbsp;CMPSC** (method&nbsp;16), **Shrink** (method&nbsp;1), **Reduce**
 (methods 2 through 5), **PPMd** (method&nbsp;98), and Appleʼs **LZFSE**
 (method&nbsp;99) has been added.
@@ -86,7 +86,7 @@ Additionally, **ultra** compression levels, which take extra time and use more
 memory to achieve tighter packing (enabled via `zip ‑11`) are supported for
 the **DEFLATE** (using a custom
 [Zopfli](https://github.com/google/zopfli)‑derived encoder), **Deflate64™**,
-**Zstandard**, IBM z/OS **CMPSC**, **DCL**&nbsp;**Implode**, and Apple
+**Zstandard**, IBM z/OS **CMPSC**, **DCL**‑**Implode**, and Apple
 **LZFSE** methods.
 
 |   Method | Description                                           | Decompression | Compression |
@@ -97,10 +97,10 @@ the **DEFLATE** (using a custom
 |  **`3`** | Reduce&nbsp;(level&nbsp;2)                            |       ✅      |      ✅     |
 |  **`4`** | Reduce&nbsp;(level&nbsp;3)                            |       ✅      |      ✅     |
 |  **`5`** | Reduce&nbsp;(level&nbsp;4)                            |       ✅      |      ✅     |
-|  **`6`** | ZIP&nbsp;Implode                                      |       ✅      |      ✅     |
+|  **`6`** | ZIP‑Implode                                           |       ✅      |      ✅     |
 |  **`8`** | DEFLATE                                               |       ✅      |      ✅     |
 |  **`9`** | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)               |       ✅      |      ✅     |
-| **`10`** | DCL&nbsp;Implode                                      |       ✅      |      ✅     |
+| **`10`** | DCL‑Implode                                           |       ✅      |      ✅     |
 | **`12`** | bzip2<sup>2</sup>                                     |       ✅      |      ✅     |
 | **`14`** | LZMA<sup>3</sup>                                      |       ✅      |      ✅     |
 | **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                              |       ✅      |      ✅     |
@@ -604,7 +604,7 @@ No errors detected in compressed data of pkz110.exe.
 
 ## Licenses
 
-* The **Shrink**, **Reduce**, **ZIP**&nbsp;**Implode**, and **Deflate64**
+* The **Shrink**, **Reduce**, **ZIP**‑**Implode**, and **Deflate64**
   compressors, the **IBM**&nbsp;**CMPSC** compressor and decompressor, the
   **Xceed**&nbsp;**BWT**, **WZ‑JPEG**, and **WZ‑MP3** decompressors, and the
   **PKAV** and **FWKCS** additions to Info‑ZIP are provided under the
@@ -612,7 +612,7 @@ No errors detected in compressed data of pkz110.exe.
   [`Info‑ZIP 2007‑Mar‑04`](zip30/LICENSE) or
   [`Info‑ZIP 2009‑Jan‑02`](unzip60/LICENSE) licenses.
 
-* The **Shrink**, **Reduce**, and **ZIP Implode** decompression
+* The **Shrink**, **Reduce**, and **ZIP**‑**Implode** decompression
   implementations are based on MIT licensed code from
   [Jason Summers](https://github.com/jsummers/oldunzip).
 
@@ -620,7 +620,7 @@ No errors detected in compressed data of pkz110.exe.
   [`MIT`](unzip60/LICENSE-TinyZZZ-MIT) licensed code
   from [Dr.W.X WangXuan95](https://gitee.com/wangxuan95).
 
-* The **DCL**&nbsp;**Implode** compression and decompression implementations
+* The **DCL**‑**Implode** compression and decompression implementations
   use the [`MIT‑0`](LICENSE) licensed
   [PKDCLX](https://github.com/johnsonjh/pkdclx) routines.
 
