@@ -39,11 +39,14 @@ typedef struct ZopfliOptions {
 
 void ZopfliInitOptions(ZopfliOptions* options);
 
-void ZopfliDeflate(const ZopfliOptions* options, int btype, int final,
+/* Return 1 for success or 0 if a memory allocation failed.  On failure,
+ * the output buffer (including any preceding partial output) is released,
+ * *out is set to NULL and *outsize is set to zero. */
+int ZopfliDeflate(const ZopfliOptions* options, int btype, int final,
                    const unsigned char* in, size_t insize,
                    unsigned char* bp, unsigned char** out, size_t* outsize);
 
-void ZopfliDeflatePart(const ZopfliOptions* options, int btype, int final,
+int ZopfliDeflatePart(const ZopfliOptions* options, int btype, int final,
                        const unsigned char* in, size_t instart, size_t inend,
                        unsigned char* bp, unsigned char** out,
                        size_t* outsize);

@@ -23,6 +23,140 @@
 
 #include "zopfli.h"
 
+/* Recoverable allocations for the self-contained Zopfli encoder.
+ * Every allocation made during a DeflatePart call is owned by the call,
+ * except for the completed output buffer returned to the caller.  On OOM,
+ * release the entire call's allocations before reporting failure.  The
+ * encoder is invoked serially by Zip and ZipOpt (as in upstream Zopfli). */
+#include <setjmp.h>
+
+typedef struct ZopfliAllocNode {
+  void* ptr;
+  struct ZopfliAllocNode* next;
+} ZopfliAllocNode;
+
+typedef struct ZopfliAllocScope {
+  jmp_buf oom;
+  ZopfliAllocNode* allocations;
+  struct ZopfliAllocScope* previous;
+} ZopfliAllocScope;
+
+static ZopfliAllocScope* zopfli_active_scope = NULL;
+/* Control-block allocations precede the guarded compression scope. */
+static void* ZopfliSystemAlloc(size_t n) { return malloc(n); }
+static void ZopfliSystemFree(void* ptr) { free(ptr); }
+
+#ifdef ZOPFLI_TEST_OOM
+/* Test-only, deterministic allocation failure injection. */
+static long zopfli_test_fail_after = -1;
+static long zopfli_test_alloc_count = 0;
+#endif
+
+static int ZopfliInjectOOM(void) {
+#ifdef ZOPFLI_TEST_OOM
+  return zopfli_test_fail_after == zopfli_test_alloc_count++;
+#else
+  return 0;
+#endif
+}
+
+static void ZopfliOutOfMemory(void) {
+  if (zopfli_active_scope != NULL) longjmp(zopfli_active_scope->oom, 1);
+  /* Allocations outside the guarded compression entry point would violate
+   * the internal ownership contract, rather than indicate a codec OOM. */
+  abort();
+}
+
+static void ZopfliReleaseScope(ZopfliAllocScope* scope, void* output) {
+  ZopfliAllocNode* node = scope->allocations;
+  while (node != NULL) {
+    ZopfliAllocNode* next = node->next;
+    if (node->ptr != output) free(node->ptr);
+    free(node);
+    node = next;
+  }
+  zopfli_active_scope = scope->previous;
+  free(scope);
+}
+
+static void ZopfliTrack(void* ptr) {
+  ZopfliAllocNode* node;
+  if (ptr == NULL) return;
+  node = ZopfliInjectOOM() ? NULL :
+         (ZopfliAllocNode*)malloc(sizeof(*node));
+  if (node == NULL) {
+    /* Only called for the caller-owned output at the start of the call. */
+    free(ptr);
+    ZopfliOutOfMemory();
+  }
+  node->ptr = ptr;
+  node->next = zopfli_active_scope->allocations;
+  zopfli_active_scope->allocations = node;
+}
+
+static void* ZopfliAlloc(size_t n) {
+  void* ptr;
+  if (ZopfliInjectOOM()) ZopfliOutOfMemory();
+  ptr = malloc(n == 0 ? 1 : n);
+  if (ptr == NULL) ZopfliOutOfMemory();
+  /* If bookkeeping allocation fails, free this untracked allocation. */
+  if (zopfli_active_scope != NULL) {
+    ZopfliAllocNode* node = ZopfliInjectOOM() ? NULL :
+                            (ZopfliAllocNode*)malloc(sizeof(*node));
+    if (node == NULL) {
+      free(ptr);
+      ZopfliOutOfMemory();
+    }
+    node->ptr = ptr;
+    node->next = zopfli_active_scope->allocations;
+    zopfli_active_scope->allocations = node;
+  }
+  return ptr;
+}
+
+static void* ZopfliRealloc(void* ptr, size_t n) {
+  ZopfliAllocNode* node;
+  void* grown;
+  if (ptr == NULL) return ZopfliAlloc(n);
+  for (node = zopfli_active_scope->allocations; node != NULL;
+       node = node->next) {
+    if (node->ptr == ptr) break;
+  }
+  /* Every live Zopfli allocation and the initial output must be tracked. */
+  if (node == NULL) abort();
+  if (ZopfliInjectOOM()) ZopfliOutOfMemory();
+  grown = realloc(ptr, n == 0 ? 1 : n);
+  if (grown == NULL) ZopfliOutOfMemory();
+  node->ptr = grown;
+  return grown;
+}
+
+static void ZopfliFree(void* ptr) {
+  ZopfliAllocNode** link;
+  if (ptr == NULL) return;
+  for (link = &zopfli_active_scope->allocations; *link != NULL;
+       link = &(*link)->next) {
+    if ((*link)->ptr == ptr) {
+      ZopfliAllocNode* node = *link;
+      *link = node->next;
+      free(node);
+      free(ptr);
+      return;
+    }
+  }
+  /* A free of an untracked allocation indicates a Zopfli ownership bug. */
+  abort();
+}
+
+/* No supported Zopfli compression path can now exit() on allocation
+ * failure.  All internal allocation failures jump to ZopfliDeflatePart's
+ * cleanup, which reports failure to ZipOpt or ordinary Zip instead. */
+/* Keep the overrides strictly local to this amalgamation: zipup.c and
+ * codec.c also allocate memory, but must not use the Zopfli allocator. */
+#define malloc(n) ZopfliAlloc(n)
+#define realloc(p, n) ZopfliRealloc((p), (n))
+#define free(p) ZopfliFree(p)
+
 /* ===== BEGIN upstream private header: util.h ===== */
 /*
 Several utilities, including: #defines to try different compression results,
@@ -143,6 +277,8 @@ equal than *size.
   if (!((*size) & ((*size) - 1))) {\
     /*double alloc size if it's a power of two*/\
     void** data_void = reinterpret_cast<void**>(data);\
+    if ((*size) > ((size_t)-1) / (2 * sizeof(**data)))\
+      ZopfliOutOfMemory();\
     *data_void = (*size) == 0 ? malloc(sizeof(**data))\
                               : realloc((*data), (*size) * 2 * sizeof(**data));\
   }\
@@ -153,6 +289,8 @@ equal than *size.
 #define ZOPFLI_APPEND_DATA(/* T */ value, /* T** */ data, /* size_t* */ size) {\
   if (!((*size) & ((*size) - 1))) {\
     /*double alloc size if it's a power of two*/\
+    if ((*size) > ((size_t)-1) / (2 * sizeof(**data)))\
+      ZopfliOutOfMemory();\
     (*data) = (*size) == 0 ? malloc(sizeof(**data))\
                            : realloc((*data), (*size) * 2 * sizeof(**data));\
   }\
@@ -480,7 +618,7 @@ out: pointer to the dynamic output array to which the result is appended. Must
   be freed after use.
 outsize: pointer to the dynamic output array size.
 */
-void ZopfliDeflate(const ZopfliOptions* options, int btype, int final,
+int ZopfliDeflate(const ZopfliOptions* options, int btype, int final,
                    const unsigned char* in, size_t insize,
                    unsigned char* bp, unsigned char** out, size_t* outsize);
 
@@ -489,7 +627,7 @@ Like ZopfliDeflate, but allows to specify start and end byte with instart and
 inend. Only that part is compressed, but earlier bytes are still used for the
 back window.
 */
-void ZopfliDeflatePart(const ZopfliOptions* options, int btype, int final,
+int ZopfliDeflatePart(const ZopfliOptions* options, int btype, int final,
                        const unsigned char* in, size_t instart, size_t inend,
                        unsigned char* bp, unsigned char** out,
                        size_t* outsize);
@@ -1047,7 +1185,6 @@ void ZopfliBlockSplitLZ77(const ZopfliOptions* options,
   if (lz77->size < 10) return;  /* This code fails on tiny files. */
 
   done = (unsigned char*)malloc(lz77->size);
-  if (!done) exit(-1); /* Allocation failed. */
   for (i = 0; i < lz77->size; i++) done[i] = 0;
 
   lstart = 0;
@@ -1168,12 +1305,6 @@ void ZopfliInitCache(size_t blocksize, ZopfliLongestMatchCache* lmc) {
   lmc->dist = (unsigned short*)malloc(sizeof(unsigned short) * blocksize);
   /* Rather large amount of memory. */
   lmc->sublen = (unsigned char*)malloc(ZOPFLI_CACHE_LENGTH * 3 * blocksize);
-  if(lmc->sublen == NULL) {
-    fprintf(stderr,
-        "Error: Out of memory. Tried allocating %lu bytes of memory.\n",
-        (unsigned long)(ZOPFLI_CACHE_LENGTH * 3 * blocksize));
-    exit (EXIT_FAILURE);
-  }
 
   /* length > 0 and dist 0 is invalid combination, which indicates on purpose
   that this cache value is not filled in yet. */
@@ -2048,7 +2179,7 @@ previous bytes are used as the initial dictionary for LZ77.
 This function will usually output multiple deflate blocks. If final is 1, then
 the final bit will be set on the last block.
 */
-void ZopfliDeflatePart(const ZopfliOptions* options, int btype, int final,
+static void ZopfliDeflatePartInner(const ZopfliOptions* options, int btype, int final,
                        const unsigned char* in, size_t instart, size_t inend,
                        unsigned char* bp, unsigned char** out,
                        size_t* outsize) {
@@ -2145,20 +2276,59 @@ void ZopfliDeflatePart(const ZopfliOptions* options, int btype, int final,
   free(splitpoints_uncompressed);
 }
 
-void ZopfliDeflate(const ZopfliOptions* options, int btype, int final,
+/* Return 1 on success, 0 on allocation failure.  The call owns its output
+ * buffer on failure, and leaves *out NULL, *outsize zero and *bp unchanged.
+ * This is also safe if the caller supplied a carry byte from a prior part. */
+int ZopfliDeflatePart(const ZopfliOptions* options, int btype, int final,
+                      const unsigned char* in, size_t instart, size_t inend,
+                      unsigned char* bp, unsigned char** out,
+                      size_t* outsize) {
+  ZopfliAllocScope* scope;
+  unsigned char old_bp;
+  if (bp == NULL || out == NULL || outsize == NULL) return 0;
+  old_bp = *bp;
+  scope = ZopfliInjectOOM() ? NULL :
+          (ZopfliAllocScope*)ZopfliSystemAlloc(sizeof(*scope));
+  if (scope == NULL) {
+    ZopfliSystemFree(*out);
+    *out = NULL;
+    *outsize = 0;
+    return 0;
+  }
+  scope->allocations = NULL;
+  scope->previous = zopfli_active_scope;
+  zopfli_active_scope = scope;
+  if (setjmp(scope->oom) != 0) {
+    ZopfliReleaseScope(scope, NULL);
+    *out = NULL;
+    *outsize = 0;
+    *bp = old_bp;
+    return 0;
+  }
+  /* Register the caller-provided carry buffer, if any, so reallocating it
+   * also remains safe when an allocation fails deep inside the encoder. */
+  ZopfliTrack(*out);
+  ZopfliDeflatePartInner(options, btype, final, in, instart, inend,
+                         bp, out, outsize);
+  ZopfliReleaseScope(scope, *out);
+  return 1;
+}
+
+int ZopfliDeflate(const ZopfliOptions* options, int btype, int final,
                    const unsigned char* in, size_t insize,
                    unsigned char* bp, unsigned char** out, size_t* outsize) {
  size_t offset = *outsize;
 #if ZOPFLI_MASTER_BLOCK_SIZE == 0
-  ZopfliDeflatePart(options, btype, final, in, 0, insize, bp, out, outsize);
+  if (!ZopfliDeflatePart(options, btype, final, in, 0, insize,
+                         bp, out, outsize)) return 0;
 #else
   size_t i = 0;
   do {
     int masterfinal = (i + ZOPFLI_MASTER_BLOCK_SIZE >= insize);
     int final2 = final && masterfinal;
     size_t size = masterfinal ? insize - i : ZOPFLI_MASTER_BLOCK_SIZE;
-    ZopfliDeflatePart(options, btype, final2,
-                      in, i, i + size, bp, out, outsize);
+    if (!ZopfliDeflatePart(options, btype, final2,
+                           in, i, i + size, bp, out, outsize)) return 0;
     i += size;
   } while (i < insize);
 #endif
@@ -2168,6 +2338,7 @@ void ZopfliDeflate(const ZopfliOptions* options, int btype, int final,
             (unsigned long)insize, (unsigned long)(*outsize - offset),
             100.0 * (double)(insize - (*outsize - offset)) / (double)insize);
   }
+  return 1;
 }
 
 /* ===== END upstream source: deflate.c ===== */
@@ -2594,10 +2765,6 @@ void ZopfliCopyLZ77Store(
   dest->d_counts = (size_t*)malloc(sizeof(*dest->d_counts) * dsize);
 
   /* Allocation failed. */
-  if (!dest->litlens || !dest->dists) exit(-1);
-  if (!dest->pos) exit(-1);
-  if (!dest->ll_symbol || !dest->d_symbol) exit(-1);
-  if (!dest->ll_counts || !dest->d_counts) exit(-1);
 
   dest->size = source->size;
   for (i = 0; i < source->size; i++) {
@@ -3601,8 +3768,6 @@ void ZopfliLZ77Optimal(ZopfliBlockState *s,
   RanState ran_state;
   int lastrandomstep = -1;
 
-  if (!costs) exit(-1); /* Allocation failed. */
-  if (!length_array) exit(-1); /* Allocation failed. */
 
   InitRanState(&ran_state);
   InitStats(&stats);
@@ -3675,8 +3840,6 @@ void ZopfliLZ77OptimalFixed(ZopfliBlockState *s,
   ZopfliHash* h = &hash;
   float* costs = (float*)malloc(sizeof(float) * (blocksize + 1));
 
-  if (!costs) exit(-1); /* Allocation failed. */
-  if (!length_array) exit(-1); /* Allocation failed. */
 
   ZopfliAllocHash(ZOPFLI_WINDOW_SIZE, h);
 
@@ -3822,3 +3985,8 @@ void ZopfliInitOptions(ZopfliOptions* options) {
 }
 
 /* ===== END upstream source: util.c ===== */
+
+/* Do not leak the allocation overrides into enclosing Zip/ZipOpt sources. */
+#undef malloc
+#undef realloc
+#undef free

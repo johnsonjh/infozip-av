@@ -158,9 +158,12 @@ test-zip64-offset: tests/test_zip64_offset.c archive.c archive.h writer.c writer
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_zip64_offset.c archive.c writer.c -o $@ $(LOCAL_GLDFLAGS)
 test-interrupt: tests/test_interrupt.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_interrupt.c -o $@ $(LOCAL_GLDFLAGS)
+test-zopfli-oom: tests/test_zopfli_oom.c ../zip30/zopfli.c ../zip30/zopfli.h
+	$(CC) -O2 -std=c89 -pedantic -Wall -Wextra tests/test_zopfli_oom.c -lm -o $@
 print-deflate-backend:
 	@printf '%s\n' '$(ZO_SELECTED_BACKEND)'
-test: test-display test-index test-structures test-zip64-offset test-interrupt test-source-stability codec-probe zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck
+test: test-display test-index test-structures test-zip64-offset test-interrupt test-source-stability codec-probe zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-zopfli-oom
+	./test-zopfli-oom
 	./test-display
 	./test-index
 	./test-structures
@@ -177,6 +180,6 @@ endif
 	./test-source-stability
 -include $(UZDEPS)
 clean:
-	rm -f zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-display test-index test-structures test-interrupt test-source-stability codec-probe test-zip64-offset
+	rm -f test-zopfli-oom zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-display test-index test-structures test-interrupt test-source-stability codec-probe test-zip64-offset
 	rm -rf build
 .PHONY: all clean test print-deflate-backend

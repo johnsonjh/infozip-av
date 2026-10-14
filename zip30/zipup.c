@@ -3117,8 +3117,10 @@ local void zopfli_write_part(store_test, options, final, in, instart, inend,
         outsize = 1;
     }
 
-    ZopfliDeflatePart(options, 2, final, in, instart, inend,
-                      bp, &out, &outsize);
+    if (!ZopfliDeflatePart(options, 2, final, in, instart, inend,
+                           bp, &out, &outsize)) {
+        ziperr(ZE_MEM, "Zopfli compression ran out of memory");
+    }
 
     if (final || *bp == 0) {
         write_size = outsize;

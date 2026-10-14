@@ -630,7 +630,11 @@ zo_zopfli_part (struct zo_io *s, ZopfliOptions *o, int final,
       n = 1;
     }
 
-  ZopfliDeflatePart (o, 2, final, p, start, end, bp, &out, &n);
+  if (!ZopfliDeflatePart (o, 2, final, p, start, end, bp, &out, &n))
+    {
+      /* Encoder released all partial output and reports a failed candidate. */
+      return 0;
+    }
 
   if (!out || (!final && *bp && n < 1))
     {
