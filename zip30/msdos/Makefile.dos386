@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: MIT-0
+# DJGPP GCC 32-bit DOS cross-build, using bundled compression and CRC.
+# Run from zip30/ with: make -f msdos/Makefile.dos386 CC=<cross-gcc>
+
+CC = i586-pc-msdosdjgpp-gcc
+DOS386_CFLAGS =
+DOS386_LDFLAGS =
+CFLAGS = -std=gnu89 -O2 -Wall -DDOS -DNO_ASM -I. $(DOS386_CFLAGS)
+LDFLAGS = $(DOS386_LDFLAGS)
+
+COMMON = zipfile_.o fileio_.o util_.o crc32_.o globals.o msdos_.o
+ZIP_OBJECTS = zip.o crypt.o ttyio.o zipfile.o zipup.o fileio.o util.o \
+  crc32.o globals.o deflate.o trees.o msdos.o
+
+.PHONY: all clean
+all: zip.exe zipcloak.exe zipnote.exe zipsplit.exe
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+msdos.o: msdos/msdos.c
+	$(CC) $(CFLAGS) -c $< -o $@
+msdos_.o: msdos/msdos.c
+	$(CC) $(CFLAGS) -DUTIL -c $< -o $@
+%_.o: %.c
+	$(CC) $(CFLAGS) -DUTIL -c $< -o $@
+crypt_.o: crypt.c
+	$(CC) $(CFLAGS) -DUTIL -c $< -o $@
+
+zip.exe: $(ZIP_OBJECTS)
+	$(CC) $(LDFLAGS) -o $@ $^
+zipcloak.exe: zipcloak.o crypt_.o ttyio.o $(COMMON)
+	$(CC) $(LDFLAGS) -o $@ $^
+zipnote.exe: zipnote.o $(COMMON)
+	$(CC) $(LDFLAGS) -o $@ $^
+zipsplit.exe: zipsplit.o $(COMMON)
+	$(CC) $(LDFLAGS) -o $@ $^
+clean:
+	rm -f *.o zip.exe zipcloak.exe zipnote.exe zipsplit.exe

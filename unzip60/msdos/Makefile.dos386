@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MIT-0
+# DJGPP GCC 32-bit DOS cross-build with the internal decompression methods.
+# Run from unzip60/ with: make -f msdos/Makefile.dos386 CC=<cross-gcc>
+
+CC = i586-pc-msdosdjgpp-gcc
+DOS386_CFLAGS =
+DOS386_LDFLAGS =
+CFLAGS = -std=gnu89 -O2 -Wall -DDOS -DUSE_VFAT -DNO_ASM -I. $(DOS386_CFLAGS)
+LDFLAGS = $(DOS386_LDFLAGS)
+
+UNZIP_OBJECTS = unzip.o crc32.o crypt.o envargs.o explode.o extract.o \
+  fileio.o globals.o inflate.o list.o match.o process.o ttyio.o \
+  ubz2err.o unreduce.o unshrink.o zipinfo.o msdos.o
+SFX_OBJECTS = unzipsfx.o crc32_.o crypt_.o extract_.o fileio_.o \
+  globals_.o inflate_.o match_.o process_.o ttyio_.o ubz2err_.o msdos_.o
+FUN_OBJECTS = funzip.o crc32f.o cryptf.o globalsf.o inflatef.o ttyiof.o
+
+.PHONY: all clean
+all: unzip.exe funzip.exe unzipsfx.exe
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+msdos.o: msdos/msdos.c
+	$(CC) $(CFLAGS) -c $< -o $@
+msdos_.o: msdos/msdos.c
+	$(CC) $(CFLAGS) -DSFX -Os -c $< -o $@
+%_.o: %.c
+	$(CC) $(CFLAGS) -DSFX -Os -c $< -o $@
+unzipsfx.o: unzip.c
+	$(CC) $(CFLAGS) -DSFX -Os -c $< -o $@
+%f.o: %.c
+	$(CC) $(CFLAGS) -DFUNZIP -c $< -o $@
+
+unzip.exe: $(UNZIP_OBJECTS)
+	$(CC) $(LDFLAGS) -o $@ $^
+funzip.exe: $(FUN_OBJECTS)
+	$(CC) $(LDFLAGS) -o $@ $^
+unzipsfx.exe: $(SFX_OBJECTS)
+	$(CC) $(LDFLAGS) -o $@ $^
+clean:
+	rm -f *.o unzip.exe funzip.exe unzipsfx.exe
