@@ -1441,7 +1441,6 @@ local void help()
 #ifdef VMS
 ,"  (Must quote upper-case options, like \"-V\", unless SET PROC/PARSE=EXTEND)"
 #endif /* def VMS */
-,"  "
   };
 
   for (i = 0; i < sizeof(copyright)/sizeof(char *); i++)
@@ -1863,8 +1862,7 @@ local void help_extended()
 "  -sd       show debugging as Zip does each step",
 "  -so       show all available options on this system",
 "  -X        default=strip old extra fields, -X- keep old, -X strip most",
-"  -ws       wildcards don't span directory boundaries in paths",
-""
+"  -ws       wildcards don't span directory boundaries in paths"
   };
 
   for (i = 0; i < sizeof(text)/sizeof(char *); i++)

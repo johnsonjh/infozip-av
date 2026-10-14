@@ -2467,8 +2467,7 @@ static void help_extended(__G)
   "By default, all files extracted to current directory.  This option",
   "forces extraction to specified directory.",
   "",
-  "See unzipsfx manual page for more information.",
-  ""
+  "See unzipsfx manual page for more information."
     };
 
     for (i = 0; i < sizeof(text)/sizeof(char *); i++)
