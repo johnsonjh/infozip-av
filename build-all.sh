@@ -134,6 +134,7 @@ rm -rf ./win32
 mv -f ./build-win32/x86_64-w64-mingw32/bin ./win32
 rm -f ./win32/zipopt-decodecheck.exe
 rm -f ./win32/zipopt-preflight.exe
+cp -f ./win32/unzip.exe ./win32/zipinfo.exe
 
 # 64-bit MSVCRT
 
@@ -144,6 +145,7 @@ rm -rf ./win64
 mv -f ./build-win32/x86_64-w64-mingw32/bin/ ./win64
 rm -f ./win64/zipopt-decodecheck.exe
 rm -f ./win64/zipopt-preflight.exe
+cp -f ./win64/unzip.exe ./win64/zipinfo.exe
 
 # 64-bit UCRT
 
@@ -154,10 +156,11 @@ rm -rf ./win64ucrt
 mv -f ./build-win32/x86_64-w64-mingw32ucrt/bin ./win64ucrt
 rm -f ./win64ucrt/zipopt-decodecheck.exe
 rm -f ./win64ucrt/zipopt-preflight.exe
+cp -f ./win64ucrt/unzip.exe ./win64ucrt/zipinfo.exe
 
 # Compress stubs
 
-upx --best -q ./win*/unzipsfx.exe || :
+upx -qq --best ./win*/unzipsfx.exe || :
 
 ################################################################################
 
@@ -166,7 +169,8 @@ upx --best -q ./win*/unzipsfx.exe || :
 ./build-dos386.sh
 rm -rf ./dos386
 mv -f ./build-dos386/bin dos386
+cp -f ./dos386/unzip.exe ./dos386/zipinfo.exe
 
 # Compress stub
 
-upx --best -q ./dos386/unzipsfx.exe || :
+upx -qq --best ./dos386/unzipsfx.exe || :
