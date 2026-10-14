@@ -618,10 +618,9 @@ No errors detected in compressed data of pkz110.exe.
   implementations are based on MIT licensed code from
   [Jason Summers](https://github.com/jsummers/oldunzip).
 
-* The **LPAQ8** compression and decompression implementations are based on the
-  [`MIT`](unzip60/LICENSE-TinyZZZ-MIT) licensed
-  [TinyZZZ](https://gitee.com/wangxuan95/TinyZZZ) code from
-  [Dr.W.X WangXuan95](https://gitee.com/wangxuan95).
+* The **LPAQ8** compression and decompression implementations are based on
+  [`MIT`](unzip60/LICENSE-TinyZZZ-MIT) licensed code
+  from [Dr.W.X WangXuan95](https://gitee.com/wangxuan95).
 
 * The **DCL**&nbsp;**Implode** compression and decompression implementations
   use the [`MIT‑0`](LICENSE) licensed
