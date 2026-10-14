@@ -167,8 +167,8 @@ and [`unzip`](https://src.fedoraproject.org/rpms/unzip)
 If you want, you can compare the changes against the Fedora upstream version
 using [GitHub](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
 or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav),
-or clone the repo and compile it using “`./build.sh`” (on most Unix systems
-with GCC).
+or clone the repo and compile it using “`./build-unix.sh`” (on almost any
+UNIX-like system).
 
 ## Usage
 
