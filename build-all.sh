@@ -227,6 +227,7 @@ upx -qq --best ./win*/unzipsfx.exe || :
 # DOS (DJGPP 386) build
 
 # Setup
+export HOST=i586-pc-msdosdjgpp
 export CC=/opt/djgpp/bin/i586-pc-msdosdjgpp-gcc
 mkdir -p build-dos386
 
