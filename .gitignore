@@ -24,6 +24,9 @@ pvsreport/
 /unzip60/*.o
 /unzip60/unzip
 /unzip60/unzipsfx
+/win32/
+/win64/
+/win64ucrt/
 /zip30/flags
 /zip30/*.o
 /zip30/zip

@@ -59,6 +59,9 @@ test -d "${PREFIX:?}/bin" && {
 }
 
 rm -rf ./build-win32 2> /dev/null || :
+rm -rf ./win32 2> /dev/null || :
+rm -rf ./win64 2> /dev/null || :
+rm -rf ./win64ucrt 2> /dev/null || :
 
 test -d "${PREFIX:?}" && rmdir "${PREFIX:?}"
 
