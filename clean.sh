@@ -64,6 +64,7 @@ rm -rf ./win64 2> /dev/null || :
 rm -rf ./win64ucrt 2> /dev/null || :
 
 rm -rf ./build-dos386 2> /dev/null || :
+rm -rf ./dos386 2> /dev/null || :
 
 test -d "${PREFIX:?}" && rmdir "${PREFIX:?}"
 
