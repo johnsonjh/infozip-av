@@ -759,10 +759,12 @@ int checkdir(__G__ pathcomp, flag)
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)    /* GRR: change to return PK-style warning level */
+int close_outfile(__G)
     __GDEF
 {
-    fclose(G.outfile);
+    int close_status = PK_OK;
+    if (fclose(G.outfile) == EOF)
+        close_status = PK_WARN;
 
     /* skip restoring time stamps on user's request */
     if (uO.D_flag <= 1) {
@@ -796,6 +798,7 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     if (chmod(G.filename, 0xffff & G.pInfo->file_attr))
         perror("chmod (file attributes) error");
 
+    return close_status;
 } /* end function close_outfile() */
 
 

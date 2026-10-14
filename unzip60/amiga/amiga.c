@@ -695,9 +695,10 @@ int checkdir(__G__ pathcomp, flag)
 /* this part differs slightly with Zip */
 /*-------------------------------------*/
 
-void close_outfile(__G)
+int close_outfile(__G)
     __GDEF
 {
+    int close_status = PK_OK;
     time_t m_time;
 #ifdef USE_EF_UT_TIME
     iztimes z_utime;
@@ -705,11 +706,12 @@ void close_outfile(__G)
     LONG FileDate();
 
     if (uO.cflag)               /* can't set time or filenote on stdout */
-        return;
+        return close_status;
 
   /* close the file *before* setting its time under AmigaDOS */
 
-    fclose(G.outfile);
+    if (fclose(G.outfile) == EOF)
+        close_status = PK_WARN;
 
     /* skip restoring time stamps on user's request */
     if (uO.D_flag <= 1) {
@@ -756,6 +758,7 @@ void close_outfile(__G)
         G.filenotes[G.filenote_slot] = NULL;
     }
 
+    return close_status;
 } /* end function close_outfile() */
 
 

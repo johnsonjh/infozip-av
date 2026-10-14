@@ -954,9 +954,10 @@ static int get_extattribs(__G__ pzt, z_uidgid)
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)    /* GRR: change to return PK-style warning level */
+int close_outfile(__G)
     __GDEF
 {
+    int close_status = PK_OK;
     union {
         iztimes t3;             /* mtime, atime, ctime */
         ztimbuf t2;             /* modtime, actime */
@@ -1003,16 +1004,16 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
             Info(slide, 0x201, ((char *)slide,
               "warning:  symbolic link (%s) failed: mem alloc overflow\n",
               FnFilter1(G.filename)));
-            fclose(G.outfile);
-            return;
+            (void)fclose(G.outfile);
+            return PK_WARN;
         }
 
         if ((slnk_entry = (slinkentry *)malloc(slnk_entrysize)) == NULL) {
             Info(slide, 0x201, ((char *)slide,
               "warning:  symbolic link (%s) failed: no mem\n",
               FnFilter1(G.filename)));
-            fclose(G.outfile);
-            return;
+            (void)fclose(G.outfile);
+            return PK_WARN;
         }
         slnk_entry->next = NULL;
         slnk_entry->targetlen = ucsize;
@@ -1032,10 +1033,11 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
               "warning:  symbolic link (%s) failed\n",
               FnFilter1(G.filename)));
             free(slnk_entry);
-            fclose(G.outfile);
-            return;
+            (void)fclose(G.outfile);
+            return PK_WARN;
         }
-        fclose(G.outfile);                  /* close "link" file for good... */
+        if (fclose(G.outfile) == EOF)
+            close_status = PK_WARN;  /* close "link" file for good... */
         slnk_entry->target[ucsize] = '\0';
         if (QCOND2)
             Info(slide, 0, ((char *)slide, "-> %s ",
@@ -1046,11 +1048,12 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
         else
             G.slink_head = slnk_entry;
         G.slink_last = slnk_entry;
-        return;
+        return close_status;
     }
 #endif /* SYMLINKS */
 
-    fclose(G.outfile);
+    if (fclose(G.outfile) == EOF)
+        close_status = PK_WARN;
 
     /* handle the BeOS extra field if present */
     if (!uO.J_flag) {
@@ -1108,6 +1111,7 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
         }
     }
 
+    return close_status;
 } /* end function close_outfile() */
 
 

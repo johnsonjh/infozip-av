@@ -873,9 +873,10 @@ mode_t mode;       /* ignored */
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)    /* GRR: change to return PK-style warning level */
+int close_outfile(__G)
     __GDEF
 {
+    int close_status = PK_OK;
     union {
         iztimes t3;             /* mtime, atime, ctime */
         ztimbuf t2;             /* modtime, actime */
@@ -894,7 +895,8 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
 
     char nsk_work[FILENAME_MAX + 1], *nsk_fname=&nsk_work[0];
 
-    fclose(G.outfile);
+    if (fclose(G.outfile) == EOF)
+        close_status = PK_WARN;
 
     /* Set up Tandem specific file information if present */
     znsk_attr = ef_scan_for_tandem(G.extra_field, G.lrec.extra_field_length);
@@ -1012,6 +1014,7 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
         }
     }
 
+    return close_status;
 } /* end function close_outfile() */
 
 

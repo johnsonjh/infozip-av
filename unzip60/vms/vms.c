@@ -2660,17 +2660,17 @@ static int _read_link_rms(int byte_count, char *link_text_buf)
 
 
 
-void close_outfile(__G)
+int close_outfile(__G)
     __GDEF
 {
     int status;
 
     status = (*_flush_routine)(__G__ NULL, 0, 1);
     if (status)
-        return /* PK_DISK */;
+        return PK_DISK;
     if (uO.cflag)
-        return /* PK_COOL */;   /* Don't close stdout */
-    /* return */ (*_close_routine)(__G);
+        return PK_OK;   /* Don't close stdout */
+    return (*_close_routine)(__G);
 }
 
 

@@ -765,7 +765,7 @@ int checkdir(__G__ pathcomp, flag)
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)
+int close_outfile(__G)
     __GDEF
  /*
   * FlexOS VERSION
@@ -776,6 +776,7 @@ void close_outfile(__G)
   * the file, this routine is optional (but most compilers support it).
   */
 {
+    int close_status = PK_OK;
     DISKFILE    df;
     LONG        fnum;
 
@@ -803,13 +804,14 @@ void close_outfile(__G)
     struct tm *t;
 #endif /* ?USE_EF_UT_TIME */
 
-    fclose(G.outfile);
+    if (fclose(G.outfile) == EOF)
+        close_status = PK_WARN;
 
     if ((fnum = s_open(A_SET, G.filename)) < 0) {
         Info(slide, 0x201, ((char *)slide,
           "warning:  cannot open %s to set the time\n",
           FnFilter1(G.filename)));
-        return;
+        return PK_WARN;
     }
 
     if (s_get(T_FILE, fnum, &df, DSKFSIZE) < 0) {
@@ -817,7 +819,7 @@ void close_outfile(__G)
 
         Info(slide, 0x201, ((char *)slide,
           "warning:  cannot get info on %s\n", FnFilter1(G.filename)));
-        return;
+        return PK_WARN;
     }
 
     /* skip restoring time stamps on user's request */
@@ -887,6 +889,7 @@ void close_outfile(__G)
           "warning:  cannot set info for %s\n", FnFilter1(G.filename)));
 
     s_close(0, fnum);
+    return close_status;
 } /* end function close_outfile() */
 
 #ifndef SFX

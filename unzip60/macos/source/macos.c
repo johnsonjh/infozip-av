@@ -788,15 +788,18 @@ int checkdir(__G__ pathcomp, flag)
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)
+int close_outfile(__G)
     __GDEF
 {
     OSErr err;
+    int close_status = PK_OK;
 
     if (fileno(G.outfile) == 1)
-        return;         /* don't attempt to close or set time on stdout */
+        return PK_OK;   /* don't attempt to close or set time on stdout */
 
     err = (OSErr)fclose(G.outfile);
+    if (err != noErr)
+        close_status = PK_WARN;
 
     /* finally set FinderInfo */
     if  (MacZipMode >= JohnnyLee_EF)
@@ -840,6 +843,7 @@ void close_outfile(__G)
         attrbuff = malloced_attrbuff;
         }
 
+    return close_status;
 } /* end function close_outfile() */
 
 

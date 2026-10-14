@@ -1041,9 +1041,10 @@ static int get_extattribs(__G__ pzt)
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)    /* GRR: change to return PK-style warning level */
+int close_outfile(__G)
     __GDEF
 {
+    int close_status = PK_OK;
     union {
         iztimes t3;             /* mtime, atime, ctime */
         ztimbuf t2;             /* modtime, actime */
@@ -1056,7 +1057,8 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     ints with unsigned longs.
   ---------------------------------------------------------------------------*/
 
-    fclose(G.outfile);
+    if (fclose(G.outfile) == EOF)
+        close_status = PK_WARN;
 
     get_extattribs(__G__ &(zt.t3));
 
@@ -1096,6 +1098,7 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
         chgrow(G.filename, v2_0extra()->filegrow);
     }
 #endif
+    return close_status;
 } /* end function close_outfile() */
 
 #endif /* !MTS */

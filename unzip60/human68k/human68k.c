@@ -797,9 +797,10 @@ typedef union {
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)
+int close_outfile(__G)
     __GDEF
 {
+    int close_status = PK_OK;
     /* skip restoring time stamps on user's request */
     if (uO.D_flag <= 1) {
 #ifdef USE_EF_UT_TIME
@@ -853,10 +854,12 @@ void close_outfile(__G)
 #endif /* ?USE_EF_UT_TIME */
     }
 
-    fclose(G.outfile);
+    if (fclose(G.outfile) == EOF)
+        close_status = PK_WARN;
 
     _dos_chmod(G.filename, G.pInfo->file_attr);
 
+    return close_status;
 } /* end function close_outfile() */
 
 

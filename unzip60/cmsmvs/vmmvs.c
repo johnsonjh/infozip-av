@@ -166,10 +166,13 @@ int open_outfile(__G)           /* return 1 if fail */
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)
+int close_outfile(__G)
    __GDEF
 {
-   fclose(G.outfile);
+    int close_status = PK_OK;
+   if (fclose(G.outfile) == EOF)
+       close_status = PK_WARN;
+    return close_status;
 } /* end function close_outfile() */
 
 

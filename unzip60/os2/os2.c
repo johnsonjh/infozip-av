@@ -2051,10 +2051,12 @@ static int SetLongNameEA(char *name, char *longname)
 
            /* GRR:  need to return error level!! */
 
-void close_outfile(__G)   /* only for extracted files, not directories */
+int close_outfile(__G)   /* only for extracted files, not directories */
     __GDEF
 {
-    fclose(G.outfile);
+    int close_status = PK_OK;
+    if (fclose(G.outfile) == EOF)
+        close_status = PK_WARN;
 
     /* set extra fields, both stored-in-zipfile and .LONGNAME flavors */
     if (G.extra_field) {    /* zipfile extra field may have extended attribs */
@@ -2082,6 +2084,7 @@ void close_outfile(__G)   /* only for extracted files, not directories */
     /* set date/time and permissions */
     SetPathAttrTimes(__G__ G.pInfo->file_attr, 0);
 
+    return close_status;
 } /* end function close_outfile() */
 
 

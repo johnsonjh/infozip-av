@@ -1503,7 +1503,7 @@ typedef union {
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)
+int close_outfile(__G)
     __GDEF
  /*
   * MS-DOS VERSION
@@ -1598,9 +1598,15 @@ void close_outfile(__G)
     attributes, since we didn't do that when we opened the dude.
   ---------------------------------------------------------------------------*/
 
-    fclose(G.outfile);
+    {
+        int close_status = PK_OK;
 
-    z_dos_chmod(__G__ G.filename, G.pInfo->file_attr);
+        if (fclose(G.outfile) == EOF)
+            close_status = (errno == ENOSPC) ? PK_DISK : PK_WARN;
+
+        z_dos_chmod(__G__ G.filename, G.pInfo->file_attr);
+        return close_status;
+    }
 
 } /* end function close_outfile() */
 
@@ -2250,10 +2256,15 @@ unsigned _dos_getcountryinfo(void *countrybuffer)
 }
 
 
-/* Disable determination of "x" bit in st_mode field for [f]stat() calls. */
-int _is_executable (const char *path, int fhandle, const char *ext)
+/* DJGPP's libc supplies _is_executable().  Suppress the expensive and
+ * unwanted executable-bit inference for [f]stat() through its supported
+ * flags rather than replacing the libc symbol (which newer DJGPP pulls
+ * into executables for other reasons).  A constructor keeps this effective
+ * even when USE_DJGPP_ENV selects the normal environment-file loader.
+ */
+static void __attribute__((constructor)) iz_dos_disable_exec_detection(void)
 {
-    return 0;
+    _djstat_flags &= ~(_STAT_EXEC_EXT | _STAT_EXEC_MAGIC);
 }
 
 #ifndef USE_DJGPP_GLOB

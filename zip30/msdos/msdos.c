@@ -1009,10 +1009,15 @@ unsigned _dos_setfileattr(char *name, unsigned attr)
 
 #if (defined(__DJGPP__) && (__DJGPP__ >= 2))
 
-/* Disable determination of "x" bit in st_mode field for [f]stat() calls. */
-int _is_executable (const char *path, int fhandle, const char *ext)
+/* DJGPP's libc supplies _is_executable().  Suppress the expensive and
+ * unwanted executable-bit inference for [f]stat() through its supported
+ * flags rather than replacing the libc symbol (which newer DJGPP pulls
+ * into executables for other reasons).  A constructor keeps this effective
+ * even when USE_DJGPP_ENV selects the normal environment-file loader.
+ */
+static void __attribute__((constructor)) iz_dos_disable_exec_detection(void)
 {
-    return 0;
+    _djstat_flags &= ~(_STAT_EXEC_EXT | _STAT_EXEC_MAGIC);
 }
 
 /* Prevent globbing of filenames.  This gives the same functionality as

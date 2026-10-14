@@ -959,9 +959,10 @@ static void qfix(__G__ ef_ptr, ef_len)
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)
+int close_outfile(__G)
     __GDEF
 {
+    int close_status = PK_OK;
     union {
         iztimes t3;             /* mtime, atime, ctime */
         struct utimbuf t2;      /* modtime, actime */
@@ -974,7 +975,8 @@ void close_outfile(__G)
         qfix(__G__ G.extra_field, G.lrec.extra_field_length);
     }
 
-    fclose(G.outfile);
+    if (fclose(G.outfile) == EOF)
+        close_status = PK_WARN;
 
 /*---------------------------------------------------------------------------
     Change the file permissions from default ones to those stored in the
@@ -1036,6 +1038,7 @@ void close_outfile(__G)
         }
     }
 
+    return close_status;
 } /* end function close_outfile() */
 
 

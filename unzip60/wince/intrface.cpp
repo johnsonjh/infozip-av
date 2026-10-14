@@ -1313,9 +1313,10 @@ int SetFileSize(FILE *file, zusz_t filesize)
 } /* end function SetFileSize() */
 
 //******************************************************************************
-void close_outfile(__GPRO)
+int close_outfile(__GPRO)
 {
    HANDLE hFile;
+   int close_status = PK_OK;
 
    TCHAR szFile[_MAX_PATH];
    MBSTOTSTR(szFile, G.filename, countof(szFile));
@@ -1340,7 +1341,8 @@ void close_outfile(__GPRO)
       // Close the file and then re-open it using the Win32 CreateFile() call.
       // SetFileTime() requires a Win32 file HANDLE created with GENERIC_WRITE
       // access.
-      fclose(G.outfile);
+      if (fclose(G.outfile) == EOF)
+         close_status = PK_WARN;
       hFile = CreateFile(szFile, GENERIC_WRITE, FILE_SHARE_WRITE, NULL,
                          OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -1387,7 +1389,7 @@ void close_outfile(__GPRO)
    // Clear outfile so we know it is closed.
    G.outfile = 0;
 
-   return;
+   return close_status;
 }
 
 //******************************************************************************

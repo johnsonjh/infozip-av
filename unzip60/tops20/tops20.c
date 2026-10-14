@@ -82,9 +82,10 @@ int mapattr(__G)        /* just like Unix except no umask() */
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)
+int close_outfile(__G)
     __GDEF
 {
+    int close_status = PK_OK;
 #   define JSYS_CLASS           0070000000000
 #   define FLD(val,mask)        (((unsigned)(val)*((mask)&(-(mask))))&(mask))
 #   define _DEFJS(name,class)   (FLD(class,JSYS_CLASS) | (monsym(name)&0777777))
@@ -155,8 +156,8 @@ void close_outfile(__G)
         if (!jsys(IDTIM, ablock)) {
             Info(slide, 1, ((char *)slide, "error:  IDTIM failure for %s\n",
               G.filename));
-            fclose(G.outfile);
-            return;
+            (void)fclose(G.outfile);
+            return PK_WARN;
         }
 
         tad = ablock[2];
@@ -174,8 +175,10 @@ void close_outfile(__G)
 
     } /* if (uO.D_flag <= 1) */
 
-    fclose(G.outfile);
+    if (fclose(G.outfile) == EOF)
+        close_status = PK_WARN;
 
+    return close_status;
 } /* end function close_outfile() */
 
 

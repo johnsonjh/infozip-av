@@ -865,12 +865,14 @@ static int uxtime2acornftime(unsigned *pexadr, unsigned *pldadr, time_t ut)
 /* Function close_outfile() */
 /****************************/
 
-void close_outfile(__G)
+int close_outfile(__G)
     __GDEF
 {
+    int close_status = PK_OK;
   zvoid *spark_ef;
 
-  fclose(G.outfile);
+  if (fclose(G.outfile) == EOF)
+      close_status = PK_WARN;
 
   if ((spark_ef = getRISCOSexfield(G.extra_field, G.lrec.extra_field_length))
       != NULL) {
@@ -920,6 +922,7 @@ void close_outfile(__G)
     SWI_OS_File_1(G.filename, loadaddr, execaddr, attr);
   }
 
+    return close_status;
 } /* end function close_outfile() */
 
 
