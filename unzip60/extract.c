@@ -281,7 +281,7 @@ static int uz_lzfse_decompress(__G)
     unsigned char *inbuf, *outbuf, *tmp;
     unsigned char *fresh_begin;
     size_t incapa, inlen, used, space, fresh, history, filled;
-    zoff_t total;
+    zusz_t total;
     int status, c, r;
     inbuf = (unsigned char *)malloc(UZ_LZFSE_IN_INITIAL);
     outbuf = (unsigned char *)malloc(UZ_LZFSE_OUT_SIZE);
@@ -307,8 +307,8 @@ static int uz_lzfse_decompress(__G)
         if (status == LZFSE_STATUS_OK) {
             if (!state->end_of_stream) break;
             fresh = (size_t)(state->dst - fresh_begin);
-            if ((zoff_t)fresh > G.lrec.ucsize - total) break;
-            total += (zoff_t)fresh;
+            if ((zusz_t)fresh > G.lrec.ucsize - total) break;
+            total += (zusz_t)fresh;
             if (total != G.lrec.ucsize) break;
             if (state->src != state->src_end) break;
             /* A valid frame consumes exactly the compressed member. */
@@ -319,9 +319,9 @@ static int uz_lzfse_decompress(__G)
         }
         if (status == LZFSE_STATUS_DST_FULL) {
             fresh = (size_t)(state->dst - fresh_begin);
-            if (fresh == 0 || (zoff_t)fresh > G.lrec.ucsize - total)
+            if (fresh == 0 || (zusz_t)fresh > G.lrec.ucsize - total)
                 break;
-            total += (zoff_t)fresh;
+            total += (zusz_t)fresh;
             r = flush(__G__ fresh_begin,(ulg)fresh,0);
             if (r != PK_COOL) break;
             r = PK_ERR;
@@ -5930,8 +5930,10 @@ __GDEF
 
         if (err == BZ_MEM_ERROR)
             return 3;
-        else if (err != BZ_OK)
+        else if (err != BZ_OK) {
             Trace((stderr, "oops!  (BZ2_bzDecompressInit() err = %d)\n", err));
+            return 2;
+        }
     }
 
 #ifdef FUNZIP
