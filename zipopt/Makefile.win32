@@ -1,21 +1,26 @@
 # MinGW-w64 native Win32 build of zipopt; private UnZip core, no Unix objects.
 # SPDX-License-Identifier: MIT-0
 CC ?= gcc
-CFLAGS ?= -O2 -std=gnu89 -Wall -Wextra
+CFLAGS ?= -O3 -std=gnu89 -Wall -Wextra
 CPPFLAGS += -DWIN32 -DFORCE_WIN32_OVER_UNIX
 LOCAL_UNZIP ?=
 LOCAL_ZIP ?=
 LOCAL_GLDFLAGS ?=
+WIN_CODEC_CPPFLAGS ?=
+WIN_UNZIP_CPPFLAGS ?=
+WIN_STATIC_LIBS ?=
+WIN_ZNG_CPPFLAGS ?=
+WIN_ZNG_LIBS ?=
 UZDIR = ../unzip60
-WIN_DEFS = -DWIN32 -DFORCE_WIN32_OVER_UNIX -DDLL -DNO_ZLIB_NG -DNO_EXCEPT_SIGNALS
+WIN_DEFS = -DWIN32 -DFORCE_WIN32_OVER_UNIX -DDLL -DNO_EXCEPT_SIGNALS $(WIN_UNZIP_CPPFLAGS)
 # Baseline uses internal codecs and never searches host pkg-config paths.
 WIN_DEFS += -DZIPOPT_EMBED
-WIN_ZIPOPT_DEFS = -DZO_NO_EXTERNAL_CODECS
+WIN_ZIPOPT_DEFS = -DZO_SELECT_EXTERNAL_CODECS $(WIN_CODEC_CPPFLAGS) $(WIN_ZNG_CPPFLAGS)
 UZUNITS = unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo api
 UZWINDOWS = win32 win32i64 nt
 UZOBJS = $(addprefix winbuild/uz-,$(addsuffix .o,$(UZUNITS) $(UZWINDOWS)))
 UZFLAGS = $(CFLAGS) $(WIN_DEFS) $(CPPFLAGS) $(LOCAL_UNZIP) -I$(UZDIR) -I$(UZDIR)/win32
-LIBS = -luser32 -ladvapi32
+LIBS = -luser32 -ladvapi32 $(WIN_STATIC_LIBS) $(WIN_ZNG_LIBS)
 winbuild:
 	mkdir -p $@
 winbuild/uz-%.o: $(UZDIR)/%.c | winbuild
@@ -37,13 +42,15 @@ zipopt.exe: archive.c extract.c writer.c zipopt.c win32_port.h $(UZOBJS) winbuil
 zipopt-preflight.exe: archive.c preflight.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c preflight.c -o $@ $(LOCAL_GLDFLAGS)
 zipopt-decodecheck.exe: archive.c extract.c decodecheck.c $(UZOBJS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) $(LIBS) -o $@ $(LOCAL_GLDFLAGS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(WIN_ZNG_CPPFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) $(LIBS) -o $@ $(LOCAL_GLDFLAGS)
 # CRC A/B test: hardware dispatch vs the identical built-in code with
 # NO_PCLMUL_CRC explicitly selected, including short and split buffers.
+winbuild/crc-hardware.o: $(UZDIR)/crc32.c | winbuild
+	$(CC) $(CFLAGS) $(CPPFLAGS) -DNO_ZLIB_NG -c $< -o $@
 winbuild/crc-software.o: $(UZDIR)/crc32.c | winbuild
-	$(CC) $(UZFLAGS) -DNO_PCLMUL_CRC -Dcrc32=iz_crc32_software -Dget_crc_table=iz_get_crc_table_software -c $< -o $@
-crc-accel-test.exe: tests/crc_accel_win.c winbuild/uz-crc32.o winbuild/crc-software.o
-	$(CC) $(CPPFLAGS) $(CFLAGS) tests/crc_accel_win.c winbuild/uz-crc32.o winbuild/crc-software.o -o $@ $(LOCAL_GLDFLAGS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -DNO_ZLIB_NG -DNO_PCLMUL_CRC -Dcrc32=iz_crc32_software -Dget_crc_table=iz_get_crc_table_software -Dfree_crc_table=iz_free_crc_table_software -c $< -o $@
+crc-accel-test.exe: tests/crc_accel_win.c winbuild/crc-hardware.o winbuild/crc-software.o
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/crc_accel_win.c winbuild/crc-hardware.o winbuild/crc-software.o -o $@ $(LOCAL_GLDFLAGS)
 clean:
 	rm -rf winbuild zipopt.exe zipopt-preflight.exe zipopt-decodecheck.exe crc-accel-test.exe
 .PHONY: all clean

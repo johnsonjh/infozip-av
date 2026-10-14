@@ -3015,7 +3015,7 @@ local int ucs4_string_to_utf8(ucs4, utf8buf, buflen)
     if (mbl < c)
       c = mbl;
     if (utf8buf && count < buflen)
-      strncpy(utf8buf + count, mb, c);
+      memcpy(utf8buf + count, mb, (size_t)c);
     if (mbl == 1 && !mb[0])
       return count;           /* terminating nul */
     count += mbl;

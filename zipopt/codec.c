@@ -21,10 +21,21 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+/* Unix retains the original all-codecs build; Windows selects each static
+ * dependency independently.  An unavailable candidate is never attempted. */
 #ifndef ZO_NO_EXTERNAL_CODECS
-#include <bzlib.h>
-#include <lzma.h>
-#include <zstd.h>
+# if !defined(ZO_SELECT_EXTERNAL_CODECS) || defined(ZO_WITH_BZIP2)
+#  define ZO_BUILD_BZIP2 1
+#  include <bzlib.h>
+# endif
+# if !defined(ZO_SELECT_EXTERNAL_CODECS) || defined(ZO_WITH_LZMA)
+#  define ZO_BUILD_LZMA 1
+#  include <lzma.h>
+# endif
+# if !defined(ZO_SELECT_EXTERNAL_CODECS) || defined(ZO_WITH_ZSTD)
+#  define ZO_BUILD_ZSTD 1
+#  include <zstd.h>
+# endif
 #endif
 
 #if defined(ZO_USE_ZLIB_NG)
@@ -72,13 +83,18 @@ const unsigned zo_candidate_count
 int
 zo_candidate_available (unsigned id)
 {
-#ifdef ZO_NO_EXTERNAL_CODECS
-  /* Keep the registry indices stable: 14=bzip2, 15=LZMA, 16=Zstd,
-   * 17=XZ. No external libraries are linked in the baseline build. */
-  if (id >= 14U && id <= 17U)
+  if (id >= zo_candidate_count)
     return 0;
+#ifndef ZO_BUILD_BZIP2
+  if (id == 14U) return 0;
 #endif
-  return id < zo_candidate_count;
+#ifndef ZO_BUILD_LZMA
+  if (id == 15U || id == 17U) return 0;
+#endif
+#ifndef ZO_BUILD_ZSTD
+  if (id == 16U) return 0;
+#endif
+  return 1;
 }
 struct zo_io
 {
@@ -162,7 +178,7 @@ zo_copy (struct zo_io *s)
   return !s->failed;
 }
 
-#ifndef ZO_NO_EXTERNAL_CODECS
+#ifdef ZO_BUILD_BZIP2
 static int
 zo_bzip (struct zo_io *s, int level)
 {
@@ -220,7 +236,9 @@ zo_bzip (struct zo_io *s, int level)
 
   return finished && !s->failed;
 }
+#endif /* ZO_BUILD_BZIP2 */
 
+#ifdef ZO_BUILD_LZMA
 static int
 zo_xz_lzma (struct zo_io *s, int xz, unsigned level)
 {
@@ -320,7 +338,9 @@ zo_xz_lzma (struct zo_io *s, int xz, unsigned level)
 
   return finished && !s->failed;
 }
+#endif /* ZO_BUILD_LZMA */
 
+#ifdef ZO_BUILD_ZSTD
 static int
 zo_zstd (struct zo_io *s, int level)
 {
@@ -395,7 +415,7 @@ zo_zstd (struct zo_io *s, int level)
   return done && !s->failed;
 }
 
-#endif /* !ZO_NO_EXTERNAL_CODECS */
+#endif /* ZO_BUILD_ZSTD */
 
 #define ZO_PPMD_OUTPUT 16384U
 struct zo_ppmd
@@ -826,7 +846,7 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
       break;
 
     case 14:
-#ifdef ZO_NO_EXTERNAL_CODECS
+#ifndef ZO_BUILD_BZIP2
       rc = 0;
 #else
       rc = zo_bzip (&s, (int)settings->levels[id]);
@@ -835,7 +855,7 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
       break;
 
     case 15:
-#ifdef ZO_NO_EXTERNAL_CODECS
+#ifndef ZO_BUILD_LZMA
       rc = 0;
 #else
       rc = zo_xz_lzma (&s, 0, settings->levels[id]);
@@ -844,7 +864,7 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
       break;
 
     case 16:
-#ifdef ZO_NO_EXTERNAL_CODECS
+#ifndef ZO_BUILD_ZSTD
       rc = 0;
 #else
       rc = zo_zstd (&s, (int)settings->levels[id]);
@@ -853,7 +873,7 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
       break;
 
     case 17:
-#ifdef ZO_NO_EXTERNAL_CODECS
+#ifndef ZO_BUILD_LZMA
       rc = 0;
 #else
       rc = zo_xz_lzma (&s, 1, settings->levels[id]);

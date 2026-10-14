@@ -135,7 +135,7 @@ endif
 CC_SIZE_OPT = -Os $(CC_CPU_OPT)
 
 # Fastest code
-CC_SPEED_OPT = -O2 $(CC_CPU_OPT)
+CC_SPEED_OPT = -O3 $(CC_CPU_OPT)
 
 # Output object file name
 CC_OUT_OPT = -o
@@ -148,9 +148,9 @@ LD_SPECIFIC_OPT = -o $@
 # Libraries for the debug & release version
 # (GCC 2.95 and newer does not require the system library specifications)
 ifdef USEZLIB
-LD_RELEASE_LIBS = -L. -lz -luser32 -ladvapi32
+LD_RELEASE_LIBS = $(WIN_STATIC_LIBS) $(WIN_ZLIB_LIBS) -luser32 -ladvapi32
 else
-LD_RELEASE_LIBS = -luser32 -ladvapi32
+LD_RELEASE_LIBS = $(WIN_STATIC_LIBS) $(WIN_ZLIB_LIBS) -luser32 -ladvapi32
 endif
 LD_DEBUG_LIBS = $(LD_RELEASE_LIBS)
 

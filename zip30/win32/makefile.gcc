@@ -19,7 +19,7 @@ endif
 
 # ------------ GNU C ------------
 CC=gcc
-CFLAGS=-O2 -Wall -DWIN32 -DFORCE_WIN32_OVER_UNIX
+CFLAGS=-O3 -Wall -DWIN32 -DFORCE_WIN32_OVER_UNIX
 ifndef USEZLIB
 CCFLAGS=$(CFLAGS) $(LOC)
 else
@@ -41,9 +41,9 @@ RC=windres
 LD=$(CC)
 LDFLAGS=-o$@ -s
 ifndef USEZLIB
-LIBS=-luser32 -ladvapi32
+LIBS=$(WIN_STATIC_LIBS) $(WIN_ZLIB_LIBS) -luser32 -ladvapi32
 else
-LIBS=-L. -lz -luser32 -ladvapi32
+LIBS=$(WIN_STATIC_LIBS) $(WIN_ZLIB_LIBS) -luser32 -ladvapi32
 endif
 
 OSDEP_H = win32/osdep.h
@@ -67,6 +67,10 @@ endif
 
 OBJZ1 = zip.o crypt.o ttyio.o zipfile.o zipup.o fileio.o util.o \
 	crc32.o globals.o
+# Only include bzip2's internal-error callback when BZIP2_SUPPORT is enabled.
+ifneq ($(findstring -DBZIP2_SUPPORT,$(LOC)),)
+OBJZ1 += zbz2err.o
+endif
 OBJZ2 = deflate.o trees.o $(OBJA)
 OBJZS = win32.o win32zip.o win32i64.o nt.o
 OBJZ  = $(OBJZ1) $(OBJZ2) $(OBJZS)

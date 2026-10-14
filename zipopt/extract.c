@@ -18,6 +18,16 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Match the CRC provider used by the private UnZip objects.  External
+ * Deflate backends suppress UnZip's standalone crc32() symbol. */
+#if defined(ZO_USE_ZLIB_NG)
+# include <zlib-ng.h>
+#elif defined(ZO_USE_ZLIB)
+# include <zlib.h>
+#else
+extern ulg crc32 (ulg crc, const uch *buf, size_t len);
+#endif
+
 struct zo_sink
 {
   FILE *file;
@@ -28,16 +38,24 @@ struct zo_sink
 
 static struct zo_sink *zo_active_sink;
 
-extern ulg crc32 (ulg crc, const uch *buf, size_t len);
-
 static unsigned long
 zo_crc (unsigned long crc, const unsigned char *p, ulg n)
 {
   while (n != 0)
     {
       unsigned int take = n > (ulg)UINT_MAX ? UINT_MAX : (unsigned int)n;
+#if defined(ZO_USE_ZLIB_NG)
+      crc = (unsigned long)zng_crc32_z ((uint32_t)(crc ^ 0xffffffffUL),
+                                       (const uint8_t *)p, (size_t)take)
+            ^ 0xffffffffUL;
+#elif defined(ZO_USE_ZLIB)
+      crc = (unsigned long)crc32 ((uLong)(crc ^ 0xffffffffUL),
+                                 (const Bytef *)p, (uInt)take)
+            ^ 0xffffffffUL;
+#else
       crc = (unsigned long)crc32 ((ulg)(crc ^ 0xffffffffUL), p,
                                  (size_t)take) ^ 0xffffffffUL;
+#endif
       crc &= 0xffffffffUL;
       p += take;
       n -= take;

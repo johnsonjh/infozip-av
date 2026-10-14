@@ -1,20 +1,23 @@
 # MinGW-w64 native Win32 build of zipdedup; private UnZip core, no Unix objects.
 # SPDX-License-Identifier: MIT-0
 CC ?= gcc
-CFLAGS ?= -O2 -std=gnu89 -Wall -Wextra
+CFLAGS ?= -O3 -std=gnu89 -Wall -Wextra
 CPPFLAGS += -DWIN32 -DFORCE_WIN32_OVER_UNIX
 LOCAL_UNZIP ?=
 LOCAL_ZIP ?=
 LOCAL_GLDFLAGS ?=
+WIN_UNZIP_CPPFLAGS ?=
+WIN_STATIC_LIBS ?=
+WIN_ZNG_LIBS ?=
 UZDIR = ../unzip60
-WIN_DEFS = -DWIN32 -DFORCE_WIN32_OVER_UNIX -DDLL -DNO_ZLIB_NG -DNO_EXCEPT_SIGNALS
+WIN_DEFS = -DWIN32 -DFORCE_WIN32_OVER_UNIX -DDLL -DNO_EXCEPT_SIGNALS $(WIN_UNZIP_CPPFLAGS)
 # By default external compression libraries are deliberately disabled;
 # Win32 programs continue to support built-in decoding formats.
 UZUNITS = unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo api
 UZWINDOWS = win32 win32i64 nt
 UZOBJS = $(addprefix winbuild/uz-,$(addsuffix .o,$(UZUNITS) $(UZWINDOWS)))
 UZFLAGS = $(CFLAGS) $(WIN_DEFS) $(CPPFLAGS) $(LOCAL_UNZIP) -I$(UZDIR) -I$(UZDIR)/win32
-LIBS = -luser32 -ladvapi32
+LIBS = -luser32 -ladvapi32 $(WIN_STATIC_LIBS) $(WIN_ZNG_LIBS)
 winbuild:
 	mkdir -p $@
 winbuild/uz-%.o: $(UZDIR)/%.c | winbuild

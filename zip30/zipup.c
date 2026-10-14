@@ -19,6 +19,17 @@
    different sizes and needless to say leads to segmentation faults.  Putting
    zip.h first seems to fix this.  8/14/04 EG */
 #include "zip.h"
+/* On MinGW-w64, optional codec headers (including some bzlib.h builds)
+ * can include <windows.h>, which pulls in GCC x86 intrinsic headers.
+ * Parse those headers before crypt.h defines Info-ZIP's __G macro;
+ * otherwise it replaces the __G parameter names in GCC's intrinsics.
+ */
+#if defined(WIN32) && defined(__MINGW32__)
+# ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+# endif
+# include <windows.h>
+#endif
 #ifndef NO_AES
 #include "wzaes.h"
 extern iz_wzaes iz_zip_aes_ctx;
