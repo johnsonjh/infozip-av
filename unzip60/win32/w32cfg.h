@@ -51,7 +51,8 @@
 #  define tzset _tzset
 #endif
 #ifdef __MINGW32__
-   extern void _tzset(void);    /* this is missing in <time.h> */
+   /* No longer needed on any reasonable mingw */
+   /*extern void _tzset(void);*/    /* this is missing in <time.h> */
 #  ifndef tzset
 #    define tzset _tzset
 #  endif
