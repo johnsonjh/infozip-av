@@ -122,8 +122,8 @@ the **DEFLATE** (using a custom
 >
 > <sup>**1**</sup>&nbsp;CRC/SHA/AES/compression hardware acceleration is
 > automatically detected at runtime and is currently supported on AMD64 and
-> ARM64 systems running Linux, FreeBSD, OpenBSD, and macOS.  Additional
-> hardware acceleration is provided via the (*optional*)
+> ARM64 systems running Linux, FreeBSD, OpenBSD, macOS, and Windows.
+> Additional hardware acceleration is provided via the (*optional*)
 > [`zlib‑ng`](https://github.com/zlib-ng/zlib-ng) library where available.
 >
 > <sup>**2**</sup>&nbsp;bzip2 support requires
