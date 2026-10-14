@@ -106,7 +106,7 @@ winbuild()
     && {
       test -x ./configure || autoreconf -vfi
     } \
-    && env CC="${CC:?}" CFLAGS="-D_WIN32_WINNT=0x0501 -DWINVER=0x0501 -O3 -flto=auto" LDFALGS="-O3 -flto=auto" \
+    && env CC="${CC:?}" CFLAGS="-D_WIN32_WINNT=0x0501 -DWINVER=0x0501 -O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
       ./configure --disable-apps --disable-shared --enable-static \
       --disable-threads --prefix="$(pwd -P)"/install \
     && make -j "${CPUS:-1}" \
@@ -121,7 +121,7 @@ winbuild()
     && {
       test -x ./configure || autoreconf -vfi
     } \
-    && env CC="${CC:?}" CFLAGS="-D_WIN32_WINNT=0x0501 -DWINVER=0x0501 -O3 -flto=auto" LDFALGS="-O3 -flto=auto" \
+    && env CC="${CC:?}" CFLAGS="-D_WIN32_WINNT=0x0501 -DWINVER=0x0501 -O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
       ./configure --disable-shared --enable-static \
       --prefix="$(pwd -P)/install" \
     && make -j "${CPUS:-1}" \
@@ -211,6 +211,49 @@ upx -qq --best ./win*/unzipsfx.exe || :
 ################################################################################
 
 # DOS (DJGPP 386) build
+
+# Setup
+mkdir -p build-dos386
+
+# bzip2
+test -d build-dos386/bzip2 \
+  || git clone --recursive git://sourceware.org/git/bzip2.git \
+    build-dos386/bzip2
+(cd build-dos386/bzip2 \
+  && make clean \
+  && make CC="${CC:?}" \
+    CFLAGS="-O3 -flto=auto -D_FILE_OFFSET_BITS=64" \
+    LDFLAGS="-O3 -flto=auto" -j "${CPUS:-1}" libbz2.a)
+
+# WavPack
+test -d build-dos386/wavpack \
+  || git clone https://github.com/dbry/wavpack build-dos386/wavpack
+(cd build-dos386/wavpack \
+  && git clean -fdx \
+  && rm -rf ./install \
+  && {
+    test -x ./configure || autoreconf -vfi
+  } \
+  && env CC="${CC:?}" CFLAGS="-O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
+    ./configure --disable-apps --disable-shared --enable-static \
+    --disable-threads --prefix="$(pwd -P)"/install \
+  && make -j "${CPUS:-1}" \
+  && make install PREFIX="$(pwd -P)"/install)
+
+# LZMA
+test -d build-dos386/lzma \
+  || git clone https://codeberg.org/tukaani/xz build-dos386/lzma
+(cd build-dos386/lzma \
+  && rm -rf ./install \
+  && git clean -fdx \
+  && {
+    test -x ./configure || autoreconf -vfi
+  } \
+  && env CC="${CC:?}" CFLAGS="-Wno-incompatible-pointer-types -O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
+    ./configure --disable-shared --enable-static --enable-threads=no --disable-clmul-crc \
+    --prefix="$(pwd -P)/install" \
+  && make -j "${CPUS:-1}" \
+  && make install "$(pwd -P)"/install)
 
 ./build-dos386.sh
 rm -rf ./dos386
