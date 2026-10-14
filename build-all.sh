@@ -18,6 +18,7 @@ CPUS="$(nproc)"
 
 export LOCAL_ZIP="-O3 -flto=auto"
 export LOCAL_UNZIP="-O3 -flto=auto"
+export LOCAL_GLDFLAGS="-s -flto=auto"
 
 ################################################################################
 
