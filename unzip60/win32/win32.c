@@ -2477,11 +2477,11 @@ int checkdir(__G__ pathcomp, flag)
                 tmproot[G.rootlen++] = '.';
             tmproot[G.rootlen++] = '/';
             tmproot[G.rootlen] = '\0';
-            if ((G.rootpath = (char *)realloc(tmproot, G.rootlen+1)) == NULL) {
-                free(tmproot);
-                G.rootlen = 0;
-                return MPN_NOMEM;
-            }
+            /* The original allocation includes room for an optional dot,
+             * the trailing slash, and the NUL terminator.  No resize is
+             * necessary, and ownership passes directly to G.rootpath.
+             */
+            G.rootpath = tmproot;
             Trace((stderr, "rootpath now = [%s]\n", FnFilter1(G.rootpath)));
         }
         return MPN_OK;
