@@ -4,6 +4,7 @@ a.out
 /APPNOTE*.TXT
 *.bak*
 /build/
+/build-dos386/
 /build-win32/
 /CMPSC-work/
 *.core
