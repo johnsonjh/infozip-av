@@ -1,0 +1,33 @@
+# MinGW-w64 native Win32 build of zipdedup; private UnZip core, no Unix objects.
+# SPDX-License-Identifier: MIT-0
+CC ?= gcc
+CFLAGS ?= -O2 -std=gnu89 -Wall -Wextra
+CPPFLAGS += -DWIN32 -DFORCE_WIN32_OVER_UNIX
+LOCAL_UNZIP ?=
+LOCAL_ZIP ?=
+LOCAL_GLDFLAGS ?=
+UZDIR = ../unzip60
+WIN_DEFS = -DWIN32 -DFORCE_WIN32_OVER_UNIX -DDLL -DNO_ZLIB_NG -DNO_EXCEPT_SIGNALS
+# By default external compression libraries are deliberately disabled;
+# Win32 programs continue to support built-in decoding formats.
+UZUNITS = unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo api
+UZWINDOWS = win32 win32i64 nt
+UZOBJS = $(addprefix winbuild/uz-,$(addsuffix .o,$(UZUNITS) $(UZWINDOWS)))
+UZFLAGS = $(CFLAGS) $(WIN_DEFS) $(CPPFLAGS) $(LOCAL_UNZIP) -I$(UZDIR) -I$(UZDIR)/win32
+LIBS = -luser32 -ladvapi32
+winbuild:
+	mkdir -p $@
+winbuild/uz-%.o: $(UZDIR)/%.c | winbuild
+	$(CC) $(UZFLAGS) -c $< -o $@
+winbuild/uz-win32.o: $(UZDIR)/win32/win32.c | winbuild
+	$(CC) $(UZFLAGS) -c $< -o $@
+winbuild/uz-win32i64.o: $(UZDIR)/win32/win32i64.c | winbuild
+	$(CC) $(UZFLAGS) -c $< -o $@
+winbuild/uz-nt.o: $(UZDIR)/win32/nt.c | winbuild
+	$(CC) $(UZFLAGS) -c $< -o $@
+all: zipdedup.exe
+zipdedup.exe: zipdedup.c refptr9903.c fwkcs_md5.h ../zip30/fwkcs_fast_md5.inc ../zipopt/win32_port.h $(UZOBJS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(WIN_DEFS) $(LOCAL_UNZIP) -I$(UZDIR) zipdedup.c refptr9903.c $(UZOBJS) $(LIBS) -o $@ $(LOCAL_GLDFLAGS)
+clean:
+	rm -rf winbuild zipdedup.exe
+.PHONY: all clean
