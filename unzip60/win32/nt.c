@@ -278,6 +278,8 @@ BOOL GetVolumeCaps(
     DWORD cchTempRootPath = 0;
     BOOL bSuccess = TRUE;   /* assume success until told otherwise */
 
+    /* With no explicit extraction root, query the current volume. */
+    TempRootPath[0] = '\0';
     if(!bInitialized) if(!Initialize()) return FALSE;
 
     /* process the input path to produce a consistent path suitable for

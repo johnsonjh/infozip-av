@@ -331,7 +331,7 @@ static int SetSD(__G__ path, fperms, eb_ptr, eb_len)
     unsigned eb_len;
 {
     ulg ntsd_ucSize;
-    VOLUMECAPS VolumeCaps;
+    VOLUMECAPS VolumeCaps = {0};
     uch *security_data;
     int error;
 
@@ -343,11 +343,15 @@ static int SetSD(__G__ path, fperms, eb_ptr, eb_len)
     VolumeCaps.dwFileAttributes = fperms;
     VolumeCaps.bUsePrivileges = (uO.X_flag > 1);
 
-    /* check target volume capabilities - just fall through
-     * and try if fail */
-    if (GetVolumeCaps(G.rootpath, path, &VolumeCaps) &&
-        !(VolumeCaps.dwFileSystemFlags & FS_PERSISTENT_ACLS))
+    /* If the volume cannot be identified, attempt an ordinary DACL
+     * restore but do not assume that local or remote privilege overrides
+     * are applicable.  GetVolumeCaps() leaves its output untouched when
+     * it fails. */
+    if (!GetVolumeCaps(G.rootpath, path, &VolumeCaps)) {
+        VolumeCaps.bUsePrivileges = FALSE;
+    } else if (!(VolumeCaps.dwFileSystemFlags & FS_PERSISTENT_ACLS)) {
         return PK_OK;
+    }
 
     /* allocate storage for uncompressed data */
     security_data = (uch *)malloc((extent)ntsd_ucSize);
