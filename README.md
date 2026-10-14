@@ -2,9 +2,9 @@
 
 <br>
 <p align="center">
-  <img src=".img/xtro-zip.jpg" alt="Xtro‑ZIP" width="100%"><br>
-  <small><sup>The logo might be slop but we promise that Xtro‑ZIP is not!</sup></small>
+  <img src=".img/xtro-zip.jpg" alt="Xtro‑ZIP" width="100%">
 </p>
+<br>
 
 ---
 
