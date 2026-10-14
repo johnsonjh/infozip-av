@@ -1990,7 +1990,7 @@ local void version_info()
 #endif
     "DCL-Implode          (ZIP method 10; DCL-Implode; using PKDCLX v1.1.2)",
 #ifdef CMPSC16_SUPPORT
-    "IBM CMPSC            (ZIP method 16; 9-13-bit per-file trained dictionary)",
+    "IBM CMPSC            (ZIP method 16; IBM z/OS CMPSC supported)",
 #endif
 #ifdef LPAQ8_ENCODE_SUPPORT
     "PAQZIP LPAQ8         (ZIP method 20; PAQZIP-comaptible LPAQ8 supported)",
