@@ -10,6 +10,7 @@ a.out
 *.core
 core
 core-*
+/dos386
 /.envrc
 log.pvs
 *.orig
