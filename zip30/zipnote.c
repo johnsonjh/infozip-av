@@ -259,6 +259,7 @@ local void help()
     printf(copyright[i], "ZipNote");
     putchar('\n');
   }
+  putchar('\n');
   for (i = 0; i < sizeof(text)/sizeof(char *); i++)
   {
     printf(text[i], VERSION, REVDATE);
@@ -289,6 +290,7 @@ local void version_info()
     printf(copyright[i], "ZipNote");
     putchar('\n');
   }
+  putchar('\n');
 
   version_local();
 

@@ -1448,6 +1448,7 @@ local void help()
     printf(copyright[i], "Zip");
     putchar('\n');
   }
+  putchar('\n');
   for (i = 0; i < sizeof(text)/sizeof(char *); i++)
   {
     printf(text[i], VERSION, REVDATE);
@@ -1869,6 +1870,7 @@ local void help_extended()
     printf(copyright[i], "Zip");
     putchar('\n');
   }
+  putchar('\n');
   for (i = 0; i < sizeof(text)/sizeof(char *); i++)
   {
     printf("%s", text[i]);
@@ -2070,6 +2072,7 @@ local void version_info()
     printf(copyright[i], "Zip");
     putchar('\n');
   }
+  putchar('\n');
 
   version_local();
 

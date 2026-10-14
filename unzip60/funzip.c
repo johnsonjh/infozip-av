@@ -330,7 +330,7 @@ char **argv;
   /* if no file argument and stdin not redirected, give the user help */
   if (argc == 0 && isatty(0))
   {
-    Info(slide, 1, ((char *)slide, XTRO_BANNER("FunZip")));
+    Info(slide, 1, ((char *)slide, XTRO_BANNER("FunZip") "\n"));
     Info(slide, 1, ((char *)slide, "usage: ... | funzip%s | ...\n", s));
     Info(slide, 1, ((char *)slide, "       ... | funzip%s > outfile\n", s));
     Info(slide, 1, ((char *)slide, "       funzip%s infile.zip > outfile\n",s));

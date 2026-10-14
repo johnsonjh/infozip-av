@@ -235,6 +235,7 @@ local void help()
         printf(copyright[i], "ZipCloak");
         putchar('\n');
     }
+    putchar('\n');
     for (i = 0; i < sizeof(help_info)/sizeof(char *); i++) {
         printf(help_info[i], VERSION, REVDATE);
         putchar('\n');
