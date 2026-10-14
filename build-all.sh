@@ -40,8 +40,8 @@ command -v git > /dev/null 2>&1 \
 
 # Check for cwsdstub.exe
 
-test -f /opt/cwspdmi/cwsdstub.exe || {
-  printf '%s\n' "ERROR: /opt/cwspdmi/cwsdstub.exe not found."
+test -f /opt/cwsdpmi/cwsdstub.exe || {
+  printf '%s\n' "ERROR: /opt/cwsdpmi/cwsdstub.exe not found."
   exit 1
 }
 

@@ -25,7 +25,7 @@ Environment:
                        (default: build-dos386/lzma/install)
   DOS386_WAVPACK_DIR   Prefix with include/wavpack/wavpack.h and lib/libwavpack.a
                        (default: build-dos386/wavpack/install)
-  DOS386_CWSDSTUB      DPMI stub (default: /opt/cwspdmi/cwsdstub.exe)
+  DOS386_CWSDSTUB      DPMI stub (default: /opt/cwsdpmi/cwsdstub.exe)
   DOS386_EXE2COFF      Path to host exe2coff utility (optional override)
   DOS386_EMBED_STUB    auto (default), on, or off; auto embeds when stub exists
   KEEP_DOS386_STAGE=1  Retain the temporary source tree for debugging
@@ -78,7 +78,7 @@ command -v "$MAKE" > /dev/null 2>&1 || fail "make '$MAKE' not found"
 
 # CWSDSTUB is optional by default, but never silently skip a usable stub
 # merely because the required host-side exe2coff tool cannot be found.
-STUB=${DOS386_CWSDSTUB:-/opt/cwspdmi/cwsdstub.exe}
+STUB=${DOS386_CWSDSTUB:-/opt/cwsdpmi/cwsdstub.exe}
 case ${DOS386_EMBED_STUB:-auto} in
 auto) if [ -f "$STUB" ]; then EMBED=yes; else EMBED=no; fi ;;
 on)
