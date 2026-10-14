@@ -138,6 +138,12 @@ build/uz-unix.o: $(UZDIR)/unix/unix.c | build
 	$(CC) $(UZFLAGS) -MMD -MP -MF $(@:.o=.d) -MT $@ -c $(UZDIR)/unix/unix.c -o $@
 build/uz-%.o: $(UZDIR)/%.c | build
 	$(CC) $(UZFLAGS) -MMD -MP -MF $(@:.o=.d) -MT $@ -c $(UZDIR)/$*.c -o $@
+# Test only: rename the compressor entry point for this main object so a
+# shim can force recoverable and fatal failures without changing production.
+build/zo-failure-test-main.o: zipopt.c codec.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) -Dzo_compress=zo_compress_test -c zipopt.c -o $@
+zipopt-test-candidate-failure: $(ZO_BACKEND_STAMP) archive.c extract.c writer.c build/zo-failure-test-main.o tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c build/zo-failure-test-main.o tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 codec-probe: $(ZO_BACKEND_STAMP) tests/codec_probe.c codec.c codec.h archive.h $(CODEC_DEPS) $(ZO_INTERNAL_DEFLATE)
 	$(CC) $(CPPFLAGS) -O2 -std=gnu89 -I../zip30 $(LOCAL_ZIP) $(EXTERNAL_ZLIB) $(ZO_DEFLATE_FLAGS) tests/codec_probe.c codec.c $(ZO_INTERNAL_DEFLATE) -lbz2 -llzma -lzstd $(ZO_DEFLATE_LIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 test-display: tests/test_display.c display.h archive.h
@@ -154,13 +160,14 @@ test-interrupt: tests/test_interrupt.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_interrupt.c -o $@ $(LOCAL_GLDFLAGS)
 print-deflate-backend:
 	@printf '%s\n' '$(ZO_SELECTED_BACKEND)'
-test: test-display test-index test-structures test-zip64-offset test-interrupt test-source-stability codec-probe zipopt zipopt-preflight zipopt-decodecheck
+test: test-display test-index test-structures test-zip64-offset test-interrupt test-source-stability codec-probe zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck
 	./test-display
 	./test-index
 	./test-structures
 	./test-zip64-offset
 	./test-interrupt
 	./tests/test_zipopt.sh
+	python3 tests/test_candidate_failure.py
 	python3 tests/test_fwkcs_md5.py
 	python3 tests/test_level_options.py
 	python3 tests/test_backend_selection.py
@@ -170,6 +177,6 @@ endif
 	./test-source-stability
 -include $(UZDEPS)
 clean:
-	rm -f zipopt zipopt-preflight zipopt-decodecheck test-display test-index test-structures test-interrupt test-source-stability codec-probe test-zip64-offset
+	rm -f zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-display test-index test-structures test-interrupt test-source-stability codec-probe test-zip64-offset
 	rm -rf build
 .PHONY: all clean test print-deflate-backend

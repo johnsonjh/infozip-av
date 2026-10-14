@@ -158,3 +158,15 @@ rm -f ./win64ucrt/zipopt-preflight.exe
 # Compress stubs
 
 upx --best -q ./win*/unzipsfx.exe || :
+
+################################################################################
+
+# DOS (DJGPP 386) build
+
+./build-dos386.sh
+rm -rf ./dos386
+mv -f ./build-dos386/bin dos386
+
+# Compress stub
+
+upx --best -q ./dos386/unzipsfx.exe || :

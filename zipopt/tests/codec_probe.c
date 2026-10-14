@@ -125,7 +125,8 @@ main (int argc, char **argv)
   settings.zopfli_iterations = 15;
   settings.dcl_optimal = 0;
 
-  if (!zo_compress (id, in, comp, &size, &settings) || size > 0xffffffffUL)
+  if (zo_compress (id, in, comp, &size, &settings) != ZO_COMPRESS_OK
+      || size > 0xffffffffUL)
     {
       return 4;
     }

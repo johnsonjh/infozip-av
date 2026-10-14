@@ -663,9 +663,11 @@ main (int argc, char **argv)
   unsigned size_width = 0, verbose_count = 0;
   unsigned member_width = 0;
   int rc = 1, verbose = 0, original_win, iterations_set = 0;
+  int candidate_rc;
   int zstd_native_set = 0, disable_zopfli_set = 0;
   int dcl_group_requested = 0, dcl_explicit_option = 0;
   unsigned char requested[ZO_MAX_CANDIDATES];
+  unsigned skipped[ZO_MAX_CANDIDATES], skipped_count = 0;
   int fwkcs_md5 = 0;
   zo_settings settings;
   int j;
@@ -1127,6 +1129,7 @@ main (int argc, char **argv)
           continue;
         }
 
+      skipped_count = 0;
       original_win = zo_original_allowed (e->method, enabled);
       best_size = original_win ? e->csize : (zo_u64)-1;
       best_id = zo_candidate_count;
@@ -1154,13 +1157,33 @@ main (int argc, char **argv)
 
           candidate = tmpfile ();
 
-          if (!candidate
-              || !zo_compress (k, decoded, candidate, &compressed, &settings))
+          if (!candidate)
             {
-              fprintf (stderr, "zipopt: compressor %s failed on member %lu\n",
-                       zo_candidates[k].name, (unsigned long)i);
-
+              fprintf (stderr,
+                       "zipopt: cannot create candidate temporary file "
+                       "for member %lu\n", (unsigned long)i);
               goto done;
+            }
+
+          candidate_rc
+              = zo_compress (k, decoded, candidate, &compressed, &settings);
+          if (candidate_rc != ZO_COMPRESS_OK)
+            {
+              if (candidate_rc != ZO_COMPRESS_FAILED)
+                {
+                  fprintf (stderr,
+                           "zipopt: I/O failure during compressor %s "
+                           "on member %lu\n",
+                           zo_candidates[k].name, (unsigned long)i);
+                  goto done;
+                }
+
+              /* Defer diagnostics until after the progress dots so that
+               * multiple candidate failures remain readable. */
+              skipped[skipped_count++] = k;
+              fclose (candidate);
+              candidate = NULL;
+              continue;
             }
 
           if (verbose)
@@ -1208,6 +1231,17 @@ main (int argc, char **argv)
               fclose (candidate);
               candidate = NULL;
             }
+        }
+
+      if (skipped_count)
+        {
+          unsigned n;
+          if (selected_count > 1)
+            fputc ('\n', stderr);
+          for (n = 0; n < skipped_count; n++)
+            fprintf (stderr,
+                     "zipopt: skipping failed compressor %s on member %lu\n",
+                     zo_candidates[skipped[n]].name, (unsigned long)i);
         }
 
       if (fwkcs_md5)

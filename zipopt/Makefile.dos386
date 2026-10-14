@@ -2,8 +2,8 @@
 # DJGPP DOS/386, internal methods only. No Unix/Windows objects are reused.
 CC = i586-pc-msdosdjgpp-gcc
 DOS386_CFLAGS =
-DOS386_LDFLAGS =
-CFLAGS = -std=gnu89 -O3 -Wall -DDOS -DNO_ASM -DNO_ZLIB_NG $(DOS386_CFLAGS)
+DOS386_LDFLAGS = -s
+CFLAGS = -std=gnu89 -O3 -Wall -DDOS -DNO_ASM -DNO_ZLIB_NG $(DOS386_CFLAGS) $(LOCAL_ZIP) $(LOCAL_UNZIP)
 UZDIR = ../unzip60
 # Private UnZip decodes to a stream: timestamps are never restored.
 # Missing TZ must not turn verified data into a PK_WARN result.
@@ -27,10 +27,10 @@ dosbuild/zo-zip-deflate.o: zip_deflate.c zip_deflate.h | dosbuild
 	$(CC) $(CFLAGS) -c $< -o $@
 
 zipopt.exe: archive.c extract.c writer.c zipopt.c dos386_port.h $(UZOBJS) dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o
-	$(CC) $(CFLAGS) $(ZODEFS) archive.c extract.c writer.c zipopt.c dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o $(UZOBJS) -lm -o $@ $(DOS386_LDFLAGS)
+	$(CC) $(CFLAGS) $(ZODEFS) archive.c extract.c writer.c zipopt.c dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o $(UZOBJS) -lm -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
 zipopt-preflight.exe: archive.c preflight.c
-	$(CC) $(CFLAGS) archive.c preflight.c -o $@ $(DOS386_LDFLAGS)
+	$(CC) $(CFLAGS) archive.c preflight.c -s -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
 zipopt-decodecheck.exe: archive.c extract.c decodecheck.c $(UZOBJS)
-	$(CC) $(CFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) -o $@ $(DOS386_LDFLAGS)
+	$(CC) $(CFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) -s -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
 clean:
 	rm -rf dosbuild zipopt.exe zipopt-preflight.exe zipopt-decodecheck.exe

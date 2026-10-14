@@ -31,7 +31,12 @@ typedef struct zo_settings
   unsigned levels[ZO_MAX_CANDIDATES]; /* candidate levels by registry order */
 } zo_settings;
 
-/* Return nonzero only if a complete, valid codec output stream was written. */
+/* Compression outcomes.  A codec's own failure (including a model
+ * allocation failure) is local to that candidate.  I/O failures are not.
+ * These values are also the return contract for zo_compress(). */
+#define ZO_COMPRESS_FATAL  (-1)
+#define ZO_COMPRESS_FAILED 0
+#define ZO_COMPRESS_OK     1
 int zo_compress (unsigned candidate, FILE *in, FILE *out, zo_u64 *compressed,
                  const zo_settings *settings);
 

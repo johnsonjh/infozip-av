@@ -101,6 +101,7 @@ struct zo_io
   FILE *in, *out;
   zo_u64 written;
   int failed;
+  int io_failed;
 };
 
 static unsigned
@@ -116,9 +117,10 @@ zo_rd (void *v, unsigned char *buf, unsigned size)
 
   n = fread (buf, 1, (size_t)size, s->in);
 
-  if (n == 0 && ferror (s->in))
+  if (ferror (s->in))
     {
       s->failed = 1;
+      s->io_failed = 1;
     }
 
   return (unsigned)n;
@@ -138,6 +140,7 @@ zo_wr (void *v, const unsigned char *p, unsigned size)
       || fwrite (p, 1, (size_t)size, s->out) != (size_t)size)
     {
       s->failed = 1;
+      s->io_failed = 1;
       return 1;
     }
 
@@ -758,11 +761,17 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
       return 0;
     }
 
-  rewind (in);
+  /* A failed seek is an input I/O failure, not a codec failure. */
+  if (fseek (in, 0L, SEEK_SET) != 0)
+    {
+      return ZO_COMPRESS_FATAL;
+    }
+
   s.in = in;
   s.out = out;
   s.written = 0;
   s.failed = 0;
+  s.io_failed = 0;
   c = &zo_candidates[id];
 
   if (id == 16U)
@@ -892,12 +901,24 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
       break;
     }
 
-  if (!rc || s.failed || ferror (in) || fflush (out) != 0)
+  /* An incomplete candidate must never hide a failed read or write.
+   * Report those failures even if the codec also reported failure. */
+  if (s.io_failed || ferror (in) || ferror (out))
     {
-      return 0;
+      return ZO_COMPRESS_FATAL;
+    }
+
+  if (!rc || s.failed)
+    {
+      return ZO_COMPRESS_FAILED;
+    }
+
+  if (fflush (out) != 0)
+    {
+      return ZO_COMPRESS_FATAL;
     }
 
   *compressed = s.written;
 
-  return 1;
+  return ZO_COMPRESS_OK;
 }
