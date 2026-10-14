@@ -460,7 +460,7 @@ int list_files(__G)    /* return PK-type error code */
                         if (aes_method <= 999)
                             sprintf(&aesbase[4], "%03u", aes_method);
                         else
-                            sprintf(&aesbase[3], "%04X", aes_method);
+                            sprintf(&aesbase[3], "%04X", aes_method & 0xffffU);
                     }
                     sprintf(methbuf, "%s/AE%u", aesbase, aes_version);
                 } else if (aes_status == 0 &&

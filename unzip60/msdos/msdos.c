@@ -1124,11 +1124,7 @@ int checkdir(__G__ pathcomp, flag)
                 tmproot[rootlen++] = '.';
             tmproot[rootlen++] = '/';
             tmproot[rootlen] = '\0';
-            if ((rootpath = (char *)realloc(tmproot, rootlen+1)) == NULL) {
-                free(tmproot);
-                rootlen = 0;
-                return MPN_NOMEM;
-            }
+            rootpath = tmproot;
             Trace((stderr, "rootpath now = [%s]\n", FnFilter1(rootpath)));
         }
         return MPN_OK;

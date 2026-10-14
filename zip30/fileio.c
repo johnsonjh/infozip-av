@@ -3721,8 +3721,6 @@ static ZCONST char Far sh_op_not_sup_err[] = "short option '%c' not supported";
 static ZCONST char Far oco_req_val_err[] = "option %s requires one character value";
 static ZCONST char Far oco_no_mbc_err[] = "option %s does not support multibyte values";
 static ZCONST char Far num_req_val_err[] = "option %s requires number value";
-static ZCONST char Far long_op_ambig_err[] = "long option '%s' ambiguous";
-static ZCONST char Far long_op_not_sup_err[] = "long option '%s' not supported";
 
 static ZCONST char Far no_arg_files_err[] = "argument files not enabled\n";
 
@@ -3735,27 +3733,69 @@ static ZCONST char Far no_arg_files_err[] = "argument files not enabled\n";
 /* get_args_from_arg_file */
 
 
-/* copy error, option name, and option description if any to buf */
+/* Append to the shared option error buffer, truncating only when full */
+local void optionerr_append(buf, used, src, length)
+  char *buf;
+  size_t *used;
+  ZCONST char *src;
+  size_t length;
+{
+  size_t available = (sizeof(optionerrbuf) - 1) - *used;
+  if (length > available)
+    length = available;
+  if (length != 0)
+    memcpy(buf + *used, src, length);
+  *used += length;
+  buf[*used] = '\0';
+}
+
+local void long_option_error(buf, name, tail)
+  char *buf;
+  ZCONST char *name;
+  ZCONST char *tail;
+{
+  static ZCONST char prefix[] = "long option '";
+  size_t used = 0;
+  size_t name_length = strlen(name);
+  size_t suffix_length = strlen(tail);
+  size_t allowed = (sizeof(optionerrbuf) - 1) -
+                   (sizeof(prefix) - 1) - suffix_length;
+  if (name_length > allowed)
+    name_length = allowed;
+  buf[0] = '\0';
+  optionerr_append(buf, &used, prefix, sizeof(prefix) - 1);
+  optionerr_append(buf, &used, name, name_length);
+  optionerr_append(buf, &used, tail, suffix_length);
+}
+
+/* Format an option diagnostic with no fixed-size intermediate buffer.
+ * All existing messages contain at most one %s substitution. */
 local int optionerr(buf, err, optind, islong)
   char *buf;
   ZCONST char *err;
   int optind;
   int islong;
 {
-  char optname[50];
+  ZCONST char *op = islong ? options[optind].longopt : options[optind].shortopt;
+  ZCONST char *name = options[optind].name;
+  ZCONST char *subst = strstr(err, "%s");
+  size_t used = 0;
 
-  if (options[optind].name && options[optind].name[0] != '\0') {
-    if (islong)
-      sprintf(optname, "'%s' (%s)", options[optind].longopt, options[optind].name);
-    else
-      sprintf(optname, "'%s' (%s)", options[optind].shortopt, options[optind].name);
-  } else {
-    if (islong)
-      sprintf(optname, "'%s'", options[optind].longopt);
-    else
-      sprintf(optname, "'%s'", options[optind].shortopt);
+  buf[0] = '\0';
+  if (subst == NULL) {
+    optionerr_append(buf, &used, err, strlen(err));
+    return 0;
   }
-  sprintf(buf, err, optname);
+  optionerr_append(buf, &used, err, (size_t)(subst - err));
+  optionerr_append(buf, &used, "'", 1);
+  optionerr_append(buf, &used, op, strlen(op));
+  optionerr_append(buf, &used, "'", 1);
+  if (name != NULL && name[0] != '\0') {
+    optionerr_append(buf, &used, " (", 2);
+    optionerr_append(buf, &used, name, strlen(name));
+    optionerr_append(buf, &used, ")", 1);
+  }
+  optionerr_append(buf, &used, subst + 2, strlen(subst + 2));
   return 0;
 }
 
@@ -4233,7 +4273,7 @@ local unsigned long get_longopt(args, argnum, optchar, negated, value,
     }
     if (options[op].longopt && strncmp(options[op].longopt, longopt, strlen(longopt)) == 0) {
       if (match > -1) {
-        sprintf(optionerrbuf, long_op_ambig_err, longopt);
+        long_option_error(optionerrbuf, longopt, "' ambiguous");
         free(arg);
         if (depth > 0) {
           /* unwind */
@@ -4248,7 +4288,7 @@ local unsigned long get_longopt(args, argnum, optchar, negated, value,
   }
 
   if (match == -1) {
-    sprintf(optionerrbuf, long_op_not_sup_err, longopt);
+    long_option_error(optionerrbuf, longopt, "' not supported");
     free(arg);
     if (depth > 0) {
       oWARN(optionerrbuf);

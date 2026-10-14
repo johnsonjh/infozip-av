@@ -3266,7 +3266,7 @@ local int scanzipf_fixnew()
 
   int r = 0;                  /* zipcopy return */
   uzoff_t s;                  /* size of data, start of central */
-  struct zlist far * far *x;  /* pointer last entry's link */
+  struct zlist far * far *x = &zfiles;  /* pointer last entry's link */
   struct zlist far *z;        /* current zip entry structure */
   int plen;
   char *in_path_ext;
@@ -3289,7 +3289,7 @@ local int scanzipf_fixnew()
   /* On VMS, adjust plen (and in_path_ext) to avoid the file version. */
   plen -= strlen(vms_file_version(in_path));
 #endif /* def VMS */
-  in_path_ext = zipfile + plen - 4;
+  in_path_ext = plen >= 4 ? zipfile + plen - 4 : zipfile;
 
   if (plen >= 4 &&
       in_path_ext[0] == '.' &&
@@ -4098,7 +4098,7 @@ local int scanzipf_regnew()
   int skipped_disk = 0;       /* 1 if skipped start disk and start offset is useless */
 
   uzoff_t s;                  /* size of data, start of central */
-  struct zlist far * far *x;  /* pointer last entry's link */
+  struct zlist far * far *x = &zfiles;  /* pointer last entry's link */
   struct zlist far *z;        /* current zip entry structure */
 
 
@@ -4261,7 +4261,7 @@ local int scanzipf_regnew()
     /* On VMS, adjust plen (and in_path_ext) to avoid the file version. */
     plen -= strlen(vms_file_version(in_path));
 #endif /* def VMS */
-    in_path_ext = zipfile + plen - 4;
+    in_path_ext = plen >= 4 ? zipfile + plen - 4 : zipfile;
 
     if (plen < 4 ||
         in_path_ext[0] != '.' ||
