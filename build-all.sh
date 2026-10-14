@@ -48,7 +48,7 @@ winbuild()
   (cd build-win32/bzip2 \
     && make clean \
     && make CC="${CC:?}" \
-      CFLAGS="-O3 -flto=auto -D_FILE_OFFSET_BITS=64" \
+      CFLAGS="-D_WIN32_WINNT=0x0501 -DWINVER=0x0501 -O3 -flto=auto -D_FILE_OFFSET_BITS=64" \
       LDFLAGS="-O3 -flto=auto" -j "${CPUS:-1}" libbz2.a)
 
   # WavPack
@@ -60,9 +60,9 @@ winbuild()
     && {
       test -x ./configure || autoreconf -vfi
     } \
-    && env CC="${CC:?}" CFLAGS="-O3 -flto=auto" LDFALGS="-O3 -flto=auto" \
+    && env CC="${CC:?}" CFLAGS="-D_WIN32_WINNT=0x0501 -DWINVER=0x0501 -O3 -flto=auto" LDFALGS="-O3 -flto=auto" \
       ./configure --disable-apps --disable-shared --enable-static \
-      --prefix="$(pwd -P)"/install \
+      --disable-threads --prefix="$(pwd -P)"/install \
     && make -j "${CPUS:-1}" \
     && make install PREFIX="$(pwd -P)"/install)
 
@@ -75,7 +75,7 @@ winbuild()
     && {
       test -x ./configure || autoreconf -vfi
     } \
-    && env CC="${CC:?}" CFLAGS="-O3 -flto=auto" LDFALGS="-O3 -flto=auto" \
+    && env CC="${CC:?}" CFLAGS="-D_WIN32_WINNT=0x0501 -DWINVER=0x0501 -O3 -flto=auto" LDFALGS="-O3 -flto=auto" \
       ./configure --disable-shared --enable-static \
       --prefix="$(pwd -P)/install" \
     && make -j "${CPUS:-1}" \
@@ -100,15 +100,16 @@ winbuild()
   (cd build-win32/zstd \
     && rm -rf ./install \
     && git clean -fdx \
-    && cmake -S build/cmake -B build-mingw \
+    && env HAVE_THREAD=0 cmake -S build/cmake -B build-mingw \
       -DCMAKE_SYSTEM_NAME=Windows \
       -DCMAKE_C_COMPILER="${CC:?}" \
       -D"CMAKE_CXX_FLAGS=" \
-      -DCMAKE_C_FLAGS="-O3 -flto=auto" \
+      -DCMAKE_C_FLAGS="-D_WIN32_WINNT=0x0501 -DWINVER=0x0501 -O3 -flto=auto" \
       -DCMAKE_STATIC_LINKER_FLAGS="-flto=auto" \
       -DCMAKE_INSTALL_PREFIX="$(pwd -P)/install" \
       -DZSTD_BUILD_PROGRAMS=OFF \
       -DZSTD_BUILD_SHARED=OFF \
+      -DZSTD_MULTITHREAD_SUPPORT=OFF \
       -DZSTD_BUILD_STATIC=ON \
     && cmake --build build-mingw --target install \
       --parallel $(nproc) --verbose)
