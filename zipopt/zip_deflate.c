@@ -46,6 +46,12 @@
 #define disable_store_fallback zo_legacy_disable_store_fallback
 #define display_globaldots zo_legacy_display_globaldots
 
+/* zip.h (included by deflate.c) enables ASMV by default on Win32.
+ * Force the portable C match finder for this embedded adapter: no assembly
+ * implementation is linked into zipopt, on any supported target. */
+#ifndef NO_ASM
+# define NO_ASM 1
+#endif
 #ifdef ASMV
 # undef ASMV
 #endif /* ifdef ASMV */

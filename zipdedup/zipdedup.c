@@ -9,15 +9,17 @@
 #undef ZD_DATE
 #define ZD_DATE "2026-10-12"
 
-#ifndef _FILE_OFFSET_BITS
+#if !defined(_WIN32) && !defined(_FILE_OFFSET_BITS)
 # define _FILE_OFFSET_BITS 64
 #endif /* _FILE_OFFSET_BITS */
 
-#ifndef _POSIX_C_SOURCE
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
 # define _POSIX_C_SOURCE 200809L
 #endif /* ifndef _POSIX_C_SOURCE */
 
+#if !defined(_WIN32)
 #define UNIX 1
+#endif
 #define DLL 1
 
 #include "../unzip60/izsha1.h"
@@ -39,7 +41,18 @@ extern unsigned long crc32 (unsigned long, const unsigned char *, size_t);
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
+#ifdef _WIN32
+# include <io.h>
+# include <fcntl.h>
+# include "../zipopt/win32_port.h"
+# define unlink _unlink
+# define close _close
+# define fdopen _fdopen
+# define mkstemp iz_win_mkstemp
+# define link(a,b) iz_win_publish_noreplace((a),(b))
+#else
+# include <unistd.h>
+#endif
 
 extern unsigned long refptr9903_crc (unsigned long, unsigned int, unsigned int,
                                      unsigned long, const unsigned char[16]);
@@ -223,16 +236,23 @@ zd_write (FILE *f, const void *p, size_t n)
 static int
 zd_input_representable (FILE *in)
 {
+#ifdef _WIN32
+  __int64 size = _filelengthi64 (_fileno (in));
+  if (size < 0)
+#else
   struct stat sb;
-
   if (fstat (fileno (in), &sb) != 0 || sb.st_size < 0)
+#endif
     {
       zd_fail ("internal error: unable to determine input size");
-
       return 0;
     }
 
+#ifdef _WIN32
+  if ((unsigned __int64)size > (unsigned long)ZD_POS_MAX)
+#else
   if (sb.st_size > (off_t)ZD_POS_MAX)
+#endif
     {
       zd_fail ("input ZIP exceeds the builds support file offset limit");
 

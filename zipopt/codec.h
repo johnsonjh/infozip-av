@@ -18,6 +18,7 @@ typedef struct zo_candidate
 
 extern const zo_candidate zo_candidates[];
 extern const unsigned zo_candidate_count;
+int zo_candidate_available (unsigned);
 
 /* 32 to allow more candidates later */
 # define ZO_MAX_CANDIDATES 32U

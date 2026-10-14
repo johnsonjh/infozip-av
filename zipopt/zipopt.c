@@ -209,13 +209,15 @@ zo_methods_help (void)
   unsigned i;
 
   puts ("zipopt --methods=list: valid compression candidates:");
-  puts ("  all                      all candidates (default)");
+  puts ("  all                      all available candidates (default)");
   puts ("  implode                  all four ZIP-Implode variants");
   puts ("  reduce                   all four ZIP-Reduce variants");
   puts ("  dcl-implode              both DCL-Implode modes");
 
   for (i = 0; i < zo_candidate_count; i++)
     {
+      if (!zo_candidate_available (i))
+        continue;
       printf ("  %-24s (ZIP method %u)\n", zo_candidates[i].name,
               zo_candidates[i].method);
     }
@@ -411,7 +413,8 @@ zo_selected_methods (const char *s, unsigned char *enabled)
 
   if (!strcmp (s, "all"))
     {
-      memset (enabled, 1, zo_candidate_count);
+      for (i = 0; i < zo_candidate_count; ++i)
+        enabled[i] = (unsigned char)zo_candidate_available (i);
 
       return 1;
     }
@@ -848,6 +851,12 @@ main (int argc, char **argv)
 
   for (k = 0; k < zo_candidate_count; k++)
     {
+      if (enabled[k] && !zo_candidate_available (k))
+        {
+          fprintf (stderr, "zipopt: codec %s was not built\n", zo_candidates[k].name);
+          free (enabled);
+          return 2;
+        }
       if (enabled[k])
         {
           selected_count++;

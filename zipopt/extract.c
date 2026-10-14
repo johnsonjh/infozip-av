@@ -5,7 +5,9 @@
 
 /* private zipopt embedded UnZip adapter */
 
+#if !defined(_WIN32)
 #define UNIX 1
+#endif
 #define DLL 1
 #define ZIPOPT_EMBED 1
 

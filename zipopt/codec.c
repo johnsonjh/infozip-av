@@ -18,12 +18,14 @@
 #include "codec.h"
 #include "zip_deflate.h"
 
-#include <bzlib.h>
 #include <limits.h>
-#include <lzma.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef ZO_NO_EXTERNAL_CODECS
+#include <bzlib.h>
+#include <lzma.h>
 #include <zstd.h>
+#endif
 
 #if defined(ZO_USE_ZLIB_NG)
 # include <zlib-ng.h>
@@ -66,6 +68,18 @@ const zo_candidate zo_candidates[] = { { "store",              0,  0,    0 },
                                        { "ppmd",               98, 9,    0 } };
 const unsigned zo_candidate_count
     = sizeof (zo_candidates) / sizeof (zo_candidates[0]);
+
+int
+zo_candidate_available (unsigned id)
+{
+#ifdef ZO_NO_EXTERNAL_CODECS
+  /* Keep the registry indices stable: 14=bzip2, 15=LZMA, 16=Zstd,
+   * 17=XZ. No external libraries are linked in the baseline build. */
+  if (id >= 14U && id <= 17U)
+    return 0;
+#endif
+  return id < zo_candidate_count;
+}
 struct zo_io
 {
   FILE *in, *out;
@@ -148,6 +162,7 @@ zo_copy (struct zo_io *s)
   return !s->failed;
 }
 
+#ifndef ZO_NO_EXTERNAL_CODECS
 static int
 zo_bzip (struct zo_io *s, int level)
 {
@@ -379,6 +394,8 @@ zo_zstd (struct zo_io *s, int level)
 
   return done && !s->failed;
 }
+
+#endif /* !ZO_NO_EXTERNAL_CODECS */
 
 #define ZO_PPMD_OUTPUT 16384U
 struct zo_ppmd
@@ -716,7 +733,7 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
 
   if (!in || !out || !compressed || !settings || id >= zo_candidate_count
       || settings->zopfli_iterations < 1U
-      || settings->zopfli_iterations > 10000U)
+      || settings->zopfli_iterations > 10000U || !zo_candidate_available (id))
     {
       return 0;
     }
@@ -809,22 +826,38 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
       break;
 
     case 14:
+#ifdef ZO_NO_EXTERNAL_CODECS
+      rc = 0;
+#else
       rc = zo_bzip (&s, (int)settings->levels[id]);
+#endif
 
       break;
 
     case 15:
+#ifdef ZO_NO_EXTERNAL_CODECS
+      rc = 0;
+#else
       rc = zo_xz_lzma (&s, 0, settings->levels[id]);
+#endif
 
       break;
 
     case 16:
+#ifdef ZO_NO_EXTERNAL_CODECS
+      rc = 0;
+#else
       rc = zo_zstd (&s, (int)settings->levels[id]);
+#endif
 
       break;
 
     case 17:
+#ifdef ZO_NO_EXTERNAL_CODECS
+      rc = 0;
+#else
       rc = zo_xz_lzma (&s, 1, settings->levels[id]);
+#endif
 
       break;
 

@@ -9,7 +9,7 @@
 # define _FILE_OFFSET_BITS 64
 #endif /* ifndef _FILE_OFFSET_BITS */
 
-#if !defined(_POSIX_C_SOURCE)
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
 # define _POSIX_C_SOURCE 200809L
 #endif /* if !defined( _POSIX_C_SOURCE ) */
 
@@ -22,21 +22,41 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
+#ifdef _WIN32
+# include <io.h>
+# include "win32_port.h"
+# define unlink _unlink
+# define close _close
+# define fdopen _fdopen
+# define mkstemp iz_win_mkstemp
+# define link(a,b) iz_win_publish_noreplace((a),(b))
+typedef int zo_sigmask_t;
+#else
+# include <unistd.h>
+typedef sigset_t zo_sigmask_t;
+#endif
 
 /*
  * The only work done in the interrupt handler is async-signal-safe:
  * unlink the (already named) work file and terminate.  All other temporary
  * streams are tmpfile() objects, automatically unlinked by the OS.
  * Block handled signals while modifying the pathname to avoid observing
- * an incomplete or freed allocation from a handler.
+ * an incomplete or freed allocation from a handler. Windows currently only
+ * performs synchronous normal/error cleanup (no POSIX signal handler).
  */
 
 static const char *volatile zo_interrupt_path;
 
 static int
-zo_signal_mask (int block, sigset_t *previous)
+zo_signal_mask (int block, zo_sigmask_t *previous)
 {
+#ifdef _WIN32
+  /* Native Win32 has no POSIX signal mask. Normal/error cleanup still
+   * removes the exclusive temporary; publication remains fail-closed. */
+  (void)block;
+  (void)previous;
+  return 1;
+#else
   sigset_t set;
 
   if (sigemptyset (&set) != 0 || sigaddset (&set, SIGINT) != 0
@@ -49,8 +69,10 @@ zo_signal_mask (int block, sigset_t *previous)
   return sigprocmask (block ? SIG_BLOCK : SIG_SETMASK, block ? &set : previous,
                       block ? previous : NULL)
          == 0;
+#endif
 }
 
+#ifndef _WIN32
 static void
 zo_interrupt (int signo)
 {
@@ -64,9 +86,13 @@ zo_interrupt (int signo)
   _exit (128 + signo);
 }
 
+#endif /* !_WIN32 */
 int
 zo_writer_install_interrupts (void)
 {
+#ifdef _WIN32
+  return 1;
+#else
   struct sigaction action, old;
   int signals[4];
   unsigned i;
@@ -103,6 +129,7 @@ zo_writer_install_interrupts (void)
     }
 
   return 1;
+#endif
 }
 
 #define ZO32MAX 0xffffffffUL
@@ -171,7 +198,11 @@ zo_w64 (zo_writer *w, zo_u64 u)
 static int
 zo_tell (zo_writer *w, zo_u64 *v)
 {
+#ifdef _WIN32
+  __int64 off = _ftelli64 (w->stream);
+#else
   off_t off = ftello (w->stream);
+#endif
 
   if (off < 0)
     {
@@ -207,12 +238,17 @@ zo_copy (zo_writer *w, FILE *src, zo_u64 n)
 static int
 zo_seekin (FILE *f, zo_u64 off)
 {
-  if (off > (ZO64MAX >> 1) || (zo_u64)(off_t)off != off)
+  if (off > (ZO64MAX >> 1))
     {
       return 0;
     }
-
+#ifdef _WIN32
+  return _fseeki64 (f, (__int64)off, SEEK_SET) == 0;
+#else
+  if ((zo_u64)(off_t)off != off)
+    return 0;
   return fseeko (f, (off_t)off, SEEK_SET) == 0;
+#endif
 }
 
 static int
@@ -343,8 +379,10 @@ zo_writer_begin (zo_writer *w, zo_archive *a, const char *dst)
 {
   size_t n;
   int fd;
+#ifndef _WIN32
   struct stat st;
-  sigset_t previous;
+#endif
+  zo_sigmask_t previous;
 
   memset (w, 0, sizeof (*w));
 
@@ -353,7 +391,11 @@ zo_writer_begin (zo_writer *w, zo_archive *a, const char *dst)
       return 0;
     }
 
+#ifdef _WIN32
+  if (GetFileAttributesA (dst) != INVALID_FILE_ATTRIBUTES)
+#else
   if (lstat (dst, &st) == 0)
+#endif
     {
       return 0;
     }
@@ -734,7 +776,7 @@ zo_writer_complete (zo_writer *w)
 int
 zo_writer_publish (zo_writer *w)
 {
-  sigset_t previous;
+  zo_sigmask_t previous;
   int ok;
 
   if (!w || !w->stream || w->failed)
@@ -755,7 +797,7 @@ zo_writer_publish (zo_writer *w)
       return 0;
     }
 
-  /* POSIX hardlink is atomic and cannot replace preexisting outputs. */
+  /* Both POSIX hardlink and Win32 CreateHardLinkA fail if output exists. */
   ok = link (w->temporary, w->destination) == 0;
 
   if (ok)
@@ -776,7 +818,7 @@ zo_writer_publish (zo_writer *w)
 void
 zo_writer_abort (zo_writer *w)
 {
-  sigset_t previous;
+  zo_sigmask_t previous;
   int blocked;
 
   if (!w)
