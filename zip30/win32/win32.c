@@ -1234,7 +1234,7 @@ void version_local()
 #  elif defined(__CYGWIN__)
 #      define COMPILER_NAME1    "Cygnus win32 / gcc "
 #  elif defined(__MINGW32__)
-#      define COMPILER_NAME1    "mingw32 / gcc "
+#      define COMPILER_NAME1    "mingw / gcc "
 #  else
 #      define COMPILER_NAME1    "gcc "
 #  endif

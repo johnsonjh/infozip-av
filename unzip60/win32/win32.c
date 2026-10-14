@@ -2657,7 +2657,7 @@ void version(__G)
 #  elif defined(__CYGWIN__)
       "cygnus win32 / gcc ",
 #  elif defined(__MINGW32__)
-      "mingw32 / gcc ",
+      "mingw / gcc ",
 #  else
       "gcc ",
 #  endif
