@@ -119,7 +119,7 @@ winbuild()
     } \
     && env CC="${CC:?}" CFLAGS="-D_WIN32_WINNT=0x0501 -DWINVER=0x0501 -O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
       ./configure --disable-apps --disable-shared --enable-static \
-      --disable-threads --prefix="$(pwd -P)"/install \
+      --disable-threads --host="${HOST:?}" --prefix="$(pwd -P)"/install \
     && make -j "${CPUS:-1}" \
     && make install PREFIX="$(pwd -P)"/install)
 
@@ -184,6 +184,7 @@ winbuild()
 
 # 32-bit MSVCRT
 
+export HOST="i686-w64-mingw32"
 export CC="i686-w64-mingw32-gcc"
 export MINGW_WINDRES="i686-w64-mingw32-windres"
 winbuild
@@ -195,6 +196,7 @@ cp -f ./win32/unzip.exe ./win32/zipinfo.exe
 
 # 64-bit MSVCRT
 
+export HOST="x86_64-w64-mingw32"
 export CC="x86_64-w64-mingw32-gcc"
 export MINGW_WINDRES="x86_64-w64-mingw32-windres"
 winbuild
@@ -206,6 +208,7 @@ cp -f ./win64/unzip.exe ./win64/zipinfo.exe
 
 # 64-bit UCRT
 
+export HOST="x86_64-w64-mingw32ucrt"
 export CC="x86_64-w64-mingw32ucrt-gcc"
 export MINGW_WINDRES="x86_64-w64-mingw32ucrt-windres"
 winbuild
@@ -248,7 +251,7 @@ test -d build-dos386/wavpack \
   } \
   && env CC="${CC:?}" CFLAGS="-O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
     ./configure --disable-apps --disable-shared --enable-static \
-    --disable-threads --prefix="$(pwd -P)"/install \
+    --disable-threads --host="${HOST:?}" --prefix="$(pwd -P)"/install \
   && make -j "${CPUS:-1}" \
   && make install PREFIX="$(pwd -P)"/install)
 
