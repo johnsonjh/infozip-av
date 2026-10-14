@@ -22,6 +22,52 @@ export LOCAL_GLDFLAGS="-s -flto=auto"
 
 ################################################################################
 
+# Check for git
+
+command -v git > /dev/null 2>&1 \
+  || {
+    printf '%s\n' "ERROR: git is required but not found."
+    exit 1
+  }
+
+"$(command -v git)" --version > /dev/null 2>&1 \
+  || {
+    printf '%s\n' "ERROR: Working git tool required but not found."
+    exit 1
+  }
+
+################################################################################
+
+# Check for cwsdstub.exe
+
+test -f /opt/cwspdmi/cwsdstub.exe || {
+  printf '%s\n' "ERROR: /opt/cwspdmi/cwsdstub.exe not found."
+  exit 1
+}
+
+################################################################################
+
+"$(command -v i686-w64-mingw32-gcc)" --version > /dev/null 2>&1 \
+  || {
+    printf '%s\n' "ERROR: i686-w64-mingw32-gcc not fond."
+  }
+
+################################################################################
+
+"$(command -v x86_64-w64-mingw32ucrt-gcc)" --version > /dev/null 2>&1 \
+  || {
+    printf '%s\n' "ERROR: i686-w64-mingw32-gcc not fond."
+  }
+
+################################################################################
+
+"$(command -v x86_64-w64-mingw32-gcc)" --version > /dev/null 2>&1 \
+  || {
+    printf '%s\n' "ERROR: i686-w64-mingw32-gcc not fond."
+  }
+
+################################################################################
+
 # Cleanup
 
 ./clean.sh
