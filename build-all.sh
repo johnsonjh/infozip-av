@@ -47,23 +47,34 @@ test -f /opt/cwspdmi/cwsdstub.exe || {
 
 ################################################################################
 
+"$(command -v /opt/djgpp/bin/i586-pc-msdosdjgpp-gcc)" --version > /dev/null 2>&1 \
+  || {
+    printf '%s\n' "ERROR: CC=/opt/djgpp/bin/i586-pc-msdosdjgpp-gcc not found."
+    exit 1
+  }
+
+################################################################################
+
 "$(command -v i686-w64-mingw32-gcc)" --version > /dev/null 2>&1 \
   || {
-    printf '%s\n' "ERROR: i686-w64-mingw32-gcc not fond."
+    printf '%s\n' "ERROR: i686-w64-mingw32-gcc not found."
+    exit 1
   }
 
 ################################################################################
 
 "$(command -v x86_64-w64-mingw32ucrt-gcc)" --version > /dev/null 2>&1 \
   || {
-    printf '%s\n' "ERROR: i686-w64-mingw32-gcc not fond."
+    printf '%s\n' "ERROR: i686-w64-mingw32-gcc not found."
+    exit 1
   }
 
 ################################################################################
 
 "$(command -v x86_64-w64-mingw32-gcc)" --version > /dev/null 2>&1 \
   || {
-    printf '%s\n' "ERROR: i686-w64-mingw32-gcc not fond."
+    printf '%s\n' "ERROR: i686-w64-mingw32-gcc not found."
+    exit 1
   }
 
 ################################################################################
@@ -213,6 +224,7 @@ upx -qq --best ./win*/unzipsfx.exe || :
 # DOS (DJGPP 386) build
 
 # Setup
+export CC=/opt/djgpp/bin/i586-pc-msdosdjgpp-gcc
 mkdir -p build-dos386
 
 # bzip2
