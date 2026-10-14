@@ -1,7 +1,7 @@
 format novell NLM 'unzip utility'
 name unzip
 option caseexact
-option copyright 'Copyright 1990-2005 Info-ZIP (www.info-zip.org).'
+option copyright 'Copyright 1990-2005 Info-ZIP.'
 option map = unzip.map
 option nodefaultlibs
 option quiet

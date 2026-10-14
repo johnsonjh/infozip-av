@@ -4,10 +4,10 @@
  */
 
 #undef ZD_VER
-#define ZD_VER "0.4"
+#define ZD_VER "0.1"
 
 #undef ZD_DATE
-#define ZD_DATE "2026-10-12"
+#define ZD_DATE "2026-10-14"
 
 #if !defined(_WIN32) && !defined(__DJGPP__) && !defined(_FILE_OFFSET_BITS)
 # define _FILE_OFFSET_BITS 64
@@ -1955,7 +1955,7 @@ zd_usage (FILE *out)
 {
 (void)fprintf (out,
 /******************************************************************************/
-"Xtro-ZIP - zipdedup - WinZip-compatible (\"ZIPX\" method 92) de-duplication\n"
+"Xtro-ZIP - ZipDeDup - WinZip-compatible (\"ZIPX\" method 92) de-duplication\n"
 "Release %s - %s - https://github.com/johnsonjh/infozip-av\n"
 "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>\n"
 "\n", ZD_VER, ZD_DATE);
@@ -1965,7 +1965,7 @@ zd_usage (FILE *out)
 "  -5, --fwkcs-md5      write FWKCS MD5 metadata to output\n"
 "  -q, --quiet          suppress non-essential output\n"
 "  -v, --verbose        verbose output display mode\n"
-"  -V, --version        display the zipopt version\n"
+"  -V, --version        display version information\n"
 "  -h, --help           display this help text\n");
 /******************************************************************************/
 }
@@ -2023,9 +2023,13 @@ main (int argc, char **argv)
 
       if (!strcmp (argv[i], "--version") || !strcmp (argv[i], "-V"))
         {
-          fprintf (stdout, "zipdedup v%s (%s)%s\n", ZD_VER, ZD_DATE,
-                   iz_sha1_hardware_active ()
-                       ? " [Hardware SHA acceleration enabled]" : "");
+          fprintf (stdout,
+                   "Xtro-ZIP - Advanced ZipDedup archive utility - derived from Info-ZIP\n"
+                   "Release %s - %s - https://github.com/johnsonjh/infozip-av\n"
+                   "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>\n",
+                   ZD_VER, ZD_DATE);
+          if (iz_sha1_hardware_active ())
+            puts ("Hardware SHA acceleration enabled");
 
           return 0;
         }

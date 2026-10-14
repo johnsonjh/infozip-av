@@ -204,8 +204,6 @@ local void license()
 
 
 static ZCONST char *help_info[] = {
-"",
-"ZipCloak %s (%s)",
 #ifdef VM_CMS
 "Usage:  zipcloak [-dq] [-b fm] zipfile",
 #else
@@ -233,6 +231,10 @@ local void help()
 {
     extent i;             /* counter for help array */
 
+    for (i = 0; i < sizeof(copyright)/sizeof(char *); i++) {
+        printf(copyright[i], "ZipCloak");
+        putchar('\n');
+    }
     for (i = 0; i < sizeof(help_info)/sizeof(char *); i++) {
         printf(help_info[i], VERSION, REVDATE);
         putchar('\n');
@@ -259,16 +261,11 @@ local void version_info()
 
   for (i = 0; i < sizeof(copyright)/sizeof(char *); i++)
   {
-    printf(copyright[i], "zipcloak");
+    printf(copyright[i], "ZipCloak");
     putchar('\n');
   }
   putchar('\n');
 
-  for (i = 0; i < sizeof(versinfolines)/sizeof(char *); i++)
-  {
-    printf(versinfolines[i], "ZipCloak", VERSION, REVDATE);
-    putchar('\n');
-  }
 
   version_local();
 

@@ -231,17 +231,6 @@ they should now be compatible with C/C++, Visual BASIC and Delphi.  Weirder
 languages (FoxBase, etc.) are probably Right Out.
 
 
-INTERNET RESOURCES
-------------------
-
-Info-ZIP's web site is at http://www.info-zip.org/pub/infozip/
-and contains the most up-to-date information about coming releases,
-links to binaries, and common problems.
-(See http://www.info-zip.org/pub/infozip/FAQ.html for the latter.)
-Files may also be retrieved via ftp://ftp.info-zip.org/pub/infozip/ .
-Thanks to LEO (Munich, Germany) for previously hosting our primary site.
-
-
 DISTRIBUTION
 ------------
 If you have a question regarding redistribution of Info-ZIP software, either
@@ -269,17 +258,6 @@ use on the target system (for example, Zoo or LHa), that may also be used.
 
 BUGS AND NEW PORTS:  CONTACTING INFO-ZIP
 ----------------------------------------
-All bug reports and patches (context diffs only, please!) should be
-submitted either through the new Info-ZIP Discussion Forum at
-http://www.info-zip.org/board/board.pl or through the Info-ZIP SourceForge
-site at http://sourceforge.net/projects/infozip/.  The forum allows file
-attachments while SourceForge provides a place to post patches.  The old
-Zip-Bugs@lists.wku.edu e-mail address for the Info-ZIP authors was
-discontinued after heavy continuous spam, as was the QuickTopic discussion
-forum.  The above methods are public, but we also can be reached directly
-using the web reply page at http://www.info-zip.org/zip-bug.html.  If you
-need to send us files privately, contact us first for instructions.
-
 "Dumb questions" that aren't adequately answered in the documentation
 should also be directed to Zip-Bugs rather than to a global forum such
 as Usenet.  (Kindly make certain that your question *isn't* answered by
@@ -307,38 +285,6 @@ latest sources.  The alternative is the possibility that your hard work will
 be tucked away in a subdirectory and mostly ignored, or completely ignored
 if someone else has already done the port (and you'd be surprised how often
 this has happened).
-
-
-BETA TESTING:  JOINING INFO-ZIP
--------------------------------
-If you'd like to keep up to date with our UnZip (and companion Zip utility)
-development, join the ranks of beta testers, add your own thoughts and
-contributions, or simply lurk, you may join one of our mailing lists.
-There is an announcements-only list (Info-ZIP-announce) and a general
-discussion/testing list (Info-ZIP). You must be a subscriber to post, and
-you can subscribe via the links on our Frequently Asked Questions page:
-
-        http://www.info-zip.org/pub/infozip/FAQ.html#lists
-
-(Please note that as of late May 2004, the lists are unavailable pending
-a move to a new site; we hope to have them restored shortly.  In the
-interim ...)  Feel free to use our bug-reporting web page for bug reports
-and to ask questions not answered on the FAQ page above:
-
-        http://www.info-zip.org/zip-bug.html
-
-For now the best option is to monitor and contribute to the various threads
-on the new discussion forum site at:
-
-      http://www.info-zip.org/board/board.pl
-
-The second best way to contribute is through the various features at
-SourceForge, such as the bug posting areas.
-
-There is also a closed mailing list for internal discussions of our core
-development team. This list is now kept secret to prevent us from being
-flooded with spam messages.
-
 
 -- Greg Roelofs (sometimes known as Cave Newt), principal UnZip developer
    guy, with inspiration from David Kirschbaum, was Author of this text.

@@ -24,6 +24,13 @@
 #define VERSION "3.0"
 #define REVDATE "July 5th 2008"
 
+/* Xtro-ZIP distribution banner (independent of ZIP format/API versions). */
+#define XTRO_VER "0.1"
+#define XTRO_DATE "2026-10-14"
+#define XTRO_URL "https://github.com/johnsonjh/infozip-av"
+#define XTRO_AUTHOR "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>"
+#define XTRO_UNZIP_TITLE "Xtro-ZIP - Advanced UnZip archive utility - derived from Info-ZIP"
+
 #define DW_MAJORVER    Z_MAJORVER
 #define DW_MINORVER    Z_MINORVER
 #define DW_PATCHLEVEL  Z_PATCHLEVEL
@@ -43,28 +50,18 @@
 /* keep array sizes in sync with number of text */
 /* lines in the array definitions below !!      */
 extern ZCONST char *copyright[1];
-extern ZCONST char * far swlicense[50];
-extern ZCONST char * far versinfolines[7];
+extern ZCONST char * far swlicense[51];
 extern ZCONST char * far cryptnote[7];
 
 #else /* DEFCPYRT */
 
 ZCONST char *copyright[] = {
-"Copyright (c) 1990-2008 Info-ZIP - Type '%s \"-L\"' for software license."
-/* XXX still necessary ???? */
+"Xtro-ZIP - Advanced %s archive utility - derived from Info-ZIP\n"
+"Release " XTRO_VER " - " XTRO_DATE " - " XTRO_URL "\n"
+XTRO_AUTHOR
 #ifdef AZTEC_C
-,        /* extremely lame compiler bug workaround */
+,        /* legacy compiler compatibility */
 #endif
-};
-
-ZCONST char * far versinfolines[] = {
-"This is %s %s (%s), by Info-ZIP.",
-"Currently maintained by E. Gordon.  Please send bug reports to",
-"the authors using the web page at www.info-zip.org; see README for details.",
-"",
-"Latest sources and executables are at ftp://ftp.info-zip.org/pub/infozip,",
-"as of above date; see http://www.info-zip.org/ for other sites.",
-""
 };
 
 /* new notice - 4 March 2007 */
@@ -79,6 +76,7 @@ ZCONST char * far cryptnote[] = {
 };
 
 ZCONST char * far swlicense[] = {
+XTRO_AUTHOR,
 "Copyright (c) 1990-2008 Info-ZIP.  All rights reserved.",
 "",
 "For the purposes of this copyright and license, \"Info-ZIP\" is defined as",

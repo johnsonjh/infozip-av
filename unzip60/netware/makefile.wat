@@ -20,7 +20,7 @@
 NLMNAME = unzip
 DESCRIPTION = unzip utility
 VERSION = 5.5.3
-COPYRIGHT = Copyright 1990-2007 Info-ZIP (www.info-zip.org).
+COPYRIGHT = Copyright 1990-2007 Info-ZIP.
 SCREENNAME = Info-ZIP's UnZip Utility
 CLIBIMP = \watcom\novi\clib.imp
 OBJFILE = $NLMNAME.obj

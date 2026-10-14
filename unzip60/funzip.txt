@@ -80,12 +80,6 @@ SEE ALSO
        gzip(1L), unzip(1L), unzipsfx(1L), zip(1L), zipcloak(1L),  zipinfo(1L),
        zipnote(1L), zipsplit(1L)
 
-URL
-       The Info-ZIP home page is currently at
-           http://www.info-zip.org/pub/infozip/
-       or
-           ftp://ftp.info-zip.org/pub/infozip/ .
-
 AUTHOR
        Mark Adler (Info-ZIP)
 

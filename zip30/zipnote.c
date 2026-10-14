@@ -208,8 +208,6 @@ local void help()
 
   /* help array */
   static ZCONST char *text[] = {
-"",
-"ZipNote %s (%s)",
 #ifdef VM_CMS
 "Usage:  zipnote [-w] [-q] [-b fm] zipfile",
 #else
@@ -258,7 +256,7 @@ local void help()
   };
 
   for (i = 0; i < sizeof(copyright)/sizeof(char *); i++) {
-    printf(copyright[i], "zipnote");
+    printf(copyright[i], "ZipNote");
     putchar('\n');
   }
   for (i = 0; i < sizeof(text)/sizeof(char *); i++)
@@ -288,13 +286,7 @@ local void version_info()
 
   for (i = 0; i < sizeof(copyright)/sizeof(char *); i++)
   {
-    printf(copyright[i], "zipnote");
-    putchar('\n');
-  }
-
-  for (i = 0; i < sizeof(versinfolines)/sizeof(char *); i++)
-  {
-    printf(versinfolines[i], "ZipNote", VERSION, REVDATE);
+    printf(copyright[i], "ZipNote");
     putchar('\n');
   }
 

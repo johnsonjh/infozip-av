@@ -12,10 +12,7 @@
 
   UnZip - a zipfile extraction utility.  See below for make instructions, or
   read the comments in Makefile and the various Contents files for more de-
-  tailed explanations.  To report a bug, submit a *complete* description via
-  //www.info-zip.org/zip-bug.html; include machine type, operating system and
-  version, compiler and version, and reasonably detailed error messages or
-  problem report.  To join Info-ZIP, see the instructions in README.
+  tailed explanations.
 
   UnZip 5.x is a greatly expanded and partially rewritten successor to 4.x,
   which in turn was almost a complete rewrite of version 3.x.  For a detailed
@@ -65,6 +62,8 @@
 
 #define __UNZIP_C       /* identifies this source module */
 #define UNZIP_INTERNAL
+#include "xtrover.h"
+
 #include "unzip.h"      /* includes, typedefs, macros, prototypes, etc. */
 #include "crypt.h"
 #include "unzvers.h"
@@ -312,11 +311,11 @@ M  pipe through \"more\" pager              -s  spaces in filenames => '_'\n\n";
    static ZCONST char Far ZipInfoExample[] = "*, ?, [] (e.g., \"[a-j]*.zip\")";
 #endif
 
-static ZCONST char Far ZipInfoUsageLine1[] = "\
-ZipInfo %d.%d%d%s of %s, by Greg Roelofs and the Info-ZIP group.\n\
-\n\
-List name, date/time, attribute, size, compression method, etc., about files\n\
-in list (excluding those in xlist) contained in the specified .zip archive(s).\
+/* Keep individual strings short enough for legacy 16-bit compilers. */
+static ZCONST char Far ZipInfoUsageBanner[] = XTRO_BANNER("ZipInfo") "\n";
+static ZCONST char Far ZipInfoUsageLine1[] =
+"List name, date/time, attribute, size, compression method, etc., about files\n\
+ in list (excluding those in xlist) contained in the specified .zip archive(s).\
 \n\"file[.zip]\" may be a wildcard name containing %s.\n\n\
    usage:  zipinfo [-12smlvChMtTz] file[.zip] [list...] [-x xlist...]\n\
       or:  unzip %s-Z%s [-12smlvChMtTz] file[.zip] [list...] [-x xlist...]\n";
@@ -368,7 +367,7 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  else
      static ZCONST char Far UnzipSFXBanner[] =
 #  endif
-     "UnZipSFX %d.%d%d%s of %s, by Info-ZIP (http://www.info-zip.org).\n";
+     XTRO_BANNER("UnZipSFX");
 #  ifdef SFX_EXDIR
      static ZCONST char Far UnzipSFXOpts[] =
     "Valid options are -tfupcz and -d <exdir>; modifiers are -abjnoqCL%sV%s.\n";
@@ -609,25 +608,13 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
 #  endif /* !__RSXNT__ */
 
 #ifdef VMS
-/* UnzipUsageLine1[] is also used in vms/cmdline.c:  do not make it static */
-   ZCONST char Far UnzipUsageLine1[] = "\
-UnZip %d.%d%d%s of %s, by Info-ZIP.  For more details see: unzip -v.\n\n";
-   static ZCONST char Far UnzipUsageLine1v[] = "\
-UnZip %d.%d%d%s of %s, by Info-ZIP.  Maintained by C. Spieler.  Send\n\
-bug reports using http://www.info-zip.org/zip-bug.html; see README for details.\
-\n\n";
+/* UnzipUsageLine1[] is also used in vms/cmdline.c. */
+   ZCONST char Far UnzipUsageLine1[] = XTRO_BANNER("UnZip") "\n";
+   static ZCONST char Far UnzipUsageLine1v[] = XTRO_BANNER("UnZip") "\n";
 #else /* !VMS */
-   static ZCONST char Far UnzipUsageLine1[] = "\
-UnZip %d.%d%d%s of %s, by Info-ZIP.  Maintained by C. Spieler.  Send\n\
-bug reports using http://www.info-zip.org/zip-bug.html; see README for details.\
-\n\n";
+   static ZCONST char Far UnzipUsageLine1[] = XTRO_BANNER("UnZip") "\n";
 # define UnzipUsageLine1v       UnzipUsageLine1
 #endif /* ?VMS */
-
-static ZCONST char Far UnzipUsageLine2v[] = "\
-Latest sources and executables are at ftp://ftp.info-zip.org/pub/infozip/ ;\
-\nsee ftp://ftp.info-zip.org/pub/infozip/UnZip.html for other sites.\
-\n\n";
 
 #ifdef MACOS
 static ZCONST char Far UnzipUsageLine2[] = "\
@@ -2176,9 +2163,8 @@ int usage(__G__ error)   /* return PK-type error code */
 
 #ifndef NO_ZIPINFO
 
+        Info(slide, flag, ((char *)slide, LoadFarString(ZipInfoUsageBanner)));
         Info(slide, flag, ((char *)slide, LoadFarString(ZipInfoUsageLine1),
-          ZI_MAJORVER, ZI_MINORVER, UZ_PATCHLEVEL, UZ_BETALEVEL,
-          LoadFarStringSmall(VersionDate),
           LoadFarStringSmall2(ZipInfoExample), QUOTS,QUOTS));
         Info(slide, flag, ((char *)slide, LoadFarString(ZipInfoUsageLine2)));
         Info(slide, flag, ((char *)slide, LoadFarString(ZipInfoUsageLine3),
@@ -2244,7 +2230,6 @@ static void help_extended(__G)
 
     /* help array */
     static ZCONST char *text[] = {
-  "",
   "Extended Help for UnZip",
   "",
   "See the UnZip Manual for more detailed help",
@@ -2470,6 +2455,7 @@ static void help_extended(__G)
   "See unzipsfx manual page for more information."
     };
 
+    Info(slide, 0, ((char *)slide, XTRO_BANNER("UnZip")));
     for (i = 0; i < sizeof(text)/sizeof(char *); i++)
     {
         Info(slide, 0, ((char *)slide, "%s\n", text[i]));
@@ -2510,8 +2496,6 @@ static void show_version_info(__G)
         Info(slide, 0, ((char *)slide, LoadFarString(UnzipUsageLine1v),
           UZ_MAJORVER, UZ_MINORVER, UZ_PATCHLEVEL, UZ_BETALEVEL,
           LoadFarStringSmall(VersionDate)));
-        Info(slide, 0, ((char *)slide,
-          LoadFarString(UnzipUsageLine2v)));
         version(__G);
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptions)));
 #ifdef ACORN_FTYPE_NFS

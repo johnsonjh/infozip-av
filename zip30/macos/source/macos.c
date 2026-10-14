@@ -1047,10 +1047,7 @@ char *GetZipCopyright(void)
 {
 static char CopyR[300];
 
-sstrcpy(CopyR, copyright[0]);
-sstrcat(CopyR, copyright[1]);
-sstrcat(CopyR, "\r\rPlease send bug reports to the authors at\r"\
-              "Zip-Bugs@lists.wku.edu");
+sprintf(CopyR, copyright[0], "Zip");
 
 return CopyR;
 }

@@ -86,9 +86,6 @@ Option Explicit
 '
 ' All code in this VB project is provided under the Info-Zip license.
 '
-' If you have any questions please contact Info-Zip at
-' http://www.info-zip.org.
-'
 ' 4/29/2004 EG (Updated 3/1/2005, 6/24/2008 EG)
 '
 '---------------------------------------------------------------

@@ -8,12 +8,7 @@ TODO
 There is only one thing to be fixed:
   write_attr() should return count of writed bytes. However that's bug related with AFS only.
 
-Please report any bugs to Info-ZIP at www.info-zip.org.
 If this bug related with AtheOS/Syllable only, you can mail me directly: nruslan@hotbox.ru.
-
-Visit the Info-ZIP web site (http://www.info-zip.org) for all the
-latest zip and unzip information, FAQs, source code and ready-to-run
-executables.
 
 - Ruslan Nickolaev (nruslan@hotbox.ru)
   Sep 06/2004

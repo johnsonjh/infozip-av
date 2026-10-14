@@ -283,8 +283,6 @@ local void help()
 
   /* help array */
   static ZCONST char *text[] = {
-"",
-"ZipSplit %s (%s)",
 #ifdef VM_CMS
 "Usage:  zipsplit [-tipqs] [-n size] [-r room] [-b fm] zipfile",
 #else
@@ -310,7 +308,7 @@ local void help()
   };
 
   for (i = 0; i < sizeof(copyright)/sizeof(char *); i++) {
-    printf(copyright[i], "zipsplit");
+    printf(copyright[i], "ZipSplit");
     putchar('\n');
   }
   for (i = 0; i < sizeof(text)/sizeof(char *); i++)
@@ -335,9 +333,9 @@ local void version_info()
     NULL
   };
 
-  for (i = 0; i < sizeof(versinfolines)/sizeof(char *); i++)
+  for (i = 0; i < sizeof(copyright)/sizeof(char *); i++)
   {
-    printf(versinfolines[i], "ZipSplit", VERSION, REVDATE);
+    printf(copyright[i], "ZipSplit");
     putchar('\n');
   }
 

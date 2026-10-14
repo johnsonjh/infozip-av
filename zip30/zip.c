@@ -1321,9 +1321,9 @@ local void help()
   /* help array */
   static ZCONST char *text[] = {
 #ifdef VMS
-"Zip %s (%s). Usage: zip == \"$ disk:[dir]zip.exe\"",
+"Usage: zip == \"$ disk:[dir]zip.exe\"",
 #else
-"Zip %s (%s). Usage:",
+"Usage:",
 #endif
 #ifdef MACOS
 "zip [-options] [-b fm] [-t mmddyyyy] [-n suffixes] [zipfile list] [-xi list]",
@@ -1445,7 +1445,7 @@ local void help()
 
   for (i = 0; i < sizeof(copyright)/sizeof(char *); i++)
   {
-    printf(copyright[i], "zip");
+    printf(copyright[i], "Zip");
     putchar('\n');
   }
   for (i = 0; i < sizeof(text)/sizeof(char *); i++)
@@ -1466,7 +1466,6 @@ local void help_extended()
 
   /* help array */
   static ZCONST char *text[] = {
-"",
 "Extended Help for Zip",
 "",
 "See the Zip Manual for more detailed help",
@@ -1865,6 +1864,11 @@ local void help_extended()
 "  -ws       wildcards don't span directory boundaries in paths"
   };
 
+  for (i = 0; i < sizeof(copyright)/sizeof(char *); i++)
+  {
+    printf(copyright[i], "Zip");
+    putchar('\n');
+  }
   for (i = 0; i < sizeof(text)/sizeof(char *); i++)
   {
     printf("%s", text[i]);
@@ -2063,13 +2067,7 @@ local void version_info()
 
   for (i = 0; i < sizeof(copyright)/sizeof(char *); i++)
   {
-    printf(copyright[i], "zip");
-    putchar('\n');
-  }
-
-  for (i = 0; i < sizeof(versinfolines)/sizeof(char *); i++)
-  {
-    printf(versinfolines[i], "Zip", VERSION, REVDATE);
+    printf(copyright[i], "Zip");
     putchar('\n');
   }
 
@@ -2202,7 +2200,12 @@ local int check_unzip_version(unzippath)
         zipwarn("failed to get information from UnZip", "");
       } else {
         /* the first line should start with the version */
-        if (sscanf(buf, "UnZip %f ", &UnZip_Version) < 1) {
+        if (strncmp(buf, XTRO_UNZIP_TITLE, strlen(XTRO_UNZIP_TITLE)) == 0) {
+          /* Xtro-ZIP is based on UnZip 6.00; preserve Zip64 -T probing. */
+          UnZip_Version = 6.0f;
+          while (fgets(buf, 1000, unzip_out)) {
+          }
+        } else if (sscanf(buf, "UnZip %f ", &UnZip_Version) < 1) {
           zipwarn("unexpected output of UnZip -v", "");
         } else {
           /* printf("UnZip %f\n", UnZip_Version); */

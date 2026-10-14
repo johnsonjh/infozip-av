@@ -308,7 +308,6 @@ $ zip -A test.sfx
 Zip entry offsets appear off by 115316 bytes - correcting...
 
 $ ./test.sfx -t
-UnZipSFX 6.00 of 20 April 2009, by Info-ZIP (http://www.info-zip.org).
     testing: makeav.c                 OK -AV
     testing: pklaxfix.c               OK -AV
     testing: pkpspfix.c               OK -AV
@@ -437,7 +436,6 @@ $ zip -A pkstuff.sfx
 Zip entry offsets appear off by 115316 bytes - correcting...
 
 $ ./pkstuff.sfx -t
-UnZipSFX 6.00 of 20 April 2009, by Info-ZIP (http://www.info-zip.org).
     testing: makeav.c                 OK
     testing: pklaxfix.c               OK
     testing: pkpspfix.c               OK

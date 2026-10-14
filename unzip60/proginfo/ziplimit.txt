@@ -250,7 +250,5 @@ D) Some technical remarks:
     by the extensive use of non-standard language extension needed for
     64-bit support on the major target systems.
 
-Please report any problems to:  Zip-Bugs at www.info-zip.org
-
 Last updated:  25 May 2008, Ed Gordon
                02 January 2009, Christian Spieler

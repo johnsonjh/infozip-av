@@ -4,10 +4,10 @@
  */
 
 #undef ZO_VER
-#define ZO_VER "0.4"
+#define ZO_VER "0.1"
 
 #undef ZO_DATE
-#define ZO_DATE "2026-10-12"
+#define ZO_DATE "2026-10-14"
 
 #include "archive.h"
 #include "codec.h"
@@ -183,9 +183,9 @@ zo_usage (void)
   /******************************************************************************/
   fprintf (
       stdout,
-      "Xtro-ZIP - zipopt - Advanced ZIP archive optimizer\n"
+      "Xtro-ZIP - ZipOpt - Advanced Zip archive optimization utility\n"
       "Release %s - %s - https://github.com/johnsonjh/infozip-av\n"
-      "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com\n\n",
+      "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>\n\n",
       ZO_VER, ZO_DATE);
 
   puts ("Usage: zipopt [option(s)...] <in.zip> <out.zip>\n"
@@ -698,10 +698,13 @@ main (int argc, char **argv)
 
       if (!strcmp (arg, "-V") || !strcmp (arg, "--version"))
         {
-          fprintf (stdout, "zipopt v%s (%s)%s\n", ZO_VER, ZO_DATE,
-                   (iz_accel_status_list () != NULL)
-                       ? " [Hardware CRC acceleration enabled]"
-                       : "");
+          fprintf (stdout,
+                   "Xtro-ZIP - Advanced ZipOpt archive utility - derived from Info-ZIP\n"
+                   "Release %s - %s - https://github.com/johnsonjh/infozip-av\n"
+                   "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>\n",
+                   ZO_VER, ZO_DATE);
+          if (iz_accel_status_list () != NULL)
+            puts ("Hardware CRC acceleration enabled");
           return 0;
         }
 

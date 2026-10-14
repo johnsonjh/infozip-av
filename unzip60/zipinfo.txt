@@ -428,12 +428,6 @@ SEE ALSO
        ls(1), funzip(1L), unzip(1L), unzipsfx(1L), zip(1L), zipcloak(1L), zip-
        note(1L), zipsplit(1L)
 
-URL
-       The Info-ZIP home page is currently at
-           http://www.info-zip.org/pub/infozip/
-       or
-           ftp://ftp.info-zip.org/pub/infozip/ .
-
 AUTHOR
        Greg  ``Cave Newt'' Roelofs.  ZipInfo contains pattern-matching code by
        Mark Adler and fixes/improvements by many others.  Please refer to  the

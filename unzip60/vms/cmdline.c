@@ -107,6 +107,7 @@
 #endif /* 0 */
 
 #define UNZIP_INTERNAL
+#include "xtrover.h"
 #include "unzip.h"
 #ifndef TEST
 #  include "unzvers.h"  /* for VMSCLI_usage() */
@@ -1045,13 +1046,11 @@ int VMSCLI_usage(__GPRO__ int error)    /* returns PK-type error code */
 
 #ifndef NO_ZIPINFO
 
-        Info(slide, flag, ((char *)slide, "\
-ZipInfo %d.%d%d%s %s, by Newtware and the fine folks at Info-ZIP.\n\n\
-List name, date/time, attribute, size, compression method, etc., about files\n\
-in list (excluding those in xlist) contained in the specified .zip archive(s).\
-\n\"file[.zip]\" may be a wildcard name containing * or %% (e.g., \"*font-%%\
-.zip\").\n", ZI_MAJORVER, ZI_MINORVER, UZ_PATCHLEVEL, UZ_BETALEVEL,
-          UZ_VERSION_DATE));
+        Info(slide, flag, ((char *)slide,
+          XTRO_BANNER("ZipInfo") "\n"
+          "List name, date/time, attribute, size, compression method, etc., about files\n"
+          "in list (excluding those in xlist) contained in the specified .zip archive(s).\n"
+          "\"file[.zip]\" may be a wildcard name containing * or %% (e.g., \"*font-%%.zip\").\n"));
 
         Info(slide, flag, ((char *)slide, "\
    usage:  zipinfo file[.zip] [list] [/EXCL=(xlist)] [/DIR=exdir] /options\n\
