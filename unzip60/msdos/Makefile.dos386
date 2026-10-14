@@ -5,7 +5,10 @@
 CC = i586-pc-msdosdjgpp-gcc
 DOS386_CFLAGS =
 DOS386_LDFLAGS = -s
-CFLAGS = -std=gnu89 -O3 -Wall -DDOS -DUSE_VFAT -DNO_ASM -I. $(DOS386_CFLAGS) $(LOCAL_UNZIP)
+DOS386_UNZIP_CPPFLAGS =
+DOS386_UNZIP_LIBS =
+BASE_CFLAGS = -std=gnu89 -O3 -Wall -DDOS -DUSE_VFAT -DNO_ASM -I. $(DOS386_CFLAGS) $(LOCAL_UNZIP)
+CFLAGS = $(BASE_CFLAGS) $(DOS386_UNZIP_CPPFLAGS)
 LDFLAGS = $(DOS386_LDFLAGS)
 
 UNZIP_OBJECTS = unzip.o crc32.o crypt.o envargs.o explode.o extract.o \
@@ -23,16 +26,16 @@ all: unzip.exe funzip.exe unzipsfx.exe
 msdos.o: msdos/msdos.c
 	$(CC) $(CFLAGS) -c $< -o $@
 msdos_.o: msdos/msdos.c
-	$(CC) $(CFLAGS) -DSFX -Os -c $< -o $@
+	$(CC) $(BASE_CFLAGS) -DSFX -Os -c $< -o $@
 %_.o: %.c
-	$(CC) $(CFLAGS) -DSFX -Os -c $< -o $@
+	$(CC) $(BASE_CFLAGS) -DSFX -Os -c $< -o $@
 unzipsfx.o: unzip.c
-	$(CC) $(CFLAGS) -DSFX -Os -c $< -o $@
+	$(CC) $(BASE_CFLAGS) -DSFX -Os -c $< -o $@
 %f.o: %.c
-	$(CC) $(CFLAGS) -DFUNZIP -c $< -o $@
+	$(CC) $(BASE_CFLAGS) -DFUNZIP -c $< -o $@
 
 unzip.exe: $(UNZIP_OBJECTS)
-	$(CC) $(LDFLAGS) -s -o $@ $^ $(LOCAL_GLDFLAGS)
+	$(CC) $(LDFLAGS) -s -o $@ $^ $(DOS386_UNZIP_LIBS) -lm $(LOCAL_GLDFLAGS)
 funzip.exe: $(FUN_OBJECTS)
 	$(CC) $(LDFLAGS) -s -o $@ $^ $(LOCAL_GLDFLAGS)
 unzipsfx.exe: $(SFX_OBJECTS)

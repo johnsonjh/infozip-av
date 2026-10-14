@@ -1,16 +1,20 @@
 # SPDX-License-Identifier: MIT-0
-# DJGPP DOS/386, internal methods only. No Unix/Windows objects are reused.
+# DJGPP DOS/386, optional target-verified codecs. No foreign objects.
 CC = i586-pc-msdosdjgpp-gcc
 DOS386_CFLAGS =
 DOS386_LDFLAGS = -s
+DOS386_UNZIP_CPPFLAGS =
+DOS386_CODEC_CPPFLAGS =
+DOS386_CODEC_INCFLAGS =
+DOS386_ZO_LIBS =
 CFLAGS = -std=gnu89 -O3 -Wall -DDOS -DNO_ASM -DNO_ZLIB_NG $(DOS386_CFLAGS) $(LOCAL_ZIP) $(LOCAL_UNZIP)
 UZDIR = ../unzip60
 # Private UnZip decodes to a stream: timestamps are never restored.
 # Missing TZ must not turn verified data into a PK_WARN result.
-UZFLAGS = $(CFLAGS) -DNO_IZ_CHECK_TZ -DUSE_VFAT -DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -I$(UZDIR)
+UZFLAGS = $(CFLAGS) $(DOS386_UNZIP_CPPFLAGS) -DNO_IZ_CHECK_TZ -DUSE_VFAT -DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -I$(UZDIR)
 UZUNITS = unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo api
 UZOBJS = $(addprefix dosbuild/uz-,$(addsuffix .o,$(UZUNITS))) dosbuild/uz-msdos.o
-ZODEFS = -DZO_SELECT_EXTERNAL_CODECS -DZO_NO_EXTERNAL_CODECS
+ZODEFS = -DZO_SELECT_EXTERNAL_CODECS $(DOS386_CODEC_CPPFLAGS) $(DOS386_CODEC_INCFLAGS)
 
 .PHONY: all clean
 all: zipopt.exe zipopt-preflight.exe zipopt-decodecheck.exe
@@ -27,10 +31,10 @@ dosbuild/zo-zip-deflate.o: zip_deflate.c zip_deflate.h | dosbuild
 	$(CC) $(CFLAGS) -c $< -o $@
 
 zipopt.exe: archive.c extract.c writer.c zipopt.c dos386_port.h $(UZOBJS) dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o
-	$(CC) $(CFLAGS) $(ZODEFS) archive.c extract.c writer.c zipopt.c dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o $(UZOBJS) -lm -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
+	$(CC) $(CFLAGS) $(ZODEFS) archive.c extract.c writer.c zipopt.c dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o $(UZOBJS) $(DOS386_ZO_LIBS) -lm -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
 zipopt-preflight.exe: archive.c preflight.c
 	$(CC) $(CFLAGS) archive.c preflight.c -s -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
 zipopt-decodecheck.exe: archive.c extract.c decodecheck.c $(UZOBJS)
-	$(CC) $(CFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) -s -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
+	$(CC) $(CFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) $(DOS386_ZO_LIBS) -lm -s -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
 clean:
 	rm -rf dosbuild zipopt.exe zipopt-preflight.exe zipopt-decodecheck.exe

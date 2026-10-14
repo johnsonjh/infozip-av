@@ -5,7 +5,10 @@
 CC = i586-pc-msdosdjgpp-gcc
 DOS386_CFLAGS =
 DOS386_LDFLAGS = -s
-CFLAGS = -std=gnu89 -O3 -Wall -DDOS -DNO_ASM -I. $(DOS386_CFLAGS) $(LOCAL_ZIP)
+DOS386_ZIP_CPPFLAGS =
+DOS386_ZIP_LIBS =
+BASE_CFLAGS = -std=gnu89 -O3 -Wall -DDOS -DNO_ASM -I. $(DOS386_CFLAGS) $(LOCAL_ZIP)
+CFLAGS = $(BASE_CFLAGS) $(DOS386_ZIP_CPPFLAGS)
 LDFLAGS = $(DOS386_LDFLAGS)
 
 COMMON = zipfile_.o fileio_.o util_.o crc32_.o globals.o msdos_.o
@@ -20,14 +23,14 @@ all: zip.exe zipcloak.exe zipnote.exe zipsplit.exe
 msdos.o: msdos/msdos.c
 	$(CC) $(CFLAGS) -c $< -o $@
 msdos_.o: msdos/msdos.c
-	$(CC) $(CFLAGS) -DUTIL -c $< -o $@
+	$(CC) $(BASE_CFLAGS) -DUTIL -c $< -o $@
 %_.o: %.c
-	$(CC) $(CFLAGS) -DUTIL -c $< -o $@
+	$(CC) $(BASE_CFLAGS) -DUTIL -c $< -o $@
 crypt_.o: crypt.c
-	$(CC) $(CFLAGS) -DUTIL -c $< -o $@
+	$(CC) $(BASE_CFLAGS) -DUTIL -c $< -o $@
 
 zip.exe: $(ZIP_OBJECTS)
-	$(CC) $(LDFLAGS) -s -o $@ $^ $(LOCAL_GLDFLAGS)
+	$(CC) $(LDFLAGS) -s -o $@ $^ $(DOS386_ZIP_LIBS) -lm $(LOCAL_GLDFLAGS)
 zipcloak.exe: zipcloak.o crypt_.o ttyio.o $(COMMON)
 	$(CC) $(LDFLAGS) -s -o $@ $^ $(LOCAL_GLDFLAGS)
 zipnote.exe: zipnote.o $(COMMON)

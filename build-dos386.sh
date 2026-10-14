@@ -16,13 +16,23 @@ Environment:
   DOS386_BUILD_ROOT    Output root (default: ./build-dos386)
   DOS386_CFLAGS        Additional DOS compiler flags (default: none)
   DOS386_LDFLAGS       Additional DOS linker flags (default: none)
+  DOS386_BZIP2         auto (default), on (require), off
+  DOS386_LZMA          auto (default), on (require), off
+  DOS386_WAVPACK       auto (default), on (require), off
+  DOS386_BZIP2_DIR     Prefix containing bzlib.h and libbz2.a
+                       (default: build-dos386/bzip2)
+  DOS386_LZMA_DIR      Prefix with include/lzma.h and lib/liblzma.a
+                       (default: build-dos386/lzma/install)
+  DOS386_WAVPACK_DIR   Prefix with include/wavpack/wavpack.h and lib/libwavpack.a
+                       (default: build-dos386/wavpack/install)
   DOS386_CWSDSTUB      DPMI stub (default: /opt/cwspdmi/cwsdstub.exe)
   DOS386_EXE2COFF      Path to host exe2coff utility (optional override)
   DOS386_EMBED_STUB    auto (default), on, or off; auto embeds when stub exists
   KEEP_DOS386_STAGE=1  Retain the temporary source tree for debugging
 
-Core-only initial build: internal compression/CRC, no optional external
-libraries, no x86 assembly; generates zip, zipcloak, zipnote, zipsplit,
+Bundled codecs and CRC are always available. BZip2, LZMA/XZ, and WavPack
+are selected independently after target link probes; no x86 assembly.
+funzip and unzipsfx remain self-contained. Generates zip, zipcloak, zipnote, zipsplit,
 unzip, funzip, unzipsfx, zipopt, zipopt-preflight, zipopt-decodecheck and zipdedup.
 HELP
 }
@@ -134,6 +144,128 @@ if ! "$CC" -std=gnu89 "$STAGE/probe.c" -o "$STAGE/probe.exe" > "$STAGE/probe.log
 fi
 [ -s "$STAGE/probe.exe" ] || fail 'DJGPP compiler did not produce a probe executable'
 
+# Optional DOS/386 libraries are never linked based on a header or filename
+# alone. Build and link executable probes with the selected DJGPP compiler.
+# The default dependency roots are local to DOS386_BUILD_ROOT, not the host.
+DOS_ZIP_FLAGS=
+DOS_UNZIP_FLAGS=
+DOS_CODEC_FLAGS=
+DOS_CODEC_INC=
+DOS_ZIP_LIBS=
+DOS_UNZIP_LIBS=
+for setting in DOS386_BZIP2_DIR DOS386_LZMA_DIR DOS386_WAVPACK_DIR; do
+  eval 'val=${'"$setting"'-}'
+  case "$val" in
+    *' '* | *'	'* | *'
+'*) fail "$setting contains whitespace; use a path without whitespace" ;;
+  esac
+done
+cat > "$STAGE/probe-bzip2.c" << 'PROBE'
+#include <bzlib.h>
+int main(void) {
+    bz_stream c = {0}, d = {0};
+    int a = BZ2_bzCompressInit(&c, 1, 0, 30);
+    int b = BZ2_bzDecompressInit(&d, 0, 0);
+    if (a == BZ_OK) BZ2_bzCompressEnd(&c);
+    if (b == BZ_OK) BZ2_bzDecompressEnd(&d);
+    return BZ2_bzlibVersion() == 0;
+}
+PROBE
+cat > "$STAGE/probe-lzma.c" << 'PROBE'
+#include <lzma.h>
+int main(void) {
+    lzma_stream c = LZMA_STREAM_INIT, d = LZMA_STREAM_INIT;
+    lzma_ret a = lzma_easy_encoder(&c, 1, LZMA_CHECK_NONE);
+    lzma_ret b = lzma_stream_decoder(&d, 1024 * 1024, 0);
+    if (a == LZMA_OK) lzma_end(&c);
+    if (b == LZMA_OK) lzma_end(&d);
+    return lzma_version_number() == 0;
+}
+PROBE
+cat > "$STAGE/probe-wavpack.c" << 'PROBE'
+#include <wavpack/wavpack.h>
+int main(void) {
+    WavpackContext *w = WavpackOpenFileInputEx64(0, 0, 0, 0, 0, 0);
+    if (w) WavpackCloseFile(w);
+    return WavpackGetLibraryVersion() == 0;
+}
+PROBE
+
+# $1 name; $2 mode setting; $3 prefix; $4 header; $5 archive.
+probe_dos_library()
+{
+  libname=$1
+  setting=$2
+  prefix=$3
+  header=$4
+  archive=$5
+  eval 'mode=${'"$setting"':-auto}'
+  case "$mode" in
+    auto | on | off) ;;
+    *) fail "$setting must be auto, on or off" ;;
+  esac
+  DOS_FOUND=no
+  [ "$mode" != off ] || { printf 'build-dos386: %s disabled\n' "$libname"; return 0; }
+  case "$prefix" in
+    *' '* | *'	'* | *'
+'*) fail "$libname library prefix contains whitespace" ;;
+  esac
+  incdir=$prefix/include
+  libdir=$prefix/lib
+  if [ ! -f "$incdir/$header" ]; then incdir=$prefix; fi
+  if [ ! -f "$libdir/$archive" ]; then libdir=$prefix; fi
+  if [ -f "$incdir/$header" ] && [ -f "$libdir/$archive" ]; then
+    incdir=$(CDPATH= cd -- "$incdir" && pwd -P) || fail "invalid $libname include directory"
+    libdir=$(CDPATH= cd -- "$libdir" && pwd -P) || fail "invalid $libname library directory"
+    # We need the full paths for reliable ordering, not -l<name> discovery.
+    if "$CC" -std=gnu89 -I"$incdir" "$STAGE/probe-$libname.c" \
+      "$libdir/$archive" -lm -o "$STAGE/probe-$libname.exe" \
+      > "$STAGE/probe-$libname.log" 2>&1 && \
+      [ -s "$STAGE/probe-$libname.exe" ]; then
+      DOS_FOUND=yes
+      DOS_INCLUDE=-I$incdir
+      DOS_ARCHIVE=$libdir/$archive
+    fi
+  fi
+  if [ "$DOS_FOUND" != yes ]; then
+    prefixvar=${setting}_DIR
+    eval 'explicit_prefix=${'"$prefixvar"'-}'
+    if [ "$mode" = on ] || [ -n "$explicit_prefix" ]; then
+      fail "$libname requested but missing or failed the DJGPP link probe (KEEP_DOS386_STAGE=1 retains probe logs)"
+    fi
+    printf 'build-dos386: %s unavailable; using bundled codecs only\n' "$libname"
+  else
+    printf 'build-dos386: enabled %s: %s\n' "$libname" "$DOS_ARCHIVE"
+  fi
+}
+
+probe_dos_library bzip2 DOS386_BZIP2 "${DOS386_BZIP2_DIR:-$ROOT/bzip2}" bzlib.h libbz2.a
+if [ "$DOS_FOUND" = yes ]; then
+  DOS_ZIP_FLAGS="$DOS_ZIP_FLAGS -DBZIP2_SUPPORT $DOS_INCLUDE"
+  DOS_UNZIP_FLAGS="$DOS_UNZIP_FLAGS -DUSE_BZIP2 $DOS_INCLUDE"
+  DOS_CODEC_FLAGS="$DOS_CODEC_FLAGS -DZO_WITH_BZIP2"
+  DOS_CODEC_INC="$DOS_CODEC_INC $DOS_INCLUDE"
+  DOS_ZIP_LIBS="$DOS_ZIP_LIBS $DOS_ARCHIVE"
+  DOS_UNZIP_LIBS="$DOS_UNZIP_LIBS $DOS_ARCHIVE"
+fi
+probe_dos_library lzma DOS386_LZMA "${DOS386_LZMA_DIR:-$ROOT/lzma/install}" lzma.h liblzma.a
+if [ "$DOS_FOUND" = yes ]; then
+  DOS_ZIP_FLAGS="$DOS_ZIP_FLAGS -DLZMA_SUPPORT $DOS_INCLUDE"
+  DOS_UNZIP_FLAGS="$DOS_UNZIP_FLAGS -DUSE_LZMA -DUSE_XZ $DOS_INCLUDE"
+  DOS_CODEC_FLAGS="$DOS_CODEC_FLAGS -DZO_WITH_LZMA"
+  DOS_CODEC_INC="$DOS_CODEC_INC $DOS_INCLUDE"
+  DOS_ZIP_LIBS="$DOS_ZIP_LIBS $DOS_ARCHIVE"
+  DOS_UNZIP_LIBS="$DOS_UNZIP_LIBS $DOS_ARCHIVE"
+fi
+probe_dos_library wavpack DOS386_WAVPACK "${DOS386_WAVPACK_DIR:-$ROOT/wavpack/install}" wavpack/wavpack.h libwavpack.a
+if [ "$DOS_FOUND" = yes ]; then
+  DOS_UNZIP_FLAGS="$DOS_UNZIP_FLAGS -DUSE_WAVP $DOS_INCLUDE"
+  DOS_UNZIP_LIBS="$DOS_UNZIP_LIBS $DOS_ARCHIVE"
+fi
+# A single set of compile flags drives each private UnZip decoder build.
+# WavPack has no ZipOpt compression candidate; it is used for decoding only.
+DOS_ZO_LIBS="$DOS_UNZIP_LIBS"
+
 mkdir -p "$STAGE/src" "$STAGE/bin"
 cp -R "$SOURCE_ROOT/zip30" "$STAGE/src/zip30"
 cp -R "$SOURCE_ROOT/unzip60" "$STAGE/src/unzip60"
@@ -147,24 +279,40 @@ printf 'build-dos386: building DJGPP DOS/386 binaries with %s\n' "$CC"
 (
   cd "$STAGE/src/zip30"
   "$MAKE" -j "$JOBS" -f msdos/Makefile.dos386 all CC="$CC" \
-    DOS386_CFLAGS="${DOS386_CFLAGS:-}" DOS386_LDFLAGS="${DOS386_LDFLAGS:-}"
+    DOS386_CFLAGS="${DOS386_CFLAGS:-}" DOS386_LDFLAGS="${DOS386_LDFLAGS:-}" \
+    DOS386_ZIP_CPPFLAGS="$DOS_ZIP_FLAGS" DOS386_UNZIP_CPPFLAGS="$DOS_UNZIP_FLAGS" \
+    DOS386_CODEC_CPPFLAGS="$DOS_CODEC_FLAGS" DOS386_CODEC_INCFLAGS="$DOS_CODEC_INC" \
+    DOS386_ZIP_LIBS="$DOS_ZIP_LIBS" DOS386_UNZIP_LIBS="$DOS_UNZIP_LIBS" \
+    DOS386_ZO_LIBS="$DOS_ZO_LIBS"
 )
 (
   cd "$STAGE/src/unzip60"
   "$MAKE" -j "$JOBS" -f msdos/Makefile.dos386 all CC="$CC" \
-    DOS386_CFLAGS="${DOS386_CFLAGS:-}" DOS386_LDFLAGS="${DOS386_LDFLAGS:-}"
+    DOS386_CFLAGS="${DOS386_CFLAGS:-}" DOS386_LDFLAGS="${DOS386_LDFLAGS:-}" \
+    DOS386_ZIP_CPPFLAGS="$DOS_ZIP_FLAGS" DOS386_UNZIP_CPPFLAGS="$DOS_UNZIP_FLAGS" \
+    DOS386_CODEC_CPPFLAGS="$DOS_CODEC_FLAGS" DOS386_CODEC_INCFLAGS="$DOS_CODEC_INC" \
+    DOS386_ZIP_LIBS="$DOS_ZIP_LIBS" DOS386_UNZIP_LIBS="$DOS_UNZIP_LIBS" \
+    DOS386_ZO_LIBS="$DOS_ZO_LIBS"
 )
 (
   cd "$STAGE/src/zipopt"
   rm -rf build winbuild dosbuild
   "$MAKE" -j "$JOBS" -f Makefile.dos386 all CC="$CC" \
-    DOS386_CFLAGS="${DOS386_CFLAGS:-}" DOS386_LDFLAGS="${DOS386_LDFLAGS:-}"
+    DOS386_CFLAGS="${DOS386_CFLAGS:-}" DOS386_LDFLAGS="${DOS386_LDFLAGS:-}" \
+    DOS386_ZIP_CPPFLAGS="$DOS_ZIP_FLAGS" DOS386_UNZIP_CPPFLAGS="$DOS_UNZIP_FLAGS" \
+    DOS386_CODEC_CPPFLAGS="$DOS_CODEC_FLAGS" DOS386_CODEC_INCFLAGS="$DOS_CODEC_INC" \
+    DOS386_ZIP_LIBS="$DOS_ZIP_LIBS" DOS386_UNZIP_LIBS="$DOS_UNZIP_LIBS" \
+    DOS386_ZO_LIBS="$DOS_ZO_LIBS"
 )
 (
   cd "$STAGE/src/zipdedup"
   rm -rf winbuild dosbuild
   "$MAKE" -j "$JOBS" -f Makefile.dos386 all CC="$CC" \
-    DOS386_CFLAGS="${DOS386_CFLAGS:-}" DOS386_LDFLAGS="${DOS386_LDFLAGS:-}"
+    DOS386_CFLAGS="${DOS386_CFLAGS:-}" DOS386_LDFLAGS="${DOS386_LDFLAGS:-}" \
+    DOS386_ZIP_CPPFLAGS="$DOS_ZIP_FLAGS" DOS386_UNZIP_CPPFLAGS="$DOS_UNZIP_FLAGS" \
+    DOS386_CODEC_CPPFLAGS="$DOS_CODEC_FLAGS" DOS386_CODEC_INCFLAGS="$DOS_CODEC_INC" \
+    DOS386_ZIP_LIBS="$DOS_ZIP_LIBS" DOS386_UNZIP_LIBS="$DOS_UNZIP_LIBS" \
+    DOS386_ZO_LIBS="$DOS_ZO_LIBS"
 )
 for name in zip zipcloak zipnote zipsplit; do
   [ -s "$STAGE/src/zip30/$name.exe" ] || fail "missing $name.exe"
