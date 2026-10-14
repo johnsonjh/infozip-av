@@ -229,7 +229,7 @@ int UZ_EXP UzpAltMainIndex(int argc, char *argv[], UzpInit *init,
     if (init->structlen >= sizeof(ulg) + 3 * sizeof(dummyfn) && init->pausefn)
         G.mpause = init->pausefn;
     G.zipopt_select_enabled = TRUE;
-    G.zipopt_selected_index = (z_uint8)index;
+    G.zipopt_selected_index = index;
     G.zipopt_select_found = FALSE;
     r = unzip(__G__ argc, argv);
     if (r == PK_COOL && !G.zipopt_select_found)

@@ -2641,7 +2641,7 @@ int extract_or_test_files(__G)    /* return PK-type error code */
             }
 #ifdef ZIPOPT_EMBED
             if (G.zipopt_select_enabled) {
-                if ((z_uint8)members_processed == G.zipopt_selected_index) {
+                if (members_processed == G.zipopt_selected_index) {
                     if (store_info(__G)) {
                         G.zipopt_select_found = TRUE;
                         ++j;

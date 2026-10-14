@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MIT-0
+# DJGPP DOS/386, internal UnZip decoders, no optional compression libraries.
+CC = i586-pc-msdosdjgpp-gcc
+DOS386_CFLAGS =
+DOS386_LDFLAGS =
+CFLAGS = -std=gnu89 -O3 -Wall -DDOS -DNO_ASM -DNO_ZLIB_NG $(DOS386_CFLAGS)
+UZDIR = ../unzip60
+# Private UnZip decodes to a stream: timestamps are never restored.
+# Missing TZ must not turn verified data into a PK_WARN result.
+UZFLAGS = $(CFLAGS) -DNO_IZ_CHECK_TZ -DUSE_VFAT -DDLL -DNO_EXCEPT_SIGNALS -I$(UZDIR)
+UZUNITS = unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo api
+UZOBJS = $(addprefix dosbuild/uz-,$(addsuffix .o,$(UZUNITS))) dosbuild/uz-msdos.o
+
+.PHONY: all clean
+all: zipdedup.exe
+dosbuild:
+	mkdir -p $@
+dosbuild/uz-%.o: $(UZDIR)/%.c | dosbuild
+	$(CC) $(UZFLAGS) -c $< -o $@
+dosbuild/uz-msdos.o: $(UZDIR)/msdos/msdos.c | dosbuild
+	$(CC) $(UZFLAGS) -c $< -o $@
+zipdedup.exe: zipdedup.c refptr9903.c ../zipopt/dos386_port.h $(UZOBJS)
+	$(CC) $(CFLAGS) -DDLL -DUSE_VFAT -I$(UZDIR) zipdedup.c refptr9903.c $(UZOBJS) -o $@ $(DOS386_LDFLAGS)
+clean:
+	rm -rf dosbuild zipdedup.exe

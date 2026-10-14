@@ -5,7 +5,7 @@
 
 /* private zipopt embedded UnZip adapter */
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__DJGPP__)
 #define UNIX 1
 #endif
 #define DLL 1

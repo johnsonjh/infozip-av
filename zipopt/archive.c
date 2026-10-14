@@ -12,7 +12,7 @@
 # define _FILE_OFFSET_BITS 64
 #endif /* ifndef _FILE_OFFSET_BITS */
 
-#if !defined(_POSIX_C_SOURCE) && !defined(_WIN32)
+#if !defined(_POSIX_C_SOURCE) && !defined(_WIN32) && !defined(__DJGPP__)
 # define _POSIX_C_SOURCE 200809L
 #endif /* if !defined( _POSIX_C_SOURCE ) && !defined( _WIN32 ) */
 
@@ -91,6 +91,8 @@ zo_seek (zo_archive *a, zo_u64 off)
 
 #ifdef _WIN32
   if (_fseeki64 (a->fp, (__int64)off, SEEK_SET) != 0)
+#elif defined(__DJGPP__)
+  if (off > (zo_u64)LONG_MAX || fseek (a->fp, (long)off, SEEK_SET) != 0)
 #else  /* ifdef _WIN32 */
   if (off > (ZO_U64_MAX >> 1) || (zo_u64)(off_t)off != off
       || fseeko (a->fp, (off_t)off, SEEK_SET) != 0)
@@ -924,7 +926,7 @@ zo_parse (zo_archive *a)
  */
 
 static int
-zo_archive_hash (zo_archive *a, zo_u64 *result)
+zo_archive_hash (zo_archive *a, FILE *fp, zo_u64 *result)
 {
   unsigned char buf[32768];
   zo_u64 hash = ((zo_u64)0xcbf29ce4UL << 32) | 0x84222325UL;
@@ -932,16 +934,23 @@ zo_archive_hash (zo_archive *a, zo_u64 *result)
   zo_u64 left = a->filesize;
   unsigned i;
 
-  if (!zo_seek (a, 0))
+  if (fp == a->fp)
     {
-      return 0;
+      if (!zo_seek (a, 0))
+        {
+          return 0;
+        }
+    }
+  else if (fseek (fp, 0L, SEEK_SET) != 0)
+    {
+      return zo_bad (a, "cannot seek input during fingerprint");
     }
 
   while (left)
     {
       size_t n = left > sizeof (buf) ? sizeof (buf) : (size_t)left;
 
-      if (fread (buf, 1, n, a->fp) != n)
+      if (fread (buf, 1, n, fp) != n)
         {
           return zo_bad (a, "input changed or truncated during fingerprint");
         }
@@ -966,6 +975,19 @@ zo_archive_stat (zo_archive *a, int save)
   struct stat fdst, pathst;
   zo_u64 mn = 0, cn = 0;
 
+# if defined(__DJGPP__)
+  /* DJGPP can synthesize different inode numbers for stat() and fstat()
+   * on the same file (notably on DOS emulators and redirected drives).
+   * Compare pathname metadata with the same API at each checkpoint.
+   * The independent content fingerprint is still verified below. */
+  if (stat (a->path, &pathst) != 0 || !S_ISREG (pathst.st_mode)
+      || pathst.st_size < 0 || (zo_u64)pathst.st_size != a->filesize)
+    {
+      return zo_bad (a, "input replaced or changed during optimization");
+    }
+
+  fdst = pathst;
+# else /* if defined(__DJGPP__) */
   if (fstat (fileno (a->fp), &fdst) != 0 || stat (a->path, &pathst) != 0
       || !S_ISREG (fdst.st_mode) || !S_ISREG (pathst.st_mode)
       || fdst.st_dev != pathst.st_dev || fdst.st_ino != pathst.st_ino
@@ -973,6 +995,7 @@ zo_archive_stat (zo_archive *a, int save)
     {
       return zo_bad (a, "input replaced or changed during optimization");
     }
+# endif /* if defined(__DJGPP__) */
 
 # if defined(__APPLE__)
   mn = (zo_u64)fdst.st_mtimespec.tv_nsec;
@@ -992,9 +1015,12 @@ zo_archive_stat (zo_archive *a, int save)
       a->source_mtime_nsec = mn;
       a->source_ctime_nsec = cn;
     }
-  else if (a->source_device != (zo_u64)fdst.st_dev
-           || a->source_inode != (zo_u64)fdst.st_ino
-           || a->source_size != (zo_u64)fdst.st_size
+  else if (
+# if !defined(__DJGPP__)
+           a->source_device != (zo_u64)fdst.st_dev
+           || a->source_inode != (zo_u64)fdst.st_ino ||
+# endif /* if !defined(__DJGPP__) */
+           a->source_size != (zo_u64)fdst.st_size
            || a->source_mtime != (zo_u64)fdst.st_mtime
            || a->source_ctime != (zo_u64)fdst.st_ctime
            || a->source_mtime_nsec != mn || a->source_ctime_nsec != cn)
@@ -1018,10 +1044,43 @@ zo_archive_unchanged (zo_archive *a)
     }
 #endif /* ifndef _WIN32 */
 
-  if (!zo_archive_hash (a, &hash))
+#if defined(__DJGPP__)
+  /* Reopen the pathname for each verification.  DOS may synthesize inode
+   * numbers and a buffered read from the original handle can return cached
+   * bytes after another handle changes the file.  A fresh handle also
+   * detects pathname replacement when file contents differ. */
+  {
+    FILE *check = fopen (a->path, "rb");
+    int ok;
+
+    if (!check)
+      {
+        return zo_bad (a, "cannot reopen input during fingerprint");
+      }
+
+    ok = zo_archive_hash (a, check, &hash);
+    if (ok && fgetc (check) != EOF)
+      {
+        ok = zo_bad (a, "input grew during fingerprint");
+      }
+    {
+      int read_error = ferror (check);
+      if (fclose (check) != 0 || read_error)
+        {
+          ok = zo_bad (a, "cannot finish input fingerprint");
+        }
+    }
+    if (!ok)
+      {
+        return 0;
+      }
+  }
+#else /* if defined(__DJGPP__) */
+  if (!zo_archive_hash (a, a->fp, &hash))
     {
       return 0;
     }
+#endif /* if defined(__DJGPP__) */
 
 #ifndef _WIN32
   if (!zo_archive_stat (a, 0))
@@ -1053,6 +1112,10 @@ zo_archive_open (zo_archive *a, const char *path)
 #ifdef _WIN32
   if (_fseeki64 (a->fp, 0, SEEK_END)
       || (a->filesize = (zo_u64)_ftelli64 (a->fp)) == ZO_U64_MAX)
+#elif defined(__DJGPP__)
+  /* DJGPP's long-based file positioning supports only 31-bit offsets. */
+  if (fseek (a->fp, 0, SEEK_END) != 0
+      || (a->filesize = (zo_u64)ftell (a->fp)) > (zo_u64)LONG_MAX)
 #else  /* ifdef _WIN32 */
   if (fseeko (a->fp, 0, SEEK_END)
       || (a->filesize = (zo_u64)ftello (a->fp)) == ZO_U64_MAX)
@@ -1068,7 +1131,7 @@ zo_archive_open (zo_archive *a, const char *path)
     }
 #endif /* ifndef _WIN32 */
 
-  if (!zo_parse (a) || !zo_archive_hash (a, &a->initial_hash))
+  if (!zo_parse (a) || !zo_archive_hash (a, a->fp, &a->initial_hash))
     {
       return 0;
     }

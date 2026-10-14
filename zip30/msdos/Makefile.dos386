@@ -5,7 +5,7 @@
 CC = i586-pc-msdosdjgpp-gcc
 DOS386_CFLAGS =
 DOS386_LDFLAGS =
-CFLAGS = -std=gnu89 -O2 -Wall -DDOS -DNO_ASM -I. $(DOS386_CFLAGS)
+CFLAGS = -std=gnu89 -O3 -Wall -DDOS -DNO_ASM -I. $(DOS386_CFLAGS)
 LDFLAGS = $(DOS386_LDFLAGS)
 
 COMMON = zipfile_.o fileio_.o util_.o crc32_.o globals.o msdos_.o

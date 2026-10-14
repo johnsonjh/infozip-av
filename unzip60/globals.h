@@ -200,7 +200,7 @@ typedef struct Globals {
     int process_all_files;
 #ifdef ZIPOPT_EMBED
     /* zero-based central-directory selection never filename matching. */
-    z_uint8 zipopt_selected_index;
+    unsigned long zipopt_selected_index;
     int zipopt_select_enabled;
     int zipopt_select_found;
 #endif

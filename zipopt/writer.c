@@ -9,7 +9,7 @@
 # define _FILE_OFFSET_BITS 64
 #endif /* ifndef _FILE_OFFSET_BITS */
 
-#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(_POSIX_C_SOURCE)
 # define _POSIX_C_SOURCE 200809L
 #endif /* if !defined( _POSIX_C_SOURCE ) */
 
@@ -31,6 +31,10 @@
 # define mkstemp iz_win_mkstemp
 # define link(a,b) iz_win_publish_noreplace((a),(b))
 typedef int zo_sigmask_t;
+#elif defined(__DJGPP__)
+# include <unistd.h>
+# include "dos386_port.h"
+typedef int zo_sigmask_t;
 #else
 # include <unistd.h>
 typedef sigset_t zo_sigmask_t;
@@ -41,8 +45,8 @@ typedef sigset_t zo_sigmask_t;
  * unlink the (already named) work file and terminate.  All other temporary
  * streams are tmpfile() objects, automatically unlinked by the OS.
  * Block handled signals while modifying the pathname to avoid observing
- * an incomplete or freed allocation from a handler. Windows currently only
- * performs synchronous normal/error cleanup (no POSIX signal handler).
+ * an incomplete or freed allocation from a handler. Windows and DJGPP only
+ * perform synchronous normal/error cleanup (no POSIX signal handler).
  */
 
 static const char *volatile zo_interrupt_path;
@@ -50,9 +54,9 @@ static const char *volatile zo_interrupt_path;
 static int
 zo_signal_mask (int block, zo_sigmask_t *previous)
 {
-#ifdef _WIN32
-  /* Native Win32 has no POSIX signal mask. Normal/error cleanup still
-   * removes the exclusive temporary; publication remains fail-closed. */
+#if defined(_WIN32) || defined(__DJGPP__)
+  /* No POSIX signal mask is available here. Normal and error cleanup
+   * removes the temporary; publication avoids clobbering existing files. */
   (void)block;
   (void)previous;
   return 1;
@@ -72,7 +76,7 @@ zo_signal_mask (int block, zo_sigmask_t *previous)
 #endif
 }
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__DJGPP__)
 static void
 zo_interrupt (int signo)
 {
@@ -90,7 +94,7 @@ zo_interrupt (int signo)
 int
 zo_writer_install_interrupts (void)
 {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__DJGPP__)
   return 1;
 #else
   struct sigaction action, old;
@@ -200,6 +204,8 @@ zo_tell (zo_writer *w, zo_u64 *v)
 {
 #ifdef _WIN32
   __int64 off = _ftelli64 (w->stream);
+#elif defined(__DJGPP__)
+  long off = ftell (w->stream);
 #else
   off_t off = ftello (w->stream);
 #endif
@@ -244,6 +250,8 @@ zo_seekin (FILE *f, zo_u64 off)
     }
 #ifdef _WIN32
   return _fseeki64 (f, (__int64)off, SEEK_SET) == 0;
+#elif defined(__DJGPP__)
+  return off <= (zo_u64)LONG_MAX && fseek (f, (long)off, SEEK_SET) == 0;
 #else
   if ((zo_u64)(off_t)off != off)
     return 0;
@@ -797,8 +805,17 @@ zo_writer_publish (zo_writer *w)
       return 0;
     }
 
-  /* Both POSIX hardlink and Win32 CreateHardLinkA fail if output exists. */
+  /*
+   * Both POSIX hardlink and Win32 CreateHardLinkA fail if output exists.
+   * The DOS implementation exclusively creates a destination and copies;
+   * other platforms publish via a hard link.
+   */
+
+#ifdef __DJGPP__
+  ok = iz_dos386_publish_noreplace (w->temporary, w->destination) == 0;
+#else
   ok = link (w->temporary, w->destination) == 0;
+#endif
 
   if (ok)
     {

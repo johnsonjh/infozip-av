@@ -9,15 +9,15 @@
 #undef ZD_DATE
 #define ZD_DATE "2026-10-12"
 
-#if !defined(_WIN32) && !defined(_FILE_OFFSET_BITS)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(_FILE_OFFSET_BITS)
 # define _FILE_OFFSET_BITS 64
 #endif /* _FILE_OFFSET_BITS */
 
-#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(_POSIX_C_SOURCE)
 # define _POSIX_C_SOURCE 200809L
 #endif /* ifndef _POSIX_C_SOURCE */
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__DJGPP__)
 #define UNIX 1
 #endif
 #define DLL 1
@@ -50,6 +50,9 @@ extern unsigned long crc32 (unsigned long, const unsigned char *, size_t);
 # define fdopen _fdopen
 # define mkstemp iz_win_mkstemp
 # define link(a,b) iz_win_publish_noreplace((a),(b))
+#elif defined(__DJGPP__)
+# include <unistd.h>
+# include "../zipopt/dos386_port.h"
 #else
 # include <unistd.h>
 #endif
@@ -2167,10 +2170,18 @@ main (int argc, char **argv)
     }
 
   out = NULL;
+#ifdef __DJGPP__
+  if (iz_dos386_publish_noreplace (tmp, a.output) != 0)
+#else
   if (link (tmp, a.output) != 0)
+#endif
     {
+#ifdef __DJGPP__
+      zd_fail ("cannot publish output (destination exists or DOS copy failed)");
+#else
       zd_fail (
           "cannot publish output (already exists or hard links unsupported)");
+#endif
       goto done;
     }
 
