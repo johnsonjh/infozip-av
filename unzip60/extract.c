@@ -1685,15 +1685,18 @@ static int pkav_emit_filtered(__G__ buf, len, flags, preserve_formatting)
 {
     uch *raw, *filtered;
     char *shown;
-    extent filtered_size;
+    extent filtered_size, limit;
     unsigned start, pos, n, i, raw_len;
 
     if (len == 0)
         return PK_COOL;
 
-    if ((extent)len > (((extent)-1) - 1) / 2)
+    filtered_size = (extent)len;
+    limit = (extent)-1 - 1;
+    if ((unsigned)filtered_size != len ||
+        filtered_size > limit || filtered_size > limit - filtered_size)
         return PK_MEM;
-    filtered_size = (extent)len * 2 + 1;
+    filtered_size = filtered_size * 2 + 1;
 
     raw = (uch *)malloc(filtered_size);
     filtered = (uch *)malloc(filtered_size);

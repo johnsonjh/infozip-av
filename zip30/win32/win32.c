@@ -1331,6 +1331,21 @@ void version_local()
 # endif
 
 
+static void win32_append_mb_bytes(buffer, bytes, count)
+  char *buffer;
+  const char *bytes;
+  int count;
+{
+  char *tail = buffer + strlen(buffer);
+  int n = 0;
+
+  while (n < count && bytes[n] != '\0') {
+    tail[n] = bytes[n];
+    ++n;
+  }
+  tail[n] = '\0';
+}
+
 /* convert wide character string to multi-byte character string */
 /* win32 version */
 char *wide_to_local_string(wide_string)
@@ -1379,6 +1394,7 @@ char *wide_to_local_string(wide_string)
      *   Watcom  (only "C" locale, wctomb() always uses OEM CP)
      * (in other words: all supported environments except the Microsoft RTLs)
      */
+    default_used = 0;
     bytes_char = WideCharToMultiByte(
                           CP_ACP, WC_COMPOSITECHECK,
                           &wc, 1,
@@ -1389,7 +1405,7 @@ char *wide_to_local_string(wide_string)
     if (unicode_escape_all) {
       if (bytes_char == 1 && (uch)buf[0] <= 0x7f) {
         /* ASCII */
-        strncat(buffer, buf, 1);
+        win32_append_mb_bytes(buffer, buf, 1);
       } else {
         /* use escape for wide character */
         char *e = wide_char_to_escape_string(wide_string[i]);
@@ -1398,7 +1414,7 @@ char *wide_to_local_string(wide_string)
       }
     } else if (bytes_char > 0) {
       /* multi-byte char */
-      strncat(buffer, buf, bytes_char);
+      win32_append_mb_bytes(buffer, buf, bytes_char);
     } else {
       /* no MB for this wide */
       if (use_wide_to_mb_default) {
