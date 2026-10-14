@@ -251,7 +251,7 @@ test -d build-dos386/wavpack \
   } \
   && env CC="${CC:?}" CFLAGS="-O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
     ./configure --disable-apps --disable-shared --enable-static \
-    --disable-threads --host="${HOST:?}" --prefix="$(pwd -P)"/install \
+    --disable-threads --disable-asm --host="${HOST:?}" --prefix="$(pwd -P)"/install \
   && make -j "${CPUS:-1}" \
   && make install PREFIX="$(pwd -P)"/install)
 
