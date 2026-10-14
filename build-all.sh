@@ -134,7 +134,7 @@ winbuild()
     } \
     && env CC="${CC:?}" CFLAGS="-D_WIN32_WINNT=0x0501 -DWINVER=0x0501 -O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
       ./configure --disable-shared --enable-static \
-      --prefix="$(pwd -P)/install" \
+      --host="${HOST:?}" --prefix="$(pwd -P)/install" \
     && make -j "${CPUS:-1}" \
     && make install "$(pwd -P)"/install)
 
@@ -266,7 +266,7 @@ test -d build-dos386/lzma \
   } \
   && env CC="${CC:?}" CFLAGS="-Wno-incompatible-pointer-types -O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
     ./configure --disable-shared --enable-static --enable-threads=no --disable-clmul-crc \
-    --prefix="$(pwd -P)/install" \
+    --host="${HOST:?}" --prefix="$(pwd -P)/install" \
   && make -j "${CPUS:-1}" \
   && make install "$(pwd -P)"/install)
 
