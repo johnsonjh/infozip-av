@@ -168,7 +168,8 @@ If you want, you can compare the changes against the Fedora upstream version
 using [GitHub](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
 or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav),
 or clone the repo and compile it using “`./build-unix.sh`” (on almost any
-UNIX-like system).
+UNIX-like system).  Use “`./build-win32.sh`” for Windows builds (using
+[mingw-w64](https://www.mingw-w64.org/)).
 
 ## Usage
 
