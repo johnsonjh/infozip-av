@@ -205,7 +205,6 @@ for name in $DOS_PROGRAMS; do
   cp "$STAGE/bin/$name.exe" "$ROOT/bin/$name.exe"
   chmod a+x "$ROOT/bin/$name.exe"
 done
-cp "$ROOT/bin/unzip.exe" "$ROOT/bin/zipinfo.exe"
 printf 'build-dos386: built DOS executables in %s/bin\n' "$ROOT"
 if [ "$EMBED" = yes ]; then
   printf 'build-dos386: CWSDSTUB embedded in all executables\n'
