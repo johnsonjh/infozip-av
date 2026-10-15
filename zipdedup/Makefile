@@ -51,8 +51,8 @@ UZOBJECTS = $(addprefix $(UZDIR)/,unzip.pic.o crc32.pic.o crypt.pic.o \
 all: zipdedup
 unzip-objects:
 	$(MAKE) -B -C $(UZDIR) -f unix/Makefile objsdll CC="$(CC)" CFLAGS="$(UZFLAGS) $(ZD_BACKEND_FLAGS)"
-zipdedup: zipdedup.c fwkcs_md5.h ../zip30/fwkcs_fast_md5.inc refptr9903.c unzip-objects
-	$(CC) $(CFLAGS) $(LOCAL_UNZIP) $(ZD_METHODS) $(ZD_BACKEND_FLAGS) -DUNIX -DDLL -I$(UZDIR) zipdedup.c refptr9903.c $(UZOBJECTS) -o $@ $(LDLIBS) $(LOCAL_GLDFLAGS)
+zipdedup: zipdedup.c fwkcs_md5.h ../zip30/fwkcs_fast_md5.inc refptr9903.c unzip-objects ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
+	$(CC) $(CFLAGS) $(LOCAL_UNZIP) $(ZD_METHODS) $(ZD_BACKEND_FLAGS) -DUNIX -DDLL -I$(UZDIR) zipdedup.c refptr9903.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c $(UZOBJECTS) -o $@ $(LDLIBS) $(LOCAL_GLDFLAGS)
 clean:
 	rm -f zipdedup test-refptr9903
 .PHONY: all clean unzip-objects

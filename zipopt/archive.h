@@ -8,6 +8,7 @@
 # define ZO_ARCHIVE_H
 # include <limits.h>
 # include <stdio.h>
+# include "../xtrmeta/xtrrewrite.h"
 
 # if ULONG_MAX > 0xffffffffUL
 typedef unsigned long zo_u64;
@@ -29,6 +30,8 @@ typedef struct zo_entry
   unsigned central_extra_len, central_comment_len, local_extra_len;
   zo_u64 central_offset;
   unsigned char *name;
+  xr_node xtr;
+  unsigned xtr_local_seen;
 } zo_entry;
 
 typedef struct zo_archive

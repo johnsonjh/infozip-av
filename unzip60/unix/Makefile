@@ -133,8 +133,21 @@ OBJS1 = unzip$O crc32$O $(CRCA_O) crypt$O envargs$O explode$O
 OBJS2 = extract$O fileio$O globals$O inflate$O list$O match$O
 OBJS3 = process$O ttyio$O ubz2err$O unreduce$O unshrink$O zipinfo$O
 OBJS = $(OBJS1) $(OBJS2) $(OBJS3) $M$O
+# Linux command-line UnZip uses the native Xtro xattr backend.  DLL,
+# UnZipSFX, fUnZip, and other Unix hosts do not enable this backend.
+ifneq ($(filter -DXTR_BSD_TEST,$(CF) $(CFLAGS)),)
+XTRMETA_OBJS = xtrm_meta$O xtrsha_meta$O xtrv1_meta$O xtrbsd_meta$O xtrbsd_testshim$O
+else ifneq ($(filter FreeBSD NetBSD,$(shell uname -s)),)
+XTRMETA_OBJS = xtrm_meta$O xtrsha_meta$O xtrv1_meta$O xtrbsd_meta$O
+else ifeq ($(shell uname -s),Linux)
+XTRMETA_OBJS = xtrm_meta$O xtrsha_meta$O xtrv1_meta$O xtrlinux_meta$O
+endif
+OBJS += $(XTRMETA_OBJS)
 LOBJS = $(OBJS)
-OBJSDLL = $(OBJS:.o=.pic.o) api.pic.o
+# DLL sources compile with -DDLL and exclude the Linux Xtro restore code;
+# consequently the standalone Xtro objects must not enter the DLL PIC list.
+# No xtr*_meta.pic.o implicit source exists in the unzip60 directory.
+OBJSDLL = $(filter-out $(XTRMETA_OBJS:.o=.pic.o),$(OBJS:.o=.pic.o)) api.pic.o
 OBJX = unzipsfx$O crc32_$O $(CRCA_O) crypt_$O extract_$O fileio_$O \
 	globals_$O inflate_$O match_$O process_$O ttyio_$O ubz2err_$O $M_$O
 LOBJX = $(OBJX)
@@ -334,11 +347,24 @@ $(IZ_OUR_BZIP2_DIR)/libbz2.a:
 	 CFLAGS="$(CFLAGS_BZ)" RM="rm -f" )
 
 
+xtrm_meta$O: ../xtrmeta/xtrm.c ../xtrmeta/xtrm.h
+	$(CC) -c $(CF) -o $@ ../xtrmeta/xtrm.c
+xtrsha_meta$O: ../xtrmeta/xtrsha.c ../xtrmeta/xtrsha.h
+	$(CC) -c $(CF) -o $@ ../xtrmeta/xtrsha.c
+xtrv1_meta$O: ../xtrmeta/xtrv1.c ../xtrmeta/xtrv1.h
+	$(CC) -c $(CF) -o $@ ../xtrmeta/xtrv1.c
+xtrbsd_testshim$O: ../xtrmeta/bsd_linux_shim.c
+	$(CC) -c $(CF) -o $@ ../xtrmeta/bsd_linux_shim.c
+xtrbsd_meta$O: ../xtrmeta/xtrbsd.c ../xtrmeta/xtrbsd.h
+	$(CC) -c $(CF) -o $@ ../xtrmeta/xtrbsd.c
+xtrlinux_meta$O: ../xtrmeta/xtrlinux.c ../xtrmeta/xtrlinux.h
+	$(CC) -c $(CF) -o $@ ../xtrmeta/xtrlinux.c
+
 crc32$O:	crc32.c $(UNZIP_H) zip.h crc32.h crc32_pclmul.h crc32_arm.h iz_arm_caps.h
 crypt$O:	crypt.c izsha1.c izsha1.h izsha1_ni.h iz_arm_crypto.h iz_arm_caps.h wzaes.c wzaes.h ae3_impl.h iz_aes_x86.h iz_arm_crypto.h iz_arm_caps.h iz_arm_crypto.h iz_arm_caps.h $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h
 envargs$O:	envargs.c $(UNZIP_H)
 explode$O:	explode.c $(UNZIP_H)
-extract$O:	extract.c refptr.c wavpackzip.c wzmp3.c wzmp3.h $(UNZIP_H) crc32.h crypt.h
+extract$O:	extract.c refptr.c wavpackzip.c wzmp3.c wzmp3.h $(UNZIP_H) crc32.h crypt.h xtrunzip_linux.c xtrunzip_bsd.c ../xtrmeta/xtrv1.h ../xtrmeta/xtrlinux.h ../xtrmeta/xtrbsd.h
 fileio$O:	fileio.c fwkcs_fast_md5.inc $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h
 funzip$O:	funzip.c $(UNZIP_H) crc32.h crypt.h ttyio.h
 globals$O:	globals.c $(UNZIP_H)

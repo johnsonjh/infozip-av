@@ -37,50 +37,42 @@
 
 #if defined(LARGE_FILE_SUPPORT) && !defined(__CYGWIN__)
 
-/* 64-bit buffered ftello
- *
- * Win32 does not provide a 64-bit buffered
- * ftell (in the published api anyway) so below provides
- * hopefully close version.
- * We have not gotten _telli64 to work with buffered
- * streams.  Below cheats by using fgetpos improperly and
- * may not work on other ports.
- */
+/* 64-bit buffered ftello/fseeko.  Modern MinGW provides CRT functions
+ * that synchronize the FILE stream and its file descriptor; other Win32
+ * compilers keep the historical code below. */
 
-zoff_t zftello(stream)
-  FILE *stream;
+/* On MinGW, use the CRT's buffered-stream-aware 64-bit interfaces.
+ * Direct _lseeki64() on fileno(stream) does not clear stdio EOF state,
+ * and may leave the stream's read buffer inconsistent with the descriptor.
+ * In particular, scanzipf_regnew() scans through EOCD to EOF, then seeks
+ * backwards and reads central-directory records.  A descriptor-only seek
+ * can leave all those reads at EOF, rejecting a valid existing archive.
+ * Keep the historical fallback for other Win32 compilers. */
+zoff_t zftello(FILE *stream)
 {
+#if defined(__MINGW32__)
+  return (zoff_t)_ftelli64(stream);
+#else
   fpos_t fpos = 0;
-  
+
   if (fgetpos(stream, &fpos) != 0) {
     return -1L;
   } else {
     return fpos;
   }
+#endif
 }
 
-
-/* 64-bit buffered fseeko
- *
- * Win32 does not provide a 64-bit buffered
- * fseeko so use _lseeki64 and fflush.  Note
- * that SEEK_CUR can lose track of location
- * if fflush is done between the last buffered
- * io and this call.
- */
-
-int zfseeko(stream, offset, origin)
-  FILE *stream;
-  zoff_t offset;
-  int origin;
+int zfseeko(FILE *stream, zoff_t offset, int origin)
 {
+#if defined(__MINGW32__)
+  return _fseeki64(stream, offset, origin);
+#else
   zoff_t location;
 
   location = zftello(stream);
   fflush(stream);
   if (origin == SEEK_CUR) {
-    /* instead of synching up lseek easier just to figure and
-       use an absolute offset */
     offset = location + offset;
     location = _lseeki64(fileno(stream), offset, SEEK_SET);
   } else {
@@ -91,7 +83,9 @@ int zfseeko(stream, offset, origin)
   } else {
     return 0;
   }
+#endif
 }
+
 #endif  /* Win32 LARGE_FILE_SUPPORT */
 
 #if 0

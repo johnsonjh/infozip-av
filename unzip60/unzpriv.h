@@ -2238,6 +2238,17 @@ typedef struct min_info {
     unsigned zip64: 1;       /* true if entry has Zip64 extra block */
     unsigned fwkcs_md5: 1;   /* central directory has FWKCS MD5 */
     unsigned fwkcs_bad: 1;   /* malformed/duplicate FWKCS MD5 field */
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+    unsigned char *xtr_central;
+    char *xtr_source_name; /* original central directory name for dir-local preflight */
+    unsigned xtr_central_len;
+#if defined(XTR_WIN_NATIVE) && defined(WIN32)
+    void *xtr_restore_handle; /* pinned native handle, NULL if absent */
+#else
+    int xtr_restore_fd; /* duplicated output descriptor; -1 if none */
+#endif
+    unsigned char xtr_companion; /* stage in private FILE, never extract path */
+#endif
 #ifndef SFX
     char Far *cfilname;      /* central header version of filename */
 #endif

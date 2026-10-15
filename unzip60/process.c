@@ -32,6 +32,9 @@
 
 #define UNZIP_INTERNAL
 #include "unzip.h"
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+# include "../xtrmeta/xtrwin_utf8path.h"
+#endif
 #ifdef WINDLL
 #  ifdef POCKET_UNZIP
 #    include "wince/intrface.h"
@@ -2850,7 +2853,11 @@ int zip99_lzfse_probe(ZCONST char *zipfn, zoff_t rel_offset,
     pos = rel_offset + prefix;
     if (pos > ziplen - 34)
         return -1;
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+    fp = xtr_win_u8_fopen(zipfn, "rb");
+#else
     fp = fopen(zipfn, "rb");
+#endif
     if (fp == NULL)
         return -1;
     if (zfseeko(fp, pos, SEEK_SET) != 0 ||

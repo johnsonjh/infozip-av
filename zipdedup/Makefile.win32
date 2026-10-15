@@ -29,8 +29,8 @@ winbuild/uz-win32i64.o: $(UZDIR)/win32/win32i64.c | winbuild
 winbuild/uz-nt.o: $(UZDIR)/win32/nt.c | winbuild
 	$(CC) $(UZFLAGS) -c $< -o $@
 all: zipdedup.exe
-zipdedup.exe: zipdedup.c refptr9903.c fwkcs_md5.h ../zip30/fwkcs_fast_md5.inc ../zipopt/win32_port.h $(UZOBJS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(WIN_DEFS) $(LOCAL_UNZIP) -I$(UZDIR) zipdedup.c refptr9903.c $(UZOBJS) $(LIBS) -o $@ $(LOCAL_GLDFLAGS)
+zipdedup.exe: zipdedup.c refptr9903.c fwkcs_md5.h ../zip30/fwkcs_fast_md5.inc ../zipopt/win32_port.h $(UZOBJS) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(WIN_DEFS) $(LOCAL_UNZIP) -I$(UZDIR) zipdedup.c refptr9903.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c $(UZOBJS) $(LIBS) -o $@ $(LOCAL_GLDFLAGS)
 clean:
 	rm -rf winbuild zipdedup.exe
 .PHONY: all clean

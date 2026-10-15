@@ -87,6 +87,16 @@ typedef unsigned long ulg;      /* unsigned 32-bit value */
 /* Set up portability */
 #include "tailor.h"
 
+/* Native MinGW Zip uses UTF-8 for archive filesystem paths. This is
+ * separate from UnZip's XTR_WIN_UTF8_PATHS option. */
+#if defined(XTR_WIN_NATIVE) && defined(WIN32) && defined(__MINGW32__) && !defined(UTIL) && !defined(WINDLL)
+# include "win32/xtrzip_utf8.h"
+# undef zfopen
+# define zfopen xtr_zip_u8_fopen
+# undef SSTAT
+# define SSTAT xtr_zip_u8_stat
+#endif
+
 #if defined(USE_ZLIB_NG)
 #  include "iz_native_zlibng.h"
 #elif defined(USE_ZLIB)

@@ -178,7 +178,10 @@ winbuild()
     && cmake --build build-mingw --target install \
       --parallel $(nproc) --verbose)
 
-  env MINGW_TARGET=x86_64-w64-mingw32 \
+  env \
+    LOCAL_ZIP="${LOCAL_ZIP:-} -DXTR_WIN_NATIVE" \
+    LOCAL_UNZIP="${LOCAL_UNZIP:-} -DXTR_WIN_NATIVE -DXTR_WIN_UTF8_PATHS" \
+    MINGW_TARGET=x86_64-w64-mingw32 \
     MINGW_CC="${CC:?}" ./build-win32.sh
 
   test "${CC:?}" = "x86_64-w64-mingw32ucrt-gcc" && {

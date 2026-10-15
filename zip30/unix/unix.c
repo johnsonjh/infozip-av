@@ -464,10 +464,18 @@ int set_new_unix_extra_field(z, s)
    
   ef_data_size = 1 + 1 + uid_size + 1 + gid_size;
 
-  if ((extra = (char *)malloc(z->ext + 4 + ef_data_size)) == NULL)
+  /* Local and central headers may have DIFFERENT existing lengths.
+     Check the ZIP 16-bit total extra-field limit before either allocation;
+     do not replace the owner's buffers on a partial failure. */
+  if ((unsigned long)z->ext + 4UL + (unsigned long)ef_data_size > 65535UL ||
+      (unsigned long)z->cext + 4UL + (unsigned long)ef_data_size > 65535UL)
+    return ZE_BIG;
+  if ((extra = (char *)malloc((size_t)z->ext + 4 + ef_data_size)) == NULL)
     return ZE_MEM;
-  if ((cextra = (char *)malloc(z->ext + 4 + ef_data_size)) == NULL)
+  if ((cextra = (char *)malloc((size_t)z->cext + 4 + ef_data_size)) == NULL) {
+    free(extra);
     return ZE_MEM;
+  }
 
   if (z->ext)
     memcpy(extra, z->extra, z->ext);
@@ -575,11 +583,10 @@ int set_extra_field(z, z_utim)
   /* For the full sized UT local field including the UID/GID fields, we
    * have to stat the file again. */
 
-  if ((name = malloc(len + 1)) == NULL) {
-    ZIPERR(ZE_MEM, "set_extra_field");
-  }
+  if ((name = malloc(len + 1)) == NULL)
+    return ZE_MEM;
   strcpy(name, z->name);
-  if (name[len - 1] == '/')
+  if (len > 0 && name[len - 1] == '/')
     name[len - 1] = '\0';
   /* not all systems allow stat'ing a file with / appended */
   if (LSSTAT(name, &s)) {
@@ -620,8 +627,11 @@ int set_extra_field(z, z_utim)
 
   if ((z->extra = (char *)malloc(EF_L_UNIX_SIZE)) == NULL)
     return ZE_MEM;
-  if ((z->cextra = (char *)malloc(EF_C_UNIX_SIZE)) == NULL)
+  if ((z->cextra = (char *)malloc(EF_C_UNIX_SIZE)) == NULL) {
+    free(z->extra);
+    z->extra = NULL;
     return ZE_MEM;
+  }
 
   z->extra[0]  = 'U';
   z->extra[1]  = 'T';
@@ -677,10 +687,10 @@ int set_extra_field(z, z_utim)
   z->atx |= 0x4000;
 #endif /* never */
 
-  /* new unix extra field */
-  set_new_unix_extra_field(z, &s);
-
-  return ZE_OK;
+  /* Propagate errors to zipup(): partial metadata must never be treated as
+     a successful extra-field generation. Existing UT/Ux fields remain
+     allocated for zipup()'s ordinary cleanup on failure. */
+  return set_new_unix_extra_field(z, &s);
 }
 
 #endif /* !QLZIP */

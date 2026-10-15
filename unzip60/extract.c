@@ -32,9 +32,17 @@
   ---------------------------------------------------------------------------*/
 
 
+#if defined(__linux__) && !defined(SFX) && !defined(DLL)
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1
+#endif
+#endif
 #define __EXTRACT_C     /* identifies this source module */
 #define UNZIP_INTERNAL
 #include "unzip.h"
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+# include "../xtrmeta/xtrwin_utf8path.h"
+#endif
 #ifdef WINDLL
 #  ifdef POCKET_UNZIP
 #    include "wince/intrface.h"
@@ -1930,6 +1938,22 @@ static int pkav_finish_archive(__G)
 }
 #endif /* PKAV_SUPPORT */
 
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+extern int xtr_unzip_xattrs;
+#if defined(XTR_WIN_NATIVE) && defined(WIN32)
+extern int xtr_unzip_streams;
+#define XTR_RESTORE_ACTIVE (xtr_unzip_xattrs || xtr_unzip_streams)
+#else
+#define XTR_RESTORE_ACTIVE xtr_unzip_xattrs
+#endif
+#if defined(XTR_WIN_NATIVE) && defined(WIN32)
+#include "xtrunzip_win.c"
+#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST)
+#include "xtrunzip_bsd.c"
+#else
+#include "xtrunzip_linux.c"
+#endif
+#endif
 static int store_info OF((__GPRO));
 #ifdef SET_DIR_ATTRIB
 static int extract_or_test_entrylist OF((__GPRO__ unsigned numchunk,
@@ -2474,6 +2498,20 @@ int extract_or_test_files(__G)    /* return PK-type error code */
     pkav_reset(__G);
 #endif
     G.pInfo = G.info;
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+    xtr_restore_rejected=0;
+    xtr_release_registry();
+    /* Early UnZip errors can leave a partially read central directory.
+       Ensure privately staged metadata never outlives this process. */
+    if(!xtr_exit_hook){
+        if(atexit(xtr_release_registry)!=0)return PK_MEM;
+        xtr_exit_hook=1;
+    }
+    if(XTR_RESTORE_ACTIVE && (uO.cflag || uO.tflag || uO.aflag)) {
+        fprintf(stderr,"unzip: --xattrs requires binary extraction to disk\n");
+        return PK_PARAM;
+    }
+#endif
 #ifdef USE_REFPTR
     if ((error = refptr_build_index(__G)) != PK_COOL)
         return error;
@@ -2526,6 +2564,17 @@ int extract_or_test_files(__G)    /* return PK-type error code */
 
         while ((j < DIR_BLKSIZ)) {
             G.pInfo = &G.info[j];
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+            G.pInfo->xtr_central=NULL;
+            G.pInfo->xtr_source_name=NULL;
+            G.pInfo->xtr_central_len=0;
+#if defined(XTR_WIN_NATIVE) && defined(WIN32)
+            G.pInfo->xtr_restore_handle=NULL;
+#else
+            G.pInfo->xtr_restore_fd=-1;
+#endif
+            G.pInfo->xtr_companion=0;
+#endif
 
             if (readbuf(__G__ G.sig, 4) == 0) {
                 error_in_archive = PK_EOF;
@@ -2671,6 +2720,11 @@ int extract_or_test_files(__G)    /* return PK-type error code */
                             break;       /* found match, so stop looping */
                         }
                 }
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+                if(XTR_RESTORE_ACTIVE &&
+                   strncmp(G.filename,"__XTRO_ZIP__/",13)==0)
+                    do_this_file=TRUE;
+#endif
                 if (do_this_file) {  /* check if this is an excluded file */
                     for (i = 0; i < G.xfilespecs; i++)
                         if (match(G.filename, G.pxnames[i], uO.C_flag WISEP)) {
@@ -2680,6 +2734,11 @@ int extract_or_test_files(__G)    /* return PK-type error code */
                             break;
                         }
                 }
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+                if(XTR_RESTORE_ACTIVE &&
+                   strncmp(G.filename,"__XTRO_ZIP__/",13)==0)
+                    do_this_file=TRUE;
+#endif
                 if (do_this_file) {
                     if (store_info(__G))
                         ++j;            /* file is OK */
@@ -2692,6 +2751,13 @@ int extract_or_test_files(__G)    /* return PK-type error code */
 
         } /* end while-loop (adding files to current block) */
 
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+        if(XTR_RESTORE_ACTIVE && xtr_restore_rejected){
+            xtr_cleanup_block(G.info,j);
+            xtr_release_registry();
+            return PK_ERR;
+        }
+#endif
         /* save position in central directory so can come back later */
         cd_bufstart = G.cur_zipfile_bufstart;
         cd_inptr = G.inptr;
@@ -2708,6 +2774,12 @@ int extract_or_test_files(__G)    /* return PK-type error code */
                         &num_dirs, &dirlist,
 #endif
                         error_in_archive);
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+        if(XTR_RESTORE_ACTIVE){
+            xtr_cleanup_block(G.info,j);
+            if(xtr_restore_rejected && error < PK_ERR)error=PK_ERR;
+        }
+#endif
         if (G.fwkcs_expected != (uch *)NULL) {
             free(G.fwkcs_expected);
             G.fwkcs_expected = (uch *)NULL;
@@ -2773,6 +2845,22 @@ int extract_or_test_files(__G)    /* return PK-type error code */
     }
 #endif /* SYMLINKS */
 
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+    if(XTR_RESTORE_ACTIVE){
+        if(!xtr_restore_rejected && error_in_archive==PK_COOL &&
+           xtr_apply_pending(G.filespecs!=0 || G.xfilespecs!=0)!=0)error_in_archive=PK_ERR;
+    }
+#endif
+
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+    /* Restore the verified directory xattrs while the newly created
+       directories are still writable. UnZip's deferred chmod and timestamps
+       must run afterward, so read-only modes can be restored faithfully. */
+    if(XTR_RESTORE_ACTIVE && !xtr_restore_rejected &&
+       error_in_archive==PK_COOL && xtr_apply_directories()!=0)
+        error_in_archive=PK_ERR;
+#endif
+
 /*---------------------------------------------------------------------------
     Go back through saved list of directories, sort and set times/perms/UIDs
     and GIDs from the deepest level on up.
@@ -2827,6 +2915,9 @@ int extract_or_test_files(__G)    /* return PK-type error code */
         }
     }
 #endif /* SET_DIR_ATTRIB */
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+    if(XTR_RESTORE_ACTIVE)xtr_release_registry();
+#endif
 
 /*---------------------------------------------------------------------------
     Check for unmatched filespecs on command line and print warning if any
@@ -3279,6 +3370,25 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 
     G.pInfo->diskstart = G.crec.disk_number_start;
     G.pInfo->offset = (zoff_t)G.crec.relative_offset_local_header;
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+#ifdef SYMLINKS
+    if(XTR_RESTORE_ACTIVE && G.pInfo->symlink) {
+        const unsigned char *p;size_t n;
+        if(xtr_locate(G.extra_field,G.crec.extra_field_length,&p,&n)!=XTR_OK || p){
+            fprintf(stderr,"unzip: symlink Xtro metadata restoration unsupported: %s\n",G.filename);
+            xtr_restore_rejected=1;return 0;
+        }
+    }
+#endif
+    if(XTR_RESTORE_ACTIVE && xtr_note_central(G.pInfo,G.extra_field,
+                                           G.crec.extra_field_length,G.filename)) {
+        if(G.pInfo->cfilname){
+            zffree(G.pInfo->cfilname);
+            G.pInfo->cfilname=NULL;
+        }
+        return 0;
+    }
+#endif
     return 1;
 
 } /* end function store_info() */
@@ -3702,7 +3812,11 @@ static int extract_or_test_entrylist(__G__ numchunk,
 #ifdef DLL
         if (!uO.tflag && !uO.cflag && !G.redirect_data)
 #else
-        if (!uO.tflag && !uO.cflag)
+        if (!uO.tflag && !uO.cflag
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+            && !(XTR_RESTORE_ACTIVE && G.pInfo->xtr_companion)
+#endif
+           )
 #endif
         {
             renamed = FALSE;   /* user hasn't renamed output file yet */
@@ -3750,6 +3864,17 @@ startover:
                }
             }
 
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+            /* Directory entries bypass normal member header reading. */
+            if(XTR_RESTORE_ACTIVE && G.pInfo->xtr_central &&
+               G.filename[0] && G.filename[strlen(G.filename)-1]=='/' &&
+               xtr_directory_preflight(G.pInfo,G.zipfd,G.extra_bytes)){
+                fprintf(stderr,"unzip: invalid Xtro directory local header\n");
+                xtr_restore_rejected=1;
+                if(error_in_archive<PK_ERR)error_in_archive=PK_ERR;
+                return PK_ERR;
+            }
+#endif
             /* mapname can create dirs if not freshening or if renamed */
             error = mapname(__G__ renamed);
             if ((errcode = error & ~MPN_MASK) != PK_OK &&
@@ -3757,6 +3882,15 @@ startover:
                 error_in_archive = errcode;
             if ((errcode = error & MPN_MASK) > MPN_INF_TRUNC) {
                 if (errcode == MPN_CREATED_DIR) {
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+                    if(XTR_RESTORE_ACTIVE &&
+                       xtr_directory_created(G.pInfo,G.filename)){
+                        fprintf(stderr,"unzip: could not pin Xtro directory\n");
+                        xtr_restore_rejected=1;
+                        if(error_in_archive<PK_ERR)error_in_archive=PK_ERR;
+                        return PK_ERR;
+                    }
+#endif
 #ifdef SET_DIR_ATTRIB
                     direntry *d_entry;
 
@@ -4139,8 +4273,26 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
                 return PK_DISK;
             }
 #else /* !VMS */
-        } else if (open_outfile(__G))
-            return PK_DISK;
+        } else {
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+            if(XTR_RESTORE_ACTIVE && G.pInfo->xtr_companion){
+#if defined(XTR_WIN_NATIVE) && defined(WIN32)
+                const unsigned char *unexpected=NULL;
+                size_t unexpected_len=0;
+                /* Central internal companions have no Xtro extra field.
+                   Reject a forged local Xtro field before staging bytes. */
+                if(xtr_locate(G.extra_field,G.lrec.extra_field_length,
+                              &unexpected,&unexpected_len)!=XTR_OK || unexpected){
+                    xtr_restore_rejected=1;
+                    return PK_ERR;
+                }
+#endif
+                if(xtr_stage_begin(G.pInfo,G.filename))return PK_DISK;
+                G.outfile=xtr_stage_file(G.filename);
+            }else
+#endif
+            if(open_outfile(__G))return PK_DISK;
+        }
 #endif /* ?VMS */
     }
 
@@ -4720,16 +4872,45 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             error = close_outfile(__G);
     }
 #else
-    if (!uO.tflag && !uO.cflag)   /* don't close NULL file or stdout */
-        error = close_outfile(__G);
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+    if(XTR_RESTORE_ACTIVE && !uO.tflag && !uO.cflag &&
+       G.pInfo->xtr_central && xtr_pin_output(G.pInfo,G.outfile))
+        error=PK_ERR;
+#endif
+    if (!uO.tflag && !uO.cflag) {  /* don't close NULL file or stdout */
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+        if(XTR_RESTORE_ACTIVE && G.pInfo->xtr_companion){
+            if(xtr_stage_end(G.pInfo,G.filename))error=PK_ERR;
+            G.outfile=NULL;
+        }else if(XTR_RESTORE_ACTIVE && G.pInfo->xtr_central){
+            int cr=close_outfile(__G);
+            if(cr>error)error=cr;
+        }else
+#endif
+            error=close_outfile(__G);
+    }
 #endif
 #endif /* VMS */
 
     if (G.disk_full) {            /* set by flush() */
         if (G.disk_full > 1) {
+#if (defined(XTR_WIN_NATIVE) && defined(WIN32)) && !defined(SFX) && !defined(DLL)
+            if (XTR_RESTORE_ACTIVE) {
+                /* The destination might be an existing NTFS object opened
+                 * in-place to preserve unselected EAs/ADS. Deleting it on
+                 * ENOSPC would destroy the metadata this mode promises to
+                 * preserve. Keep the incomplete file and report failure. */
+                Info(slide, 0x421, ((char *)slide,
+                  LoadFarString(FileTruncated), FnFilter1(G.filename)));
+            } else
+#endif
 #if (defined(DELETE_IF_FULL) && defined(HAVE_UNLINK))
             /* delete the incomplete file if we can */
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+            if (xtr_win_u8_unlink(G.filename) != 0)
+#else
             if (unlink(G.filename) != 0)
+#endif
                 Trace((stderr, "extract.c:  could not delete %s\n",
                   FnFilter1(G.filename)));
 #else
@@ -4989,6 +5170,22 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
      * metadata warnings without downgrading CRC, FWKCS or I/O failures. */
     if (refptr_metadata_warning && error == PK_COOL)
         error = PK_WARN;
+#endif
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+    if(XTR_RESTORE_ACTIVE && error==PK_COOL && !uO.cflag && !uO.tflag){
+        if(G.pInfo->xtr_companion)xtr_stage_verified(G.filename);
+        else if(G.pInfo->xtr_central){
+            xtr_extra e;
+            if(xtr1_extra_decode(G.pInfo->xtr_central,
+                                G.pInfo->xtr_central_len,1,&e,NULL)!=XTR_OK ||
+               (e.mode==XTR_V1_INLINE ?
+                xtr_restore_verified(G.pInfo,G.extra_field,
+                         G.lrec.extra_field_length,G.filename) :
+                xtr_defer_owner(G.pInfo,G.extra_field,
+                         G.lrec.extra_field_length,G.filename)))
+                 error=PK_ERR;
+        }
+    }
 #endif
     return error;
 

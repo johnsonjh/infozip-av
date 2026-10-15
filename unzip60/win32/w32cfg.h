@@ -26,6 +26,24 @@
 #  define MSC
 #endif
 
+/* LOCAL_UNZIP is intentionally inherited by every consumer of UnZip
+ * objects, including SFX, fUnZip, DLLs, ZipOpt and ZipDedup. Keep that
+ * compiler-option contract unchanged. XTR_WIN_UTF8_PATHS is the user's
+ * request; XTR_WIN_UTF8_ACTIVE is the per-translation-unit activation for
+ * the supported console UnZip extraction lifecycle only.
+ *
+ * Info-ZIP's _MBCS helpers assume the process ANSI code page, whereas the
+ * active UTF-8 extraction path stores validated UTF-8 pathname bytes. */
+#if defined(XTR_WIN_UTF8_PATHS) && !defined(SFX) && !defined(DLL) && \
+    !defined(FUNZIP) && !defined(UNZIPLIB)
+# if !defined(XTR_WIN_NATIVE) || !defined(WIN32) || !defined(__MINGW32__)
+#  error XTR_WIN_UTF8_PATHS requires native MinGW console UnZip
+# endif
+# define XTR_WIN_UTF8_ACTIVE 1
+# ifndef NO_MBCS
+#  define NO_MBCS
+# endif
+#endif
 /* enable multibyte character set support by default */
 #if (!defined(_MBCS) && !defined(NO_MBCS))
 #  define _MBCS

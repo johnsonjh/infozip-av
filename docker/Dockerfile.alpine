@@ -13,5 +13,8 @@ RUN set -x && cd && \
   apk add gawk gcc gcompat gnu-libiconv gnu-libiconv-dev gnu-libiconv-libs libc-dev libintl libtool autoconf automake autoconf-archive make musl-libintl musl-utils pigz tar time sed coreutils bison flex linux-headers patch libc-dev gettext xz-dev xz-static zstd-dev zstd-static file file-dev upx && \
   (cd /tmp && git clone https://github.com/zlib-ng/zlib-ng && cd zlib-ng && env CFLAGS="-O3 -flto=auto" ./configure --prefix=/usr --static && make -j $(nproc) && make install && cd .. && rm -rf ./zlib-ng) && \
   (cd /tmp && git clone --recursive git://sourceware.org/git/bzip2.git && cd bzip2 && make CFLAGS="-O3 -flto=auto -D_FILE_OFFSET_BITS=64" LDFLAGS="-O3 -flto=auto" -j $(nproc) libbz2.a && make install PREFIX=/usr && cd .. && rm -rf ./bzip2) && \
-  (cd /tmp && git clone https://github.com/dbry/wavpack && cd wavpack && autoreconf -vfi && ./configure --disable-apps --disable-shared --enable-static --prefix=/usr && make -j $(nproc) && make install && cd .. && rm -rf ./wavpack) && \
-  (cd /tmp && git clone https://git.sr.ht/~breadbox/ELFkickers && cd ELFkickers && make -j $(nproc) && cp -f sstrip/sstrip /usr/bin && cd .. && rm -rf ELFkickers)
+  (cd /tmp && git clone https://github.com/dbry/wavpack && cd wavpack && autoreconf -vfi && ./configure --disable-apps --disable-shared --enable-static --prefix=/usr && make -j $(nproc) && make install && cd .. && rm -rf ./wavpack)
+
+RUN touch /.OK
+
+RUN printf '\n%s\n' "BUILD SUCCESS"

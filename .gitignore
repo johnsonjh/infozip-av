@@ -28,6 +28,15 @@ pvsreport/
 /win32/
 /win64/
 /win64ucrt/
+/xtrmeta/__pycache__/
+/xtrmeta/test_win_ads_stream_native.exe
+/xtrmeta/test_win_ads_txn
+/xtrmeta/test_win_ads_write_native.exe
+/xtrmeta/test_win_ea1
+/xtrmeta/test_win_ea_native.exe
+/xtrmeta/test_win_nt_native.exe
+/xtrmeta/test_win_restore_plan
+/xtrmeta/test_win_unzip_mock
 /zip30/flags
 /zip30/*.o
 /zip30/zip

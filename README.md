@@ -2,7 +2,7 @@
 
 <br>
 <p align="center">
-  <img src=".img/xtro-zip.jpg" alt="Xtro‑ZIP" width="100%">
+  <img src=".img/xtro-zip.webp" alt="Xtro‑ZIP" width="100%">
 </p>
 <br>
 

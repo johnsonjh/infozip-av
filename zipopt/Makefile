@@ -119,11 +119,11 @@ LDLIBS += -lbz2 -llzma -lzstd $(ZO_DEFLATE_LIBS)
 ZOCODEC = build/zo-codec-$(ZO_SELECTED_BACKEND).o
 ZO_BACKEND_STAMP = build/zo-backend-$(ZO_SELECTED_BACKEND).stamp
 all: zipopt zipopt-preflight zipopt-decodecheck
-zipopt: $(ZO_BACKEND_STAMP) archive.c archive.h extract.c extract.h writer.c writer.h codec.c codec.h $(CODEC_DEPS) display.h fwkcs_md5.h ../zip30/fwkcs_fast_md5.inc zipopt.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c zipopt.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
-zipopt-preflight: archive.c archive.h preflight.c
+zipopt: $(ZO_BACKEND_STAMP) archive.c archive.h extract.c extract.h writer.c writer.h codec.c codec.h $(CODEC_DEPS) display.h fwkcs_md5.h ../zip30/fwkcs_fast_md5.inc zipopt.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c zipopt.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
+zipopt-preflight: archive.c archive.h preflight.c ../xtrmeta/xtrrewrite.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c preflight.c -o $@ $(LOCAL_GLDFLAGS)
-zipopt-decodecheck: archive.c archive.h extract.c extract.h decodecheck.c $(UZOBJS)
+zipopt-decodecheck: archive.c archive.h extract.c extract.h decodecheck.c $(UZOBJS) ../xtrmeta/xtrrewrite.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) $(LDLIBS) -o $@ $(LOCAL_GLDFLAGS)
 build:
 	mkdir -p $@
@@ -142,8 +142,8 @@ build/uz-%.o: $(UZDIR)/%.c | build
 # shim can force recoverable and fatal failures without changing production.
 build/zo-failure-test-main.o: zipopt.c codec.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) -Dzo_compress=zo_compress_test -c zipopt.c -o $@
-zipopt-test-candidate-failure: $(ZO_BACKEND_STAMP) archive.c extract.c writer.c build/zo-failure-test-main.o tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c build/zo-failure-test-main.o tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
+zipopt-test-candidate-failure: $(ZO_BACKEND_STAMP) archive.c extract.c writer.c build/zo-failure-test-main.o tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c build/zo-failure-test-main.o ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 codec-probe: $(ZO_BACKEND_STAMP) tests/codec_probe.c codec.c codec.h archive.h $(CODEC_DEPS) $(ZO_INTERNAL_DEFLATE)
 	$(CC) $(CPPFLAGS) -O2 -std=gnu89 -I../zip30 $(LOCAL_ZIP) $(EXTERNAL_ZLIB) $(ZO_DEFLATE_FLAGS) tests/codec_probe.c codec.c $(ZO_INTERNAL_DEFLATE) -lbz2 -llzma -lzstd $(ZO_DEFLATE_LIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 test-display: tests/test_display.c display.h archive.h
