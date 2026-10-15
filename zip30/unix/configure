@@ -374,7 +374,17 @@ $CPP conftest.c >/dev/null 2>/dev/null || CPP="${CC} -E"
 echo Check if we can use asm code
 OBJA=""
 OCRCU8=""
-if eval "$CPP match.S > _match.s 2>/dev/null"; then
+# The legacy matcher and CRC asm belong to the bundled Deflate backend.
+# With external zlib (or native zlib-ng), the matching variables referenced
+# by match.S are not defined.  A successful assembly test alone would
+# incorrectly enable ASMV and cause a link failure on 32-bit x86.
+# Respect NO_ASM as well, including for builds using the bundled backend.
+ASM_PROBE=yes
+case " ${CFLAGS} " in
+  *" -DUSE_ZLIB "*|*" -DUSE_ZLIB="*|*" -DUSE_ZLIB_NG "*|*" -DUSE_ZLIB_NG="*|*" -DNO_ASM "*|*" -DNO_ASM="*)
+    ASM_PROBE=no ;;
+esac
+if test "$ASM_PROBE" = yes && eval "$CPP match.S > _match.s 2>/dev/null"; then
   if test ! -s _match.s || grep error < _match.s > /dev/null; then
     :
   elif eval "$CC -c _match.s >/dev/null 2>/dev/null" && [ -f _match.o ]; then
