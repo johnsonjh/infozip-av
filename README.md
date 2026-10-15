@@ -175,7 +175,7 @@ or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav).
 
 ## Downloads
 
-[**Periodically updated builds are available for several operating systems.**](https://github.com/johnsonjh/infozip-av/releases/latest)
+[**Periodically updated builds are available for several operating systems.**](https://github.com/johnsonjh/infozip-av/releases/tag/v0)
 
 ## Building
 
