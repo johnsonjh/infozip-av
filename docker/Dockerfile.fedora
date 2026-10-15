@@ -1,0 +1,144 @@
+FROM quay.io/fedora/fedora:rawhide
+
+USER 0
+
+WORKDIR /
+
+RUN set -x && \
+  dnf -y --refresh update && \
+  dnf -y install dnf-plugins-core dnf-utils && \
+  dnf -y install -y 'dnf-command(config-manager)' && \
+  dnf -y --refresh update && \
+  dnf -y install rpmconf && \
+  (rpmconf --all --unattended use_maintainer || true) && \
+  (rpmconf --all --unattended use_maintainer --clean || true) && \
+  dnf -y --refresh update && \
+  dnf -y --setopt=install_weak_deps=True install \
+    autoconf \
+    autoconf-archive \
+    automake \
+    bash \
+    bison \
+    bzip2-devel \
+    cmake \
+    curl \
+    dnf-utils \
+    flex \
+    gcc \
+    gcc-c++ \
+    git \
+    glibc-devel \
+    glibc-headers-x86 \
+    ksh \
+    libzstd \
+    m4 \
+    make \
+    mingw32-binutils \
+    mingw32-cpp \
+    mingw32-crt \
+    mingw32-dlfcn \
+    mingw32-dlfcn-static \
+    mingw32-filesystem \
+    mingw32-filesystem mingw32-gcc \
+    mingw32-gcc \
+    mingw32-gcc-c++ \
+    mingw32-headers \
+    mingw32-nsis \
+    mingw32-nsiswrapper \
+    mingw32-srvany \
+    mingw32-winpthreads \
+    mingw32-winpthreads-static \
+    mingw32-xz-libs \
+    mingw32-xz-libs-static \
+    mingw64-binutils \
+    mingw64-cpp \
+    mingw64-crt \
+    mingw64-dlfcn \
+    mingw64-dlfcn-static \
+    mingw64-filesystem \
+    mingw64-gcc \
+    mingw64-gcc-c++ \
+    mingw64-headers \
+    mingw64-winpthreads \
+    mingw64-winpthreads-static \
+    mingw64-xz-libs \
+    mingw64-xz-libs-static \
+    mingw-binutils-generic \
+    mingw-filesystem-base \
+    mingw-w64-tools \
+    musl-clang \
+    musl-devel \
+    musl-filesystem \
+    musl-gcc \
+    musl-libc \
+    musl-libc-static \
+    patch \
+    pigz \
+    screen \
+    symlinks \
+    tar \
+    texinfo \
+    time \
+    tmux \
+    ucrt64-binutils \
+    ucrt64-cpp \
+    ucrt64-crt \
+    ucrt64-dlfcn \
+    ucrt64-dlfcn-static \
+    ucrt64-filesystem \
+    ucrt64-gcc \
+    ucrt64-gcc-c++ \
+    ucrt64-headers \
+    ucrt64-libgcc \
+    ucrt64-libstdc++ \
+    ucrt64-winpthreads \
+    ucrt64-winpthreads-static \
+    unzip \
+    upx \
+    util-linux \
+    wavpack-devel \
+    wget \
+    which \
+    xz \
+    xz-devel \
+    xz-libs \
+    zip \
+    zlib \
+    zlib-devel \
+    zlib-ng \
+    zlib-ng-devel \
+    libzstd-devel && \
+  dnf -y --setopt=install_weak_deps=True --best group install \
+    development-tools \
+    c-development \
+ && \
+  dnf -y --refresh update && \
+  (rpmconf --all --unattended use_maintainer || true) && \
+  (rpmconf --all --unattended use_maintainer --clean || true) && \
+  dnf -y clean all && \
+  rm -rf ~/.cache && \
+  rm -rf /var/tmp/* && \
+  rm -rf /var/log/dnf* && \
+  rm -rf /usr/share/doc && \
+  rm -rf /usr/share/man && \
+  cd && \
+  git clone https://github.com/andrewwutw/build-djgpp && \
+  cd build-djgpp && \
+  (curl -fsSL https://github.com/andrewwutw/build-djgpp/pull/53.diff | patch -p1 -l) && \
+  (curl -fsSL https://github.com/andrewwutw/build-djgpp/pull/58.diff | patch -p1 -l) && \
+  (curl -fsSL https://github.com/andrewwutw/build-djgpp/pull/59.diff | patch -p1 -l) && \
+  export DJGPP_PREFIX=/opt/djgpp && \
+  mkdir -p download && \
+  wget https://www.mirrorservice.org/sites/ftp.gnu.org/gnu/gcc/gcc-14.3.0/gcc-14.3.0.tar.xz -O download/gcc-14.3.0.tar.xz && \
+  wget https://www.mirrorservice.org/sites/ftp.delorie.com/pub/djgpp/rpms/djcross-gcc-14.2.0/djcross-gcc-14.2.0.tar.bz2 -O download/djcross-gcc-14.2.0.tar.bz2 && \
+  sed -i 's|${MAKE} j=4 "PATH=$BUILDDIR/tmpinst/bin:$PATH" \|\| exit 1|${MAKE} j=4 "PATH=$BUILDDIR/tmpinst/bin:$PATH" "CXXFLAGS=-g -O2 -std=gnu++11" \|\| exit 1|' script/14.3.0 && \
+  sed -i '\|CFLAGS="-O2 -g \$CFLAGS -std=gnu11"|a CXXFLAGS="CXXFLAGS=-g -O2 -std=gnu++11"' script/14.3.0 && \
+  env ENABLE_LANGUAGES=c ./build-djgpp.sh 14.3.0 && \
+  /opt/djgpp/bin/i586-pc-msdosdjgpp-gcc --version && \
+  (cd /tmp && git clone https://github.com/johnsonjh/cwsdpmi-novcpi && cp -ax cwsdpmi-novcpi/cwsdpmi7.nvc /opt/cwsdpmi) && \
+  (cd /tmp && git clone https://github.com/BR903/ELFkickers && cd ELFkickers && make && cp sstrip/sstrip /usr/bin) && \
+  cd
+
+RUN touch /.OK
+
+RUN printf '\n%s\n' "BUILD SUCCESS"

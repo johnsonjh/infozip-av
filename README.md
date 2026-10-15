@@ -12,6 +12,8 @@
 
 - [Overview](#overview)
   * [Features](#features)
+- [Downloads](#downloads)
+- [Building](#building)
 - [Usage](#usage)
   * [De-duplication (`zipdedup`)](#de-duplication-zipdedup)
   * [Optimization (`zipopt`)](#optimization-zipopt)
@@ -62,6 +64,9 @@
 > [!TIP]
 > **Xtro‑ZIP** is the **only** permissively‑licensed open‑source ZIP software
 > that even comes close to fully supporting the complete ZIP specification!
+
+> [!NOTE]
+> [**Precompiled binaries are available for download.**](#downloads)
 
 ### Features
 
@@ -166,10 +171,25 @@ and [`unzip`](https://src.fedoraproject.org/rpms/unzip)
 
 If you want, you can compare the changes against the Fedora upstream version
 using [GitHub](https://github.com/johnsonjh/infozip-av/compare/fedora...pkav)
-or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav),
-or clone the repo and compile it using “`./build-unix.sh`” (on almost any
-UNIX-like system).  Use “`./build-win32.sh`” for Windows builds (using
-[mingw-w64](https://www.mingw-w64.org/)).
+or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav).
+
+## Downloads
+
+[Periodically updated builds are available for several operating systems.](https://github.com/johnsonjh/infozip-av/releases/tag/v0)
+
+## Building
+
+* Use “`./build-unix.sh`” for native builds on most UNIX-like systems.
+
+* Use “`./build-win32.sh`” for Windows builds using
+  [mingw-w64](https://www.mingw-w64.org/).
+
+* Use “`./build-dos386.sh`” for DOS 386 DPMI builds using
+  [DJGPP](https://www.delorie.com/djgpp/).
+
+> [!IMPORTANT]
+> Examine the actual build scripts (and the “`build-all.sh`” script the
+> developer uses to build the binary releases) for more details.
 
 ## Usage
 

@@ -38,6 +38,13 @@ command -v git > /dev/null 2>&1 \
 
 ################################################################################
 
+test -d ./.git > /dev/null 2>&1 || {
+  printf '%s\n' "ERROR: No .git directory."
+  exit 1
+}
+
+################################################################################
+
 # Check for cwsdstub.exe
 
 test -f /opt/cwsdpmi/cwsdstub.exe || {
@@ -275,6 +282,9 @@ test -d build-dos386/lzma \
 rm -rf ./dos386
 mv -f ./build-dos386/bin dos386
 cp -f ./dos386/unzip.exe ./dos386/zipinfo.exe
+rm -f ./dos386/zipopt-preflight.exe
+rm -f ./dos386/zipopt-decodecheck.exe
+
 
 # Compress stub
 

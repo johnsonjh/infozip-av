@@ -1,0 +1,14 @@
+1) From the top level of the repository (the parent directory of this file),
+build the docker image to be used for the build.  The non-BuildKit method is
+suggested first because docker build produces a large amount of output and the
+usual default Docker settings cause the output of the build to be truncated at
+2MiB.  This is simply a workaround so all the output can be easily seen without
+modification of any Docker service environment variables.
+
+env DOCKER_BUILDKIT=0 docker build --rm=true -t xtro-zip-build-fedora:latest -f docker/Dockerfile.fedora .
+  [... or ...]
+docker build --progress=plain --rm=true -t xtro-zip-build-fedora:latest -f docker/Dockerfile.fedora .
+
+2) Run the build using the container:
+
+./clean.sh && docker run -it -h xtro-zip-build -v "$(pwd -P)":/work -w /work xtro-zip-build ./build-all.sh
