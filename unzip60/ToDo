@@ -59,7 +59,6 @@ For UnZip 6.1/who knows:
 
    o add command line options for miscellaneous features requested by users
      and/or development team members:
-     - display the Info-ZIP software license
      - more fine-tuning for file attributes set/restored at extraction, like:
        set/clear archive attribute on DOS/OS2/WIN32;
        apply/skip standard or user-defined umask filter on UNIX (& Unix-alike)
