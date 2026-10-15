@@ -136,7 +136,7 @@ RUN set -x && \
   env ENABLE_LANGUAGES=c ./build-djgpp.sh 14.3.0 && \
   /opt/djgpp/bin/i586-pc-msdosdjgpp-gcc --version && \
   (cd /tmp && git clone https://github.com/johnsonjh/cwsdpmi-novcpi && cp -ax cwsdpmi-novcpi/cwsdpmi7.nvc /opt/cwsdpmi) && \
-  (cd /tmp && git clone https://github.com/BR903/ELFkickers && cd ELFkickers && make && cp sstrip/sstrip /usr/bin) && \
+  (cd /tmp && git clone https://git.sr.ht/~breadbox/ELFkickers && cd ELFkickers && make && cp sstrip/sstrip /usr/bin) && \
   cd
 
 RUN touch /.OK
