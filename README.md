@@ -253,8 +253,8 @@ ZipCrypto or AES encryption.
 | Linux           |   ✅   | Save/restore of Linux [`xattr` extended attributes](https://en.wikipedia.org/wiki/Extended_file_attributes#Linux) |
 | FreeBSD         |   ✅   | Save/restore of FreeBSD [`extattr` extended attributes](https://man.freebsd.org/cgi/man.cgi?query=extattr)        |
 | NetBSD          |   ✅   | Save/restore of NetBSD [`extattr` extended attributes](https://man.netbsd.org/extattr.3)                          |
-| Windows         |   ✅   | Full save/restore support for NT extended attributes and NTFS named data streams                                  |
-| OpenBSD         | **?**  | Support is **untested**                                                                                           |
+| Windows         |   ✅   | Save/restore of [NT extended attributes and NTFS named data streams](https://learn.microsoft.com/en-us/windows/win32/fileio/file-streams) |
+| OpenBSD         |   *?*  | Support is **untested**                                                                                           |
 | AIX             |        | Support is **planned**                                                                                            |
 | Solaris/illumos |        | Support is **planned**                                                                                            |
 | macOS           |        | Support is **planned**                                                                                            |
