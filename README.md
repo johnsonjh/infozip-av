@@ -43,13 +43,18 @@
 
 ## Overview
 
-**Xtro‑ZIP**, derived from **Info‑ZIP**, adds extensive support for:
+> [!TIP]
+> **Xtro‑ZIP** is the **only** permissively‑licensed open‑source ZIP software
+> that even comes close to fully supporting the complete ZIP specification!
+
+**Xtro‑ZIP**, derived from **Info‑ZIP**, adds:
 
 * **new algorithms**
 * **security** hardening
 * **ultra** compression levels
 * data **de‑duplication**
 * ZIP **optimization**
+* Optional filesystem **metadata preservation**
 * CRC/SHA/AES/compression **hardware** **acceleration**<sup>1</sup>
 * [**PKAV**](https://github.com/johnsonjh/pkstuff#authenticity-verification)
   (create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x)
@@ -57,13 +62,7 @@
   [MD5](https://en.wikipedia.org/wiki/MD5)
 * [**AES** cryptography](https://www.winzip.com/en/support/aes-encryption/)
   (**AE‑1**, **AE‑2**, and “quantum‑resistant” **AE‑3**)
-* compatibility with existing tools (*e.g.*, [atool](https://www.nongnu.org/atool/),
-  [patool](https://wummel.github.io/patool/))
 * innumerable **bug fixes** and other improvements
-
-> [!TIP]
-> **Xtro‑ZIP** is the **only** permissively‑licensed open‑source ZIP software
-> that even comes close to fully supporting the complete ZIP specification!
 
 > [!NOTE]
 > [**Precompiled binaries are available for download.**](#downloads)
@@ -232,6 +231,65 @@ zipopt: 13,005,195 bytes -> 3,767,243 bytes -> 3,093,724 bytes
 ```
 
 Invoke as `zipopt --help` for complete `zipopt` usage information.
+
+### Filesystem metadata preservation
+
+**Xtro‑ZIP** supports optional preservation of filesystem extended attributes
+and NTFS alternate data streams as **Xtro** metadata.
+
+The portable **Xtro** format can store binary attributes, native attribute
+metadata, and named data streams.  Small metadata is stored in ZIP extra
+fields, and larger metadata is stored as additional ZIP members “companions”.
+All metadata is independently verified using SHA‑256, and can be secured with
+ZipCrypto or AES encryption.
+
+#### Metadata platform support
+
+| Platform        | Status | Description |
+|----------------:|:-------|:------------------------------------------------------------------------------------------------------------------|
+| Linux           |   ✅   | Save/restore of Linux [`xattr` extended attributes](https://en.wikipedia.org/wiki/Extended_file_attributes#Linux) |
+| FreeBSD         |   ✅   | Save/restore of FreeBSD [`extattr` extended attributes](https://man.freebsd.org/cgi/man.cgi?query=extattr)        |
+| NetBSD          |   ✅   | Save/restore of NetBSD [`extattr` extended attributes](https://man.netbsd.org/extattr.3)                          |
+| Windows         |   ✅   | Full save/restore support for NT extended attributes, and NTFS named data streams                                 |
+| OpenBSD         |        | Support is untested                                                                                               |
+| AIX             |        | Support is planned                                                                                                |
+| Solaris/illumos |        | Support is planned                                                                                                |
+| macOS           |        | Support is planned                                                                                                |
+| OS/2            |        | Support is planned (*low priority*)                                                                               |
+
+* Save/restore extended attributes:
+
+```
+zip --xattrs archive.zip file
+unzip --xattrs archive.zip
+```
+
+On Windows, `--xattrs` indicates NT extended attributes and `--streams`
+indicates NTFS named data streams.  The corresponding `--no-xattrs` and
+`--no-streams` options can be used to disable these operations.
+
+* Save/restore Windows extended attributes and NTFS data streams
+
+```
+zip --xattrs --streams archive.zip file
+unzip --xattrs --streams archive.zip
+```
+
+#### Metadata preservation notes
+
+* **Xtro metadata** uses the `0x5854` ZIP extra‑field identifier, which is
+  provisional and pending final format review.
+* Large metadata is stored as “companion” members appear as ordinary ZIP members
+  to ZIP extractors that do not recognize the **Xtro‑ZIP** **Xtro** metadata
+  extensions.  Such extractors can still process any ordinary files.
+* When replacing archive members, **Xtro‑ZIP** recaptures any relevant
+  metadata (or reports the removal of obsolete metadata).
+* Metadata‑aware archive utilities preserve ownership and “companion”
+  relationships where supported (although some encrypted archive
+  transformations are currently unsupported).
+* ACLs, security descriptors, security labels, capabilities, quarantine
+  tags, and NTFS alternate data streams are **not** implicitly restored as
+  ordinary extended attributes.
 
 ### PKAV
 
@@ -661,9 +719,11 @@ No errors detected in compressed data of pkz110.exe.
 
 ## External links
 
+* [`atool`](https://www.nongnu.org/atool/) ‑ Script for managing file archives
 * [Common ZIP](https://commonzip.org/) ‑ Open‑source specification for the ZIP file format
 * [`hexdump‑zip`](https://github.com/johnsonjh/hexdump-zip) ‑ ANSI C89 implementation of [`thejoshwolfe/hexdump-zip`](https://github.com/thejoshwolfe/hexdump-zip)
 * [`johnsonjh/pkstuff`](https://github.com/johnsonjh/pkstuff) ‑ PKZIP/PKUNZIP/PKSFX/PKLITE utilities
+* [`patool`](https://wummel.github.io/patool/) ‑ Portable archive file manager
 * [PKDCLX](https://github.com/johnsonjh/pkdclx) ‑ PKWARE DCL‑compatible Extended DCL‑Implode and DCL‑Explode
 * [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT) ‑ Current ZIP file format specification
 * [WinZip WZ‑JPEG](https://www.winzip.com/static/wz/docs/wz-jpg-comp.pdf) ‑ Method&nbsp;96 JPEG Compression specification
