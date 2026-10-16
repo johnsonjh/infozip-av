@@ -16,6 +16,7 @@
 # define _POSIX_C_SOURCE 200809L
 #endif /* if !defined( _POSIX_C_SOURCE ) && !defined( _WIN32 ) */
 
+#define XTR_REWRITE_IMPLEMENTATION
 #include "archive.h"
 #include <stdlib.h>
 #include <string.h>
@@ -134,7 +135,7 @@ zo_extras (zo_archive *a, const unsigned char *p, unsigned n, int central,
            int want_disk, zo_u64 *usize, zo_u64 *csize, zo_u64 *offset)
 {
   unsigned i = 0, typ, len;
-  unsigned fwseen = 0, zseen = 0;
+  unsigned fwseen = 0, zseen = 0, zxtroseen = 0;
 
   while (i < n)
     {
@@ -205,6 +206,23 @@ zo_extras (zo_archive *a, const unsigned char *p, unsigned n, int central,
 
             break;
           }
+
+        case 0x5854: /* Xtro owner metadata: validate without rewriting. */
+          /* A second Xtro field is always a structural error. */
+          if (zxtroseen++) return zo_bad(a,"duplicate Xtro owner");
+          if (!central && e->xtr.role == 0)
+            return zo_bad(a,"unexpected local-only Xtro metadata");
+          {
+            /* xr_scan validates complete lists, including duplicates. */
+            xr_node temp;
+            memset(&temp,0,sizeof(temp));
+            if (!central) temp=e->xtr;
+            if (!xr_scan(p+i-4,len+4,central,&temp))
+              return zo_bad(a,"invalid Xtro extra field");
+            if (central) e->xtr=temp;
+            else e->xtr_local_seen=1;
+          }
+          break;
 
         case ZO_FW:
           if (!central || fwseen++ || len != 19 || memcmp (p + i, "MD5", 3))
@@ -789,6 +807,9 @@ zo_parse (zo_archive *a)
           return 0;
         }
 
+      if (!!e->xtr_local_seen != !!(e->xtr.role==1 || e->xtr.role==2))
+        return zo_bad(a,"missing or unexpected local Xtro extra field");
+
       if (!(flags & 8) && (u != e->usize || c != e->csize))
         {
           return zo_bad (a, "local ZIP64 sizes mismatch");
@@ -879,6 +900,43 @@ zo_parse (zo_archive *a)
 
       return 1;
     }
+
+  /* Validate every owner/companion association before any output can start. */
+  {
+    xr_node *nodes;
+    if (a->count > (zo_u64)((size_t)-1/sizeof(*nodes)))
+      return zo_bad(a,"Xtro graph too large");
+    nodes=(xr_node *)malloc((size_t)a->count*sizeof(*nodes));
+    if (!nodes) return zo_bad(a,"out of memory for Xtro graph");
+    for (i=0;i<a->count;i++) {
+      zo_entry *item=&a->entries[(size_t)i];
+      unsigned char sid[16];
+      int namekind=xr_name(item->name,item->name_len,sid);
+      nodes[(size_t)i]=item->xtr;
+      if (namekind<0 || (namekind && item->xtr.role) ||
+          (!namekind && item->xtr.role==3) ||
+          (item->xtr.role && namekind)) {free(nodes);
+          return zo_bad(a,"Xtro reserved name collision");}
+      if (item->xtr.role==2 && item->xtr.header[7]!=0U) {free(nodes);
+        return zo_bad(a,"encrypted Xtro metadata unsupported in ZipOpt");}
+      if (namekind==1) {
+        /* The current production restore limit is 32 MiB. Reject oversized
+         * metadata before a decompressor can allocate or stage its payload. */
+        if (item->usize>33554432UL) {free(nodes);
+          return zo_bad(a,"Xtro companion exceeds bounded manifest limit");}
+        if (item->method!=0 && item->method!=8) {free(nodes);
+          return zo_bad(a,"Xtro companion must be STORE or Deflate");}
+        nodes[(size_t)i].role=3;
+        memcpy(nodes[(size_t)i].id,sid,16);
+        item->xtr=nodes[(size_t)i];
+      }
+    }
+    if (!xr_graph(nodes,(size_t)a->count)) {
+      free(nodes);return zo_bad(a,"malformed Xtro owner/companion graph");
+    }
+    for (i=0;i<a->count;i++) a->entries[(size_t)i].xtr=nodes[(size_t)i];
+    free(nodes);
+  }
 
   sorted = (zo_entry **)malloc ((size_t)a->count * sizeof (*sorted));
 

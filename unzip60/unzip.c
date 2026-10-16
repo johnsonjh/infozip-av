@@ -67,6 +67,9 @@
 #include "unzip.h"      /* includes, typedefs, macros, prototypes, etc. */
 #include "crypt.h"
 #include "unzvers.h"
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32)
+# include "../xtrmeta/xtrwin_utf8argv.h"
+#endif
 
 #ifndef WINDLL          /* The WINDLL port uses windll/windll.c instead... */
 
@@ -758,7 +761,21 @@ int MAIN(argc, argv)   /* return PK-type error code (except under VMS) */
     int r;
 
     CONSTRUCTGLOBALS();
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32)
+    {
+        int n=0;
+        char **utf8argv=NULL;
+        if(!xtr_win_utf8_argv(&n,&utf8argv)){
+            fputs("unzip: invalid Unicode command-line arguments\n",stderr);
+            r=PK_BADERR;
+        }else{
+            r=unzip(__G__ n,utf8argv);
+            xtr_win_utf8_free_argv(n,utf8argv);
+        }
+    }
+#else
     r = unzip(__G__ argc, argv);
+#endif
     DESTROYGLOBALS();
     RETURN(r);
 }
@@ -1368,6 +1385,13 @@ static int setsignalhandler(__G__ p_savedhandler_chain, signal_type,
 /* Function uz_opts() */
 /**********************/
 
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+int xtr_unzip_xattrs = 0;
+#if defined(XTR_WIN_NATIVE) && defined(WIN32)
+int xtr_unzip_streams = 0;
+#endif
+#endif
+
 int uz_opts(__G__ pargc, pargv)
     __GDEF
     int *pargc;
@@ -1385,6 +1409,26 @@ int uz_opts(__G__ pargc, pargv)
 #endif
     
     while (++argv, (--argc > 0 && *argv != NULL && **argv == '-')) {
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+        if (strcmp(*argv,"--xattrs") == 0) {
+            xtr_unzip_xattrs = 1;
+            continue;
+        }
+        if (strcmp(*argv,"--no-xattrs") == 0) {
+            xtr_unzip_xattrs = 0;
+            continue;
+        }
+#if defined(XTR_WIN_NATIVE) && defined(WIN32)
+        if (strcmp(*argv,"--streams") == 0) {
+            xtr_unzip_streams = 1;
+            continue;
+        }
+        if (strcmp(*argv,"--no-streams") == 0) {
+            xtr_unzip_streams = 0;
+            continue;
+        }
+#endif
+#endif
         if (strcmp(*argv, "--list-fwkcs-md5") == 0) {
             G.fwkcs_list_md5 = TRUE;
             continue;
@@ -2284,6 +2328,14 @@ static void help_extended(__G)
   "         information.  Also can be added to other list commands for more",
   "         verbose output.",
   "  -z   Display only archive comment.",
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+  "  --xattrs           Restore supported native user extended attributes.",
+  "  --no-xattrs        Disable optional native attribute restoration.",
+#if defined(XTR_WIN_NATIVE) && defined(WIN32)
+  "  --streams          Restore NTFS named $DATA streams (independent of EAs).",
+  "  --no-streams       Disable optional NTFS stream restoration.",
+#endif
+#endif
   "  --list-fwkcs-md5  Show stored FWKCS MD5 values in -l/-v listings.",
 #ifdef PKAV_SUPPORT
   "  --show-avextra-on-fail  Show unverified PKAV AVEXTRA after failure.",

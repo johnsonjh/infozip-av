@@ -60,6 +60,19 @@
 #define __FILEIO_C      /* identifies this source module */
 #define UNZIP_INTERNAL
 #include "unzip.h"
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+# include "../xtrmeta/xtrwin_utf8path.h"
+#endif
+/* In the opt-in native Windows extraction build, retain the existing
+ * filesystem object when overwriting its unnamed data stream, regardless
+ * of --xattrs/--streams restore selection.  An unselected NT EA or named
+ * $DATA stream must not disappear merely because its owner is extracted.
+ * Only builds with XTR_WIN_NATIVE use this policy; historical builds keep
+ * their original delete-and-create overwrite behavior. */
+#if defined(XTR_WIN_NATIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+extern FILE *xtr_win_open_existing_output(const char *,int);
+#define XTR_WIN_PRESERVE_OUTPUT 1
+#endif
 #ifdef WINDLL
 #  ifdef POCKET_UNZIP
 #    include "wince/intrface.h"
@@ -383,9 +396,20 @@ int open_input_file(__G)    /* return 1 if open failed */
     G.zipfd = vmmvs_open_infile(__G);
 #else /* !CMS_MVS */
 #ifdef USE_STRM_INPUT
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32)
+    G.zipfd = xtr_win_u8_fopen(G.zipfn, FOPR);
+#else
     G.zipfd = fopen(G.zipfn, FOPR);
+#endif
 #else /* !USE_STRM_INPUT */
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+    /* MinGW uses fd-based ZIP input, not USE_STRM_INPUT.  Calling the
+     * narrow CRT open() here makes UTF-16 argv paths fail despite the
+     * wide stat() and wide stream-input branches above. */
+    G.zipfd = xtr_win_u8_archive_fd(G.zipfn);
+#else
     G.zipfd = open(G.zipfn, O_RDONLY | O_BINARY);
+#endif
 #endif /* ?USE_STRM_INPUT */
 #endif /* ?CMS_MVS */
 #endif /* ?MACOS */
@@ -416,9 +440,26 @@ int open_input_file(__G)    /* return 1 if open failed */
 /* Function open_outfile() */
 /***************************/
 
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+/* Local aliases affect only the destination path, not the ZIP input file. */
+# define XTR_DEST_ACCESS xtr_win_u8_access
+# define XTR_DEST_FOPEN xtr_win_u8_fopen
+# define XTR_DEST_UNLINK xtr_win_u8_unlink
+# define XTR_DEST_RENAME xtr_win_u8_rename
+# define XTR_DEST_CHMOD xtr_win_u8_chmod
+#else
+# define XTR_DEST_ACCESS access
+# define XTR_DEST_FOPEN zfopen
+# define XTR_DEST_UNLINK unlink
+# define XTR_DEST_RENAME rename
+# define XTR_DEST_CHMOD chmod
+#endif
 int open_outfile(__G)           /* return 1 if fail */
     __GDEF
 {
+#if defined(XTR_WIN_NATIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+    int xtr_preserve_existing=0;
+#endif
 #ifdef DLL
     if (G.redirect_data)
         return (redirect_outfile(__G) == FALSE);
@@ -430,8 +471,8 @@ int open_outfile(__G)           /* return 1 if fail */
 #ifdef BORLAND_STAT_BUG
     /* Borland 5.0's stat() barfs if the filename has no extension and the
      * file doesn't exist. */
-    if (access(G.filename, 0) == -1) {
-        FILE *tmp = fopen(G.filename, "wb+");
+    if (XTR_DEST_ACCESS(G.filename, 0) == -1) {
+        FILE *tmp = XTR_DEST_FOPEN(G.filename, "wb+");
 
         /* file doesn't exist, so create a dummy file to keep stat() from
          * failing (will be over-written anyway) */
@@ -450,6 +491,17 @@ int open_outfile(__G)           /* return 1 if fail */
           FnFilter1(G.filename)));
 #ifdef UNIXBACKUP
         if (uO.B_flag) {    /* do backup */
+#if defined(XTR_WIN_NATIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+            /* Backing up by rename detaches the old EAs/ADS from the new
+             * output object. No reliable transaction preserves unselected
+             * classes through that operation yet; do not silently lose them. */
+            if (XTR_WIN_PRESERVE_OUTPUT) {
+                Info(slide, 0x401, ((char *)slide,
+                  "error: native Windows Xtro metadata with backup overwrite is unsupported: %s\n",
+                  FnFilter1(G.filename)));
+                return 1;
+            }
+#endif
             char *tname;
             z_stat tmpstat;
             int blen, flen, tlen;
@@ -479,7 +531,7 @@ int open_outfile(__G)           /* return 1 if fail */
                  * otherwise the following rename operation may fail.
                  */
                 if (SSTAT(tname, &tmpstat) == 0)
-                    unlink(tname);
+                    XTR_DEST_UNLINK(tname);
             } else {
                 /* Check if backupname exists, and, if it's true, try
                  * appending numbers of up to 5 digits (or the maximum
@@ -503,7 +555,7 @@ int open_outfile(__G)           /* return 1 if fail */
                     sprintf(numtail,"%u", ++i);
             }
 
-            if (rename(G.filename, tname) != 0) {   /* move file */
+            if (XTR_DEST_RENAME(G.filename, tname) != 0) {   /* move file */
                 Info(slide, 0x401, ((char *)slide,
                   LoadFarString(CannotRenameOldFile),
                   FnFilter1(G.filename), strerror(errno)));
@@ -521,7 +573,7 @@ int open_outfile(__G)           /* return 1 if fail */
                 Trace((stderr,
                   "open_outfile:  existing file %s is read-only\n",
                   FnFilter1(G.filename)));
-                chmod(G.filename, S_IREAD | S_IWRITE);
+                XTR_DEST_CHMOD(G.filename, S_IREAD | S_IWRITE);
                 Trace((stderr, "open_outfile:  %s now writable\n",
                   FnFilter1(G.filename)));
             }
@@ -530,7 +582,17 @@ int open_outfile(__G)           /* return 1 if fail */
             /* Give the file read/write permission (non-POSIX shortcut) */
             chmod(G.filename, 0);
 #endif /* NLM */
-            if (unlink(G.filename) != 0) {
+#if defined(XTR_WIN_NATIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+            if (XTR_WIN_PRESERVE_OUTPUT) {
+                /* Unselected metadata survives only when the destination
+                 * remains the SAME NTFS file. Deliberately avoid unlink(),
+                 * even when both metadata restore options are disabled.
+                 * xtr_win_open_existing_output() checks/truncates the pinned
+                 * output handle after this overwrite decision. */
+                xtr_preserve_existing=1;
+            } else
+#endif
+            if (XTR_DEST_UNLINK(G.filename) != 0) {
                 Info(slide, 0x401, ((char *)slide,
                   LoadFarString(CannotDeleteOldFile),
                   FnFilter1(G.filename), strerror(errno)));
@@ -566,9 +628,9 @@ int open_outfile(__G)           /* return 1 if fail */
 #else /* !TOPS20 */
 #ifdef MTS
     if (uO.aflag)
-        G.outfile = zfopen(G.filename, FOPWT);
+        G.outfile = XTR_DEST_FOPEN(G.filename, FOPWT);
     else
-        G.outfile = zfopen(G.filename, FOPW);
+        G.outfile = XTR_DEST_FOPEN(G.filename, FOPW);
     if (G.outfile == (FILE *)NULL) {
         Info(slide, 1, ((char *)slide, LoadFarString(CannotCreateFile),
           FnFilter1(G.filename), strerror(errno)));
@@ -578,7 +640,7 @@ int open_outfile(__G)           /* return 1 if fail */
 #ifdef DEBUG
     Info(slide, 1, ((char *)slide,
       "open_outfile:  doing fopen(%s) for reading\n", FnFilter1(G.filename)));
-    if ((G.outfile = zfopen(G.filename, FOPR)) == (FILE *)NULL)
+    if ((G.outfile = XTR_DEST_FOPEN(G.filename, FOPR)) == (FILE *)NULL)
         Info(slide, 1, ((char *)slide,
           "open_outfile:  fopen(%s) for reading failed:  does not exist\n",
           FnFilter1(G.filename)));
@@ -590,7 +652,7 @@ int open_outfile(__G)           /* return 1 if fail */
     }
 #endif /* DEBUG */
 #ifdef NOVELL_BUG_FAILSAFE
-    if (G.dne && ((G.outfile = zfopen(G.filename, FOPR)) != (FILE *)NULL)) {
+    if (G.dne && ((G.outfile = XTR_DEST_FOPEN(G.filename, FOPR)) != (FILE *)NULL)) {
         Info(slide, 0x401, ((char *)slide, LoadFarString(NovellBug),
           FnFilter1(G.filename)));
         fclose(G.outfile);
@@ -607,9 +669,19 @@ int open_outfile(__G)           /* return 1 if fail */
         /* These features require the ability to re-read extracted data from
            the output files. Output files are created with Read&Write access.
          */
-        G.outfile = zfopen(G.filename, FOPWR);
+#if defined(XTR_WIN_NATIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+        if (xtr_preserve_existing)
+            G.outfile = xtr_win_open_existing_output(G.filename, 1);
+        else
+#endif
+        G.outfile = XTR_DEST_FOPEN(G.filename, FOPWR);
 #else
-        G.outfile = zfopen(G.filename, FOPW);
+#if defined(XTR_WIN_NATIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+        if (xtr_preserve_existing)
+            G.outfile = xtr_win_open_existing_output(G.filename, 0);
+        else
+#endif
+        G.outfile = XTR_DEST_FOPEN(G.filename, FOPW);
 #endif
 #if defined(ATH_BEO_UNX) || defined(AOS_VS) || defined(QDOS) || defined(TANDEM)
         umask(umask_sav);
@@ -646,6 +718,11 @@ int open_outfile(__G)           /* return 1 if fail */
     return 0;
 
 } /* end function open_outfile() */
+#undef XTR_DEST_ACCESS
+#undef XTR_DEST_FOPEN
+#undef XTR_DEST_UNLINK
+#undef XTR_DEST_RENAME
+#undef XTR_DEST_CHMOD
 
 #endif /* !TANDEM */
 #endif /* !VMS && !AOS_VS && !CMS_MVS && !MACOS */
@@ -2432,6 +2509,12 @@ int do_string(__G__ length, option)   /* return PK-type error code */
         if (readbuf(__G__ G.filename_full, length) == 0)
             return PK_EOF;
         G.filename_full[length] = '\0';      /* terminate w/zero:  ASCIIZ */
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+        /* In wide mode never accept embedded NUL or truncate a UTF-8 name.
+         * Both can make the extracted path differ from the signed owner. */
+        if (strlen(G.filename_full)!=(size_t)length ||
+            length>=FILNAMSIZ)return PK_ERR;
+#endif
 
         /* if needed, chop off end so standard filename is a valid length */
         if (length >= FILNAMSIZ) {
@@ -2462,11 +2545,43 @@ int do_string(__G__ length, option)   /* return PK-type error code */
 
         /* translate the Zip entry filename coded in host-dependent "extended
            ASCII" into the compiler's (system's) internal text code page */
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+        if (!G.pInfo->GPFIsUTF8)
+#endif
         Ext_ASCII_TO_Native(G.filename, G.pInfo->hostnum, G.pInfo->hostver,
                             G.pInfo->HasUxAtt, (option == DS_FN_L));
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+        {
+            char *converted = NULL;
+            if (G.pInfo->GPFIsUTF8) {
+                if (!xtr_win_u8_valid(G.filename))return PK_ERR;
+            } else {
+                converted=xtr_win_acp_u8(G.filename);
+                if (!converted)return PK_ERR;
+                if (strlen(converted)>=FILNAMSIZ) {
+                    free(converted);return PK_ERR;
+                }
+                strcpy(G.filename,converted);
+                free(converted);
+            }
+        }
+#endif
 
         if (G.pInfo->lcflag)      /* replace with lowercase filename */
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+        {
+            /* Lower only ASCII. Applying locale case conversion to UTF-8
+             * bytes can corrupt multibyte sequences or redirect output. */
+            unsigned char *ascii=(unsigned char *)G.filename;
+            while (*ascii) {
+                if (*ascii>='A' && *ascii<='Z')
+                    *ascii=(unsigned char)(*ascii-'A'+'a');
+                ascii++;
+            }
+        }
+#else
             STRLOWER(G.filename, G.filename);
+#endif
 
         if (G.pInfo->vollabel && length > 8 && G.filename[8] == '.') {
             char *p = G.filename+8;
@@ -2571,7 +2686,14 @@ int do_string(__G__ length, option)   /* return PK-type error code */
                 else
 #  endif
 # endif /* UTF8_MAYBE_NATIVE */
-# ifdef UNICODE_WCHAR
+# if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+                {
+                  if (!xtr_win_u8_valid(G.unipath_filename) ||
+                      strlen(G.unipath_filename)>=FILNAMSIZ)
+                      error=PK_ERR;
+                  else strcpy(G.filename,G.unipath_filename);
+                }
+# elif defined(UNICODE_WCHAR)
                 {
                   char *fn;
 

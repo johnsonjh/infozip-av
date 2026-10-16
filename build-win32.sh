@@ -377,6 +377,37 @@ cp -R "$SOURCE_ROOT/zip30" "$STAGE/src/zip30"
 cp -R "$SOURCE_ROOT/unzip60" "$STAGE/src/unzip60"
 cp -R "$SOURCE_ROOT/zipopt" "$STAGE/src/zipopt"
 cp -R "$SOURCE_ROOT/zipdedup" "$STAGE/src/zipdedup"
+# ZipOpt and ZipDedup compile Xtro's portable metadata core from the
+# staged source tree.  Keep this sibling directory alongside both tools.
+sh "$SOURCE_ROOT/xtrmeta/stage-cross.sh" \
+  "$SOURCE_ROOT/xtrmeta" "$STAGE/src/xtrmeta"
+# The portable stage-cross subset intentionally excludes native Windows code.
+# When either Zip or UnZip enables XTR_WIN_NATIVE, stage the complete native
+# dependency closure.  Zip's --streams writer needs the mixed EA/ADS module
+# plus the native enumerator, stream reader and record builder.  Do not stage
+# these files into ordinary (feature-disabled) cross builds.
+case " $ZIP_FLAGS $UNZIP_FLAGS " in
+*' -DXTR_WIN_NATIVE '*)
+  for name in xtrwin_ea.c xtrwin_ea.h xtrwin_txn.c xtrwin_txn.h \
+              xtrwin_nt.c xtrwin_nt.h xtrwin_nt_abi.h \
+              xtrwin_mixed.c xtrwin_mixed.h \
+              xtrwin_ads.c xtrwin_ads.h \
+              xtrwin_ads_native.c xtrwin_ads_native.h \
+              xtrwin_ads_stream.c xtrwin_ads_stream.h \
+              xtrwin_ads_record.c xtrwin_ads_record.h \
+              xtrwin_ads_write.c xtrwin_ads_write.h \
+              xtrwin_mixed_verify.c xtrwin_mixed_verify.h \
+              xtrwin_restore_plan.c xtrwin_restore_plan.h \
+              xtrwin_ads_txn.c xtrwin_ads_txn.h \
+              xtrwin_ads_restore.c xtrwin_ads_restore.h \
+              xtrwin_utf8path.c xtrwin_utf8path.h \
+              xtrwin_utf8argv.c xtrwin_utf8argv.h; do
+    test -f "$SOURCE_ROOT/xtrmeta/$name" || \
+      fail "missing Windows native metadata source $name"
+    cp "$SOURCE_ROOT/xtrmeta/$name" "$STAGE/src/xtrmeta/$name"
+  done
+  ;;
+esac
 # Private Windows object subdirectories are built afresh for each CRT/arch.
 rm -rf "$STAGE/src/zipopt/winbuild" "$STAGE/src/zipdedup/winbuild"
 

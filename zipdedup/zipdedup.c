@@ -40,6 +40,10 @@ extern unsigned long crc32 (unsigned long, const unsigned char *, size_t);
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#define XTR_REWRITE_IMPLEMENTATION
+#include "../xtrmeta/xtrrewrite.h"
+#include "../xtrmeta/xtrv1.h"
+#include "../xtrmeta/xtrverify_inline.h"
 #include <time.h>
 #ifdef _WIN32
 # include <io.h>
@@ -99,6 +103,7 @@ struct zd_entry
   unsigned csz64, usz64, off64, lcsz64, lusz64;
   unsigned char sha1[20], uuid[16];
   int digest_valid, has_ref, selected, is_source, source_index;
+  xr_node xtr;
   int add_md5;
   unsigned char md5[16];
 };
@@ -606,6 +611,30 @@ zd_load (struct zd_archive *a)
           return 0;
         }
 
+      /* Xtro owner metadata must remain attached to the original member.
+       * Validate the complete extra list; owners and sidecars will be
+       * excluded from RefPtr selection while unrelated members can dedup. */
+      if (!xr_scan(e->cen + 46 + nam, extr, 1, &e->xtr)) {
+        zd_fail("malformed or duplicated Xtro central extra");return 0;
+      }
+      {
+        unsigned char sideid[16];
+        int kind=xr_name((const unsigned char *)e->name,nam,sideid);
+        if (e->xtr.role && e->xtr.header[7]) {
+          zd_fail("encrypted Xtro metadata unsupported in ZipDedup");return 0;
+        }
+        if (kind<0 || (kind==1 && e->xtr.role)) {
+          zd_fail("invalid Xtro reserved name");return 0;
+        }
+        if (kind==1) {
+          if (e->method!=0U && e->method!=8U) {
+            zd_fail("unsupported Xtro companion compression");return 0;
+          }
+          e->xtr.role=3;
+          memcpy(e->xtr.id,sideid,16);
+        }
+      }
+
       r = zd_has (e->cen + 46 + nam, extr, 0x9903, &off, &xlen);
 
       if (r < 0)
@@ -749,6 +778,16 @@ zd_load (struct zd_archive *a)
           return 0;
         }
 
+      if (e->xtr.role==3) {
+        xr_node local;
+        memset(&local,0,sizeof(local));
+        if (!xr_scan(e->loc + 30 + ln,lex,0,&local)) {
+          zd_fail("unexpected Xtro local field on companion");return 0;
+        }
+      } else if (!xr_scan(e->loc + 30 + ln,lex,0,&e->xtr)) {
+        zd_fail("Xtro local/central metadata mismatch");return 0;
+      }
+
       if (zd_has (e->loc + 30 + ln, lex, 7, NULL, NULL) != 0
           || zd_has (e->loc + 30 + ln, lex, 0x9901, NULL, NULL) != 0)
         {
@@ -778,6 +817,21 @@ zd_load (struct zd_archive *a)
         }
     }
 
+  /* Owner identity graph must be complete before creating output. */
+  {
+    xr_node *nodes;
+    if (a->count>(unsigned long)((size_t)-1/sizeof(*nodes))) {
+      zd_fail("Xtro graph too large");return 0;
+    }
+    nodes=(xr_node *)malloc((size_t)(a->count?a->count:1)*sizeof(*nodes));
+    if (!nodes) {zd_fail("out of memory for Xtro graph");return 0;}
+    for (i=0;i<a->count;i++) nodes[i]=a->members[i].xtr;
+    { int graphok=xr_graph(nodes,(size_t)a->count);
+      if (graphok) for (i=0;i<a->count;i++) a->members[i].xtr=nodes[i];
+      free(nodes);
+      if (!graphok) {zd_fail("invalid Xtro owner/companion graph");return 0;}
+    }
+  }
   return 1;
 }
 
@@ -1039,6 +1093,101 @@ zd_has_metachar (const char *p)
   return 0;
 }
 
+/* Preflight every Xtro companion before the deduplication plan.  The
+ * embedded UnZip decoder validates member CRC and FWKCS.  The portable C89
+ * verifier then validates the full native metadata schema and SHA-256.
+ * No native filesystem mutation or output publication is possible here. */
+static FILE *zd_xtr_stage;
+static unsigned long zd_xtr_bytes;
+static int zd_xtr_failed;
+static int
+zd_xtr_cb(zvoid *g,uch *p,ulg len,int flag)
+{
+  (void)g;
+  if (flag!=0) return 0;
+  if (!zd_xtr_stage || len>33554432UL-zd_xtr_bytes ||
+      fwrite(p,1,(size_t)len,zd_xtr_stage)!=(size_t)len) {
+    zd_xtr_failed=1;return 1;
+  }
+  zd_xtr_bytes+=(unsigned long)len;
+  return 0;
+}
+static size_t
+zd_xtr_read(void *context,unsigned char *p,size_t n)
+{
+  return fread(p,1,n,(FILE *)context);
+}
+static int
+zd_verify_xtr(struct zd_archive *a,struct zd_entry *e)
+{
+  UzpInit u;
+  char *args[5];
+  unsigned long j;
+  xtr_extra outer;
+  xtr1_policy policy;
+  xtr1_digest digest;
+  xtr_reader reader;
+  xtr_u64 total;
+  const unsigned char *p=e->xtr.header;
+  int code,valid;
+  if (e->xtr.role!=3) return 1;
+  if (e->usize>33554432UL || !e->name[0] ||
+      zd_has_metachar(e->name)) {
+    zd_fail("Xtro metadata exceeds bounded validation policy");return 0;
+  }
+  for (j=0;j<a->count;j++) {
+    if (&a->members[j]!=e && !strcmp(a->members[j].name,e->name)) {
+      zd_fail("ambiguous Xtro companion filename");return 0;
+    }
+  }
+  zd_xtr_stage=tmpfile();
+  if (!zd_xtr_stage) {zd_fail("cannot stage Xtro metadata");return 0;}
+  memset(&u,0,sizeof(u));u.structlen=sizeof(u);u.msgfn=zd_xtr_cb;
+  args[0]="unzip";args[1]="-p";
+  args[2]=(char *)a->input;args[3]=e->name;args[4]=NULL;
+  zd_xtr_bytes=0;zd_xtr_failed=0;
+  code=UzpAltMain(4,args,&u);
+  valid=(code==0 && !zd_xtr_failed && zd_xtr_bytes==e->usize &&
+         !fseek(zd_xtr_stage,0,SEEK_SET));
+  if (valid) {
+    memset(&outer,0,sizeof(outer));
+    memset(&policy,0,sizeof(policy));
+    memset(&reader,0,sizeof(reader));
+    outer.mode=p[6];outer.flags=p[7];
+    memcpy(outer.owner,p+8,16);
+    outer.count=xr_le32(p+24);
+    outer.manifest_len.lo=xr_le32(p+28);
+    outer.manifest_len.hi=xr_le32(p+32);
+    outer.crc32=xr_le32(p+36);
+    total.lo=zd_xtr_bytes;total.hi=0;
+    policy.max_records=65536UL;policy.max_field=1048576UL;
+    policy.max_manifest.lo=33554432UL;policy.max_manifest.hi=0;
+    reader.context=zd_xtr_stage;reader.read=zd_xtr_read;
+    valid=(xtr1_check_manifest(&reader,total,&outer,e->xtr.sha,
+                                &policy,&digest)==XTR_OK);
+  }
+  fclose(zd_xtr_stage);zd_xtr_stage=NULL;
+  if (!valid) zd_fail("Xtro companion failed ZIP or manifest integrity");
+  return valid;
+}
+static int
+zd_verify_xtr_all(struct zd_archive *a)
+{
+  unsigned long i;
+  for (i=0;i<a->count;i++) {
+    struct zd_entry *e=&a->members[i];
+    if (e->xtr.role==1) {
+      unsigned name=zd_u16(e->cen+28),extra=zd_u16(e->cen+30);
+      unsigned off=0,len=0;
+      int found=zd_has(e->cen+46+name,extra,0x5854,&off,&len);
+      if (found!=1 || !xr_inline_verify(e->cen+46+name+off+4,len)) {
+        zd_fail("invalid inline Xtro manifest");return 0;
+      }
+    } else if (e->xtr.role==3 && !zd_verify_xtr(a,e)) return 0;
+  }
+  return 1;
+}
+
 static int
 zd_hash_file (struct zd_archive *a, struct zd_entry *e)
 {
@@ -1269,7 +1418,7 @@ zd_plan (struct zd_archive *a, unsigned long *number, unsigned long *saved)
   for (i = 0; i < a->count; i++)
     {
       struct zd_entry *e = a->members + i;
-      if (e->method == ZD_REFPTR || e->usize == 0 || !zd_supported (e->method))
+      if (e->xtr.role || e->method == ZD_REFPTR || e->usize == 0 || !zd_supported (e->method))
         {
           continue;
         }
@@ -1295,7 +1444,7 @@ zd_plan (struct zd_archive *a, unsigned long *number, unsigned long *saved)
   for (i = 0; i < a->count; i++)
     {
       struct zd_entry *e = a->members + a->order[i];
-      if (!e->digest_valid || e->has_ref || e->method == ZD_REFPTR)
+      if (e->xtr.role || !e->digest_valid || e->has_ref || e->method == ZD_REFPTR)
         {
           continue;
         }
@@ -1304,7 +1453,7 @@ zd_plan (struct zd_archive *a, unsigned long *number, unsigned long *saved)
         {
           unsigned long idx = a->order[j];
           struct zd_entry *src = a->members + idx;
-          if (!src->digest_valid || src->selected || src->usize != e->usize
+          if (src->xtr.role || !src->digest_valid || src->selected || src->usize != e->usize
               || src->crc != e->crc || memcmp (src->sha1, e->sha1, 20) != 0)
             {
               continue;
@@ -2070,7 +2219,8 @@ main (int argc, char **argv)
     }
 
   if (!zd_input_representable (a.in)
-      || !zd_load (&a) || !zd_plan (&a, &count, &saved)
+      || !zd_load (&a) || !zd_verify_xtr_all (&a)
+      || !zd_plan (&a, &count, &saved)
       || (a.fwkcs_md5 && !zd_prepare_fwkcs (&a, &missing)))
     {
       goto done;

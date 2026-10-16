@@ -37,11 +37,11 @@ winbuild/zo-codec.o: codec.c codec.h $(ZIPDEPS) | winbuild
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LOCAL_ZIP) $(WIN_ZIPOPT_DEFS) -DZO_SHARED_UNZIP_CODECS -c $< -o $@
 winbuild/zo-zip-deflate.o: zip_deflate.c zip_deflate.h ../zip30/zip.h | winbuild
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LOCAL_ZIP) -c $< -o $@
-zipopt.exe: archive.c extract.c writer.c zipopt.c win32_port.h $(UZOBJS) winbuild/zo-codec.o winbuild/zo-zip-deflate.o
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(WIN_ZIPOPT_DEFS) archive.c extract.c writer.c zipopt.c winbuild/zo-codec.o winbuild/zo-zip-deflate.o $(UZOBJS) $(LIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
-zipopt-preflight.exe: archive.c preflight.c
+zipopt.exe: archive.c extract.c writer.c zipopt.c win32_port.h $(UZOBJS) winbuild/zo-codec.o winbuild/zo-zip-deflate.o ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(WIN_ZIPOPT_DEFS) archive.c extract.c writer.c zipopt.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c winbuild/zo-codec.o winbuild/zo-zip-deflate.o $(UZOBJS) $(LIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
+zipopt-preflight.exe: archive.c preflight.c ../xtrmeta/xtrrewrite.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c preflight.c -o $@ $(LOCAL_GLDFLAGS)
-zipopt-decodecheck.exe: archive.c extract.c decodecheck.c $(UZOBJS)
+zipopt-decodecheck.exe: archive.c extract.c decodecheck.c $(UZOBJS) ../xtrmeta/xtrrewrite.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(WIN_ZNG_CPPFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) $(LIBS) -o $@ $(LOCAL_GLDFLAGS)
 # CRC A/B test: hardware dispatch vs the identical built-in code with
 # NO_PCLMUL_CRC explicitly selected, including short and split buffers.

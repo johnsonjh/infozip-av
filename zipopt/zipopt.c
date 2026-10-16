@@ -14,6 +14,8 @@
 #include "display.h"
 #include "extract.h"
 #include "fwkcs_md5.h"
+#include "../xtrmeta/xtrv1.h"
+#include "../xtrmeta/xtrverify_inline.h"
 #include "writer.h"
 
 #define NO_AES
@@ -39,6 +41,77 @@ typedef struct
  * Digest the already-CRC-checked uncompressed temporary file
  * Don't decode again nor trust the compressed methods physical bytes
  */
+
+static unsigned long zo_xtr_u32(const unsigned char *p)
+{
+  return (unsigned long)p[0]|((unsigned long)p[1]<<8)|
+         ((unsigned long)p[2]<<16)|((unsigned long)p[3]<<24);
+}
+static int zo_xtr_validate_inline(zo_archive *a,const zo_entry *e)
+{
+  unsigned char *data;
+  unsigned at=0,n;
+  int ok=0;
+  if (e->xtr.role!=1) return 1;
+  n=e->central_extra_len;
+  data=(unsigned char *)malloc(n?n:1);
+  if (!data) return 0;
+  if (!zo_archive_at(a,e->central_offset+46+e->name_len,data,n))
+    goto done;
+  while (at<n) {
+    unsigned id,bytes;
+    if (n-at<4) break;
+    id=(unsigned)data[at]|((unsigned)data[at+1]<<8);
+    bytes=(unsigned)data[at+2]|((unsigned)data[at+3]<<8);
+    at+=4;
+    if (bytes>n-at) break;
+    if (id==XTR_V1_EXTRA_ID) {
+      ok=xr_inline_verify(data+at,bytes);break;
+    }
+    at+=bytes;
+  }
+done:
+  free(data);return ok;
+}
+
+/* Decode-only verification of a public Xtro companion before rewriting.
+ * Requires both the ZIP decoder's CRC/FWKCS check (already performed) and
+ * the native metadata schema, full manifest SHA-256 and owner ID match.
+ * A metadata stream may never be optimized as an arbitrary codec. */
+static size_t zo_xtr_read(void *context,unsigned char *p,size_t n)
+{
+  return fread(p,1,n,(FILE *)context);
+}
+static int zo_xtr_validate(FILE *decoded,const zo_entry *e)
+{
+  xtr_extra outer;
+  xtr1_policy policy;
+  xtr1_digest digest;
+  xtr_reader reader;
+  xtr_u64 encoded;
+  const unsigned char *p=e->xtr.header;
+  int result;
+  memset(&outer,0,sizeof(outer));
+  memset(&policy,0,sizeof(policy));
+  memset(&reader,0,sizeof(reader));
+  memcpy(outer.owner,p+8,16);
+  outer.mode=p[6];outer.flags=p[7];
+  outer.count=zo_xtr_u32(p+24);
+  outer.manifest_len.lo=zo_xtr_u32(p+28);
+  outer.manifest_len.hi=zo_xtr_u32(p+32);
+  outer.crc32=zo_xtr_u32(p+36);
+  encoded.lo=(unsigned long)(e->usize&0xffffffffUL);
+  encoded.hi=(unsigned long)(e->usize>>32);
+  policy.max_records=65536UL;
+  policy.max_field=1048576UL;
+  policy.max_manifest.lo=33554432UL;
+  policy.max_manifest.hi=0;
+  reader.context=decoded;reader.read=zo_xtr_read;
+  if (fseek(decoded,0,SEEK_SET)) return 0;
+  result=xtr1_check_manifest(&reader,encoded,&outer,e->xtr.sha,
+                             &policy,&digest);
+  return result==XTR_OK;
+}
 
 static int
 zo_decoded_md5 (FILE *in, unsigned char md5[16])
@@ -978,6 +1051,16 @@ main (int argc, char **argv)
       return 1;
     }
 
+  /* Verify the *semantic* records in inline Xtro manifests before opening
+   * a destination. ZIP CRCs and the outer inline checksum are insufficient
+   * to reject deliberately malformed but internally checksummed TLVs. */
+  for (i=0;i<a.count;i++) {
+    if (!zo_xtr_validate_inline(&a,&a.entries[(size_t)i])) {
+      fputs("zipopt: invalid inline Xtro metadata manifest\n",stderr);
+      goto done;
+    }
+  }
+
   /*
    * Member progress uses a one-based ordinal and the actual count of
    * central-directory entries (including directories). Keep the original
@@ -1074,6 +1157,27 @@ main (int argc, char **argv)
 
           fflush (stderr);
         }
+
+      /* A companion is an opaque Deflate/STORE transport for native
+       * metadata. Validate its CRC/FWKCS, then retain exact compressed bytes
+       * and compression method; arbitrary codecs would break xattr restore. */
+      if (e->xtr.role==3) {
+        decoded=tmpfile();
+        if (!decoded || !zo_extract_index(&a,i,decoded) ||
+            !zo_xtr_validate(decoded,e) ||
+            !zo_writer_add(&w,i,NULL,e->method,e->flags & ~8U,e->csize)) {
+          fprintf(stderr,"zipopt: Xtro companion verification/copy failed\n");
+          goto done;
+        }
+        if (fwkcs_md5) {
+          if (!zo_decoded_md5(decoded,w.entries[(size_t)i].md5)) goto done;
+          w.entries[(size_t)i].has_md5=1;
+        }
+        fclose(decoded);decoded=NULL;
+        fprintf(stderr,"  Xtro companion: retained %lu compressed bytes\n",
+                (unsigned long)e->csize);
+        continue;
+      }
 
       decoded = tmpfile ();
 

@@ -68,6 +68,13 @@ LFLAGS2 = -s
 # object file lists
 OBJZ = zip.o zipfile.o zipup.o fileio.o util.o globals.o crypt.o ttyio.o \
        unix.o crc32.o zbz2err.o
+ifneq ($(filter -DXTR_BSD_TEST,$(CFLAGS)),)
+OBJZ += xtrzip_bsd.o xtrm_meta.o xtrsha_meta.o xtrv1_meta.o xtrbsd_meta.o xtrbsd_testshim.o
+else ifneq ($(filter FreeBSD NetBSD,$(shell uname -s)),)
+OBJZ += xtrzip_bsd.o xtrm_meta.o xtrsha_meta.o xtrv1_meta.o xtrbsd_meta.o
+else ifeq ($(shell uname -s),Linux)
+OBJZ += xtrzip_linux.o xtrm_meta.o xtrsha_meta.o xtrv1_meta.o xtrlinux_meta.o
+endif
 OBJI = deflate.o trees.o
 OBJA =
 OCRCU8 =
@@ -75,6 +82,30 @@ OCRCTB = crc32_.o
 OBJU = zipfile_.o fileio_.o util_.o globals.o unix_.o $(OCRCU8)
 OBJN = zipnote.o  $(OBJU)
 OBJC = zipcloak.o $(OBJU) $(OCRCTB) crypt_.o ttyio.o
+ifeq ($(shell uname -s),Linux)
+OBJC += xtrm_cloak.o xtrsha_cloak.o xtrv1_cloak.o
+# Deflate companion transitions are optional.  If the independent zlib
+# development library is unavailable, keep the tested STORE-only behavior.
+# Probe the *selected* backend, using the same CPP flags and libraries as
+# zipcloak.o.  Probing plain <zlib.h> alone incorrectly enables a second API
+# when the rest of Zip was configured with native zlib-ng.
+# In the native zlib-ng case configure has already placed -lz-ng in LFLAGS2:
+# do not accidentally add a new -lz dependency.
+XTRO_CLOAK_ZLIB_LIBS = $(if $(findstring -DUSE_ZLIB_NG,$(CFLAGS)),,$(if $(strip $(IZ_ZLIB_LIBS)),$(IZ_ZLIB_LIBS),-lz))
+XTRO_CLOAK_ZLIB_TEST = $(shell printf '%s\n' '#if defined(USE_ZLIB_NG)' '#include <zlib-ng.h>' 'int main(void) { zng_stream z = {0}; return zng_inflateInit2(&z,-15) == Z_OK ? (zng_inflateEnd(&z) == Z_OK ? 0 : 1) : 1; }' '#else' '#include <zlib.h>' 'int main(void) { z_stream z = {0}; return inflateInit2(&z,-15) == Z_OK ? (inflateEnd(&z) == Z_OK ? 0 : 1) : 1; }' '#endif' | $(CC) $(CFLAGS) $(IZ_ZLIB_CFLAGS) -x c - -o /dev/null $(LFLAGS2) $(XTRO_CLOAK_ZLIB_LIBS) >/dev/null 2>&1 && echo yes)
+ifeq ($(XTRO_CLOAK_ZLIB_TEST),yes)
+XTRO_CLOAK_COMPRESS_FLAGS = -DXTRO_CLOAK_DEFLATE $(IZ_ZLIB_CFLAGS)
+XTRO_CLOAK_COMPRESS_LIBS = $(XTRO_CLOAK_ZLIB_LIBS)
+endif
+zipcloak.o: zipcloak.c xtro_cloak_store.inc ../xtrmeta/xtrv1.h
+	$(CC) -c $(CFLAGS) -DXTRO_CLOAK_STORE $(XTRO_CLOAK_COMPRESS_FLAGS) -o $@ zipcloak.c
+xtrm_cloak.o: ../xtrmeta/xtrm.c ../xtrmeta/xtrm.h
+	$(CC) -c $(CFLAGS) -o $@ $<
+xtrsha_cloak.o: ../xtrmeta/xtrsha.c ../xtrmeta/xtrsha.h
+	$(CC) -c $(CFLAGS) -o $@ $<
+xtrv1_cloak.o: ../xtrmeta/xtrv1.c ../xtrmeta/xtrv1.h
+	$(CC) -c $(CFLAGS) -o $@ $<
+endif
 OBJS = zipsplit.o $(OBJU)
 
 ZIP_H = zip.h ziperr.h tailor.h unix/osdep.h
@@ -99,6 +130,7 @@ $(OBJS): $(ZIP_H)
 $(OBJC): $(ZIP_H)
 zip.o zipup.o zipfile.o fileio.o crypt.o: crc32.h
 zip.o: iz_accel_status.h iz_arm_caps.h
+zipnote.o: xtro_pairs.h
 crc32.o: crc32.h crc32_pclmul.h crc32_arm.h iz_arm_caps.h
 zipcloak.o zipfile_.o fileio_.o crc32_.o crypt_.o: crc32.h
 zip.o zipup.o crypt.o ttyio.o zipcloak.o crypt_.o: crypt.h
@@ -119,6 +151,23 @@ crc_i386.o: crc_i386.S
 	mv _crc_i386.o crc_i386.o
 	rm -f _crc_i386.s
 
+xtrm_meta.o: ../xtrmeta/xtrm.c ../xtrmeta/xtrm.h
+	$(CC) $(CFLAGS) -o $@ -c ../xtrmeta/xtrm.c
+xtrsha_meta.o: ../xtrmeta/xtrsha.c ../xtrmeta/xtrsha.h
+	$(CC) $(CFLAGS) -o $@ -c ../xtrmeta/xtrsha.c
+xtrv1_meta.o: ../xtrmeta/xtrv1.c ../xtrmeta/xtrv1.h
+	$(CC) $(CFLAGS) -o $@ -c ../xtrmeta/xtrv1.c
+xtrlinux_meta.o: ../xtrmeta/xtrlinux.c ../xtrmeta/xtrlinux.h
+	$(CC) $(CFLAGS) -o $@ -c ../xtrmeta/xtrlinux.c
+xtrbsd_testshim.o: ../xtrmeta/bsd_linux_shim.c
+	$(CC) $(CFLAGS) -o $@ -c ../xtrmeta/bsd_linux_shim.c
+xtrbsd_meta.o: ../xtrmeta/xtrbsd.c ../xtrmeta/xtrbsd.h
+	$(CC) $(CFLAGS) -o $@ -c ../xtrmeta/xtrbsd.c
+xtrzip_bsd.o: xtrzip_bsd.c ../xtrmeta/xtrbsd.h
+	$(CC) $(CFLAGS) -o $@ -c xtrzip_bsd.c
+xtrzip_linux.o: xtrzip_linux.c ../xtrmeta/xtrv1.h
+	$(CC) $(CFLAGS) -o $@ -c xtrzip_linux.c
+
 unix.o: unix/unix.c
 	$(CC) -c $(CFLAGS) unix/unix.c
 
@@ -135,7 +184,7 @@ zip$E: $(OBJZ) $(OBJI) $(OBJA) $(LIB_BZ)
 zipnote$E: $(OBJN)
 	$(BIND) -o zipnote$E $(LFLAGS1) $(OBJN) $(LFLAGS2)
 zipcloak$E: $(OBJC) $(OCRCTB)
-	$(BIND) -o zipcloak$E $(LFLAGS1) $(OBJC) $(LFLAGS2)
+	$(BIND) -o zipcloak$E $(LFLAGS1) $(OBJC) $(LFLAGS2) $(XTRO_CLOAK_COMPRESS_LIBS)
 zipsplit$E: $(OBJS)
 	$(BIND) -o zipsplit$E $(LFLAGS1) $(OBJS) $(LFLAGS2)
 

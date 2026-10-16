@@ -215,6 +215,13 @@ OBJU3 = list$(OBJ) match$(OBJ) process$(OBJ) ttyio$(OBJ) ubz2err$(OBJ)
 OBJU4 = unreduce$(OBJ) unshrink$(OBJ) zipinfo$(OBJ)
 OBJUS = win32$(OBJ) win32i64$(OBJ) nt$(OBJ) winapprc$(OBJ)
 OBJU  = $(OBJU1) $(OBJU2) $(OBJU3) $(OBJU4) $(OBJA) $(OBJUS)
+# Windows EA restore opt-in: strictly exclude from SFX, DLL, and other builds.
+ifneq ($(findstring -DXTR_WIN_NATIVE,$(LOCFLAGS)),)
+OBJU += xtrm_meta$(OBJ) xtrsha_meta$(OBJ) xtrv1_meta$(OBJ) xtrwin_ea_meta$(OBJ) xtrwin_txn_meta$(OBJ) xtrwin_nt_meta$(OBJ) xtrwin_ads_meta$(OBJ) xtrwin_ads_native_meta$(OBJ) xtrwin_ads_stream_meta$(OBJ) xtrwin_ads_write_meta$(OBJ) xtrwin_mixed_verify_meta$(OBJ) xtrwin_restore_plan_meta$(OBJ) xtrwin_ads_txn_meta$(OBJ) xtrwin_ads_restore_meta$(OBJ)
+endif
+ifneq ($(findstring -DXTR_WIN_UTF8_PATHS,$(LOCFLAGS)),)
+OBJU += xtrwin_utf8path_meta$(OBJ) xtrwin_utf8argv_meta$(OBJ)
+endif
 OBJX1 = unzipsfx$(OBJ) crc32x$(OBJ) cryptx$(OBJ) extractx$(OBJ)
 OBJX2 = fileiox$(OBJ) globalsx$(OBJ) inflatex$(OBJ) matchx$(OBJ) processx$(OBJ)
 OBJX3 = ttyiox$(OBJ) ubz2errx$(OBJ)
@@ -260,7 +267,7 @@ lib:    libunzip32.a
 all:    unzips dll dllsample guisfx lib
 
 unzip$(EXE): $(OBJU) $(LIBBZIP2)
-	$(LD) $(LDFLAGS) $(LDVER) $(OBJU) $(LD_BZ2LIB) $(LDLIBS)
+	$(LD) $(LDFLAGS) $(LDVER) $(OBJU) $(LD_BZ2LIB) $(LDLIBS) $(if $(findstring -DXTR_WIN_UTF8_PATHS,$(LOCFLAGS)),-lshell32,)
 
 unzipsfx$(EXE): $(OBJX) $(LIBBZIP2X)
 	$(LD) $(LDFLAGS) $(LDVER) $(OBJX) $(LDLIBS)
@@ -300,7 +307,7 @@ crc32$(OBJ):    crc32.c $(UNZIP_H) zip.h crc32.h crc32_pclmul.h crc32_arm.h iz_a
 crypt$(OBJ):    crypt.c $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h izsha1.c izsha1.h izsha1_ni.h iz_arm_crypto.h iz_arm_caps.h wzaes.c wzaes.h ae3_impl.h iz_aes_x86.h
 envargs$(OBJ):  envargs.c $(UNZIP_H)
 explode$(OBJ):  explode.c $(UNZIP_H)
-extract$(OBJ):  extract.c $(UNZIP_H) crc32.h crypt.h refptr.c wavpackzip.c wzmp3.c wzmp3.h
+extract$(OBJ):  extract.c $(UNZIP_H) crc32.h crypt.h refptr.c wavpackzip.c wzmp3.c wzmp3.h xtrunzip_win.c
 fileio$(OBJ):   fileio.c $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h fwkcs_fast_md5.inc
 funzip$(OBJ):   funzip.c $(UNZIP_H) crc32.h crypt.h ttyio.h
 globals$(OBJ):  globals.c $(UNZIP_H)
@@ -327,6 +334,50 @@ nt$(OBJ): win32/nt.c $(UNZIP_H) win32/nt.h
 
 winapprc$(OBJ):	win32/winapp.rc unzvers.h
 	$(RC) -o $@ $<
+
+# Portable Xtro objects are linked only to the opt-in console UnZip.
+xtrm_meta$(OBJ): ../xtrmeta/xtrm.c ../xtrmeta/xtrm.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+
+xtrsha_meta$(OBJ): ../xtrmeta/xtrsha.c ../xtrmeta/xtrsha.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+
+xtrv1_meta$(OBJ): ../xtrmeta/xtrv1.c ../xtrmeta/xtrv1.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+
+xtrwin_ea_meta$(OBJ): ../xtrmeta/xtrwin_ea.c ../xtrmeta/xtrwin_ea.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+
+xtrwin_txn_meta$(OBJ): ../xtrmeta/xtrwin_txn.c ../xtrmeta/xtrwin_txn.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+
+xtrwin_nt_meta$(OBJ): ../xtrmeta/xtrwin_nt.c ../xtrmeta/xtrwin_nt.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+
+xtrwin_ads_meta$(OBJ): ../xtrmeta/xtrwin_ads.c ../xtrmeta/xtrwin_ads.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+xtrwin_ads_native_meta$(OBJ): ../xtrmeta/xtrwin_ads_native.c ../xtrmeta/xtrwin_ads_native.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+xtrwin_ads_stream_meta$(OBJ): ../xtrmeta/xtrwin_ads_stream.c ../xtrmeta/xtrwin_ads_stream.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+xtrwin_ads_write_meta$(OBJ): ../xtrmeta/xtrwin_ads_write.c ../xtrmeta/xtrwin_ads_write.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+xtrwin_mixed_verify_meta$(OBJ): ../xtrmeta/xtrwin_mixed_verify.c ../xtrmeta/xtrwin_mixed_verify.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+xtrwin_restore_plan_meta$(OBJ): ../xtrmeta/xtrwin_restore_plan.c ../xtrmeta/xtrwin_restore_plan.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+xtrwin_ads_txn_meta$(OBJ): ../xtrmeta/xtrwin_ads_txn.c ../xtrmeta/xtrwin_ads_txn.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+xtrwin_ads_restore_meta$(OBJ): ../xtrmeta/xtrwin_ads_restore.c ../xtrmeta/xtrwin_ads_restore.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+
+# The UTF-8 extraction path is an additional opt-in. Keep the native EA
+# backend's existing ABI unchanged when the path option is not requested.
+xtrwin_utf8path_meta$(OBJ): ../xtrmeta/xtrwin_utf8path.c ../xtrmeta/xtrwin_utf8path.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
+
+xtrwin_utf8argv_meta$(OBJ): ../xtrmeta/xtrwin_utf8argv.c ../xtrmeta/xtrwin_utf8argv.h
+	$(CC) $(CFLAGS) $(CVER) $(GENFLAGS) $<
 
 # UnZipSFX compilation section
 crc32x$(OBJ): crc32.c $(UNZIP_H) zip.h crc32.h

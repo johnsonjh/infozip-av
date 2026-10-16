@@ -74,6 +74,12 @@ endif
 OBJZ2 = deflate.o trees.o $(OBJA)
 OBJZS = win32.o win32zip.o win32i64.o nt.o
 OBJZ  = $(OBJZ1) $(OBJZ2) $(OBJZS)
+# Explicit native Windows EA opt-in; archive creation remains unchanged in
+# ordinary Windows, utility, SFX and legacy builds.
+ifneq ($(findstring -DXTR_WIN_NATIVE,$(LOC)),)
+LIBS += -lshell32
+OBJZ += xtrzip_utf8.o xtrzip_win.o xtrm_meta.o xtrsha_meta.o xtrv1_meta.o xtrwin_ea_meta.o xtrwin_txn_meta.o xtrwin_nt_meta.o xtrwin_mixed_meta.o xtrwin_ads_meta.o xtrwin_ads_native_meta.o xtrwin_ads_stream_meta.o xtrwin_ads_record_meta.o
+endif
 
 OBJU1 = zipfile_.o fileio_.o util_.o crc32_.o $(CRCAUO) globals.o
 OBJUS = win32_.o win32i64.o
@@ -126,6 +132,33 @@ win32i64.o: win32/win32i64.c $(ZIP_H)
 
 nt.o: win32/nt.c $(ZIP_H) win32/nt.h
 	$(CC) -c $(CCFLAGS) -I. win32/nt.c
+
+xtrzip_utf8.o: win32/xtrzip_utf8.c win32/xtrzip_utf8.h $(ZIP_H)
+	$(CC) -c $(CCFLAGS) -I. -o $@ win32/xtrzip_utf8.c
+xtrzip_win.o: xtrzip_win.c ../xtrmeta/xtrwin_nt.h ../xtrmeta/xtrwin_mixed.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ xtrzip_win.c
+xtrm_meta.o: ../xtrmeta/xtrm.c ../xtrmeta/xtrm.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ ../xtrmeta/xtrm.c
+xtrsha_meta.o: ../xtrmeta/xtrsha.c ../xtrmeta/xtrsha.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ ../xtrmeta/xtrsha.c
+xtrv1_meta.o: ../xtrmeta/xtrv1.c ../xtrmeta/xtrv1.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ ../xtrmeta/xtrv1.c
+xtrwin_ea_meta.o: ../xtrmeta/xtrwin_ea.c ../xtrmeta/xtrwin_ea.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ ../xtrmeta/xtrwin_ea.c
+xtrwin_txn_meta.o: ../xtrmeta/xtrwin_txn.c ../xtrmeta/xtrwin_txn.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ ../xtrmeta/xtrwin_txn.c
+xtrwin_nt_meta.o: ../xtrmeta/xtrwin_nt.c ../xtrmeta/xtrwin_nt.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ ../xtrmeta/xtrwin_nt.c
+xtrwin_mixed_meta.o: ../xtrmeta/xtrwin_mixed.c ../xtrmeta/xtrwin_mixed.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ ../xtrmeta/xtrwin_mixed.c
+xtrwin_ads_meta.o: ../xtrmeta/xtrwin_ads.c ../xtrmeta/xtrwin_ads.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ ../xtrmeta/xtrwin_ads.c
+xtrwin_ads_native_meta.o: ../xtrmeta/xtrwin_ads_native.c ../xtrmeta/xtrwin_ads_native.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ ../xtrmeta/xtrwin_ads_native.c
+xtrwin_ads_stream_meta.o: ../xtrmeta/xtrwin_ads_stream.c ../xtrmeta/xtrwin_ads_stream.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ ../xtrmeta/xtrwin_ads_stream.c
+xtrwin_ads_record_meta.o: ../xtrmeta/xtrwin_ads_record.c ../xtrmeta/xtrwin_ads_record.h
+	$(CC) -c $(CCFLAGS) -I. -o $@ ../xtrmeta/xtrwin_ads_record.c
 
 zipcloak.o: zipcloak.c $(ZIP_H) revision.h crc32.h crypt.h ttyio.h
 zipnote.o: zipnote.c $(ZIP_H) revision.h

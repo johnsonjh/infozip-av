@@ -6054,6 +6054,44 @@ int putend( OFT( uzoff_t) n,
    name), an encryption header if encrypting, the compressed data
    and possibly an extended local header. */
 
+/* A CENTRAL Xtro V1 reference is insufficient: an ordinary third-party
+ * rewrite can propagate the long central metadata field into the LOCAL
+ * header, or drop/change the local owner ID. Reject copied members unless
+ * precisely one matching 40-byte LOCAL Xtro prefix exists. A ZIP extra
+ * field with the same ID but without the XTRO signature is a collision and
+ * remains an ordinary opaque field. This is NOT a manifest SHA verifier. */
+static int xtro_local_extra_consistent(central, localz)
+  const struct zlist far *central;
+  const struct zlist far *localz;
+{
+  const unsigned char *c=(const unsigned char *)central->cextra;
+  const unsigned char *l=(const unsigned char *)localz->extra;
+  const unsigned char *fixed=NULL;
+  unsigned at=0, n, tag, found=0;
+  while (c && at<=central->cext && (unsigned)central->cext-at>=4U) {
+    tag=(unsigned)c[at]|((unsigned)c[at+1U]<<8);
+    n=(unsigned)c[at+2U]|((unsigned)c[at+3U]<<8);
+    if (n > (unsigned)central->cext-at-4U) break;
+    if (tag==0x5854U && n>=4U && !memcmp(c+at+4U,"XTRO",4U)) {
+      if (n<40U || fixed) return 0;
+      fixed=c+at+4U;
+    }
+    at+=n+4U;
+  }
+  at=0;
+  while (l && at<=localz->ext && (unsigned)localz->ext-at>=4U) {
+    tag=(unsigned)l[at]|((unsigned)l[at+1U]<<8);
+    n=(unsigned)l[at+2U]|((unsigned)l[at+3U]<<8);
+    if (n>(unsigned)localz->ext-at-4U) break;
+    if (tag==0x5854U && n>=4U && !memcmp(l+at+4U,"XTRO",4U)) {
+      if (++found!=1U || !fixed || n!=40U ||
+          memcmp(fixed,l+at+4U,40U)) return 0;
+    }
+    at+=n+4U;
+  }
+  return fixed ? found==1U && at==localz->ext : !found;
+}
+
 int zipcopy(z)
   struct zlist far *z;    /* zip entry to copy */
 /* Copy the zip entry described by *z from in_file to y.  Return an
@@ -6230,6 +6268,10 @@ int zipcopy(z)
   if (fread(localz->iname, localz->nam, 1, in_file) != 1 ||
       (localz->ext && fread(localz->extra, localz->ext, 1, in_file) != 1))
     return ferror(in_file) ? ZE_READ : ZE_EOF;
+  if (fix != 2 && !xtro_local_extra_consistent(z, localz)) {
+    zipwarn("Xtro local/central extra-field mismatch: ", z->iname);
+    return ZE_FORM;
+  }
   localz->iname[localz->nam] = '\0';                  /* terminate name */
   if ((localz->name = malloc(localz->nam+1)) ==  NULL)
     return ZE_MEM;

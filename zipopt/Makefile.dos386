@@ -30,11 +30,11 @@ dosbuild/zo-codec.o: codec.c codec.h | dosbuild
 dosbuild/zo-zip-deflate.o: zip_deflate.c zip_deflate.h | dosbuild
 	$(CC) $(CFLAGS) -c $< -o $@
 
-zipopt.exe: archive.c extract.c writer.c zipopt.c dos386_port.h $(UZOBJS) dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o
-	$(CC) $(CFLAGS) $(ZODEFS) archive.c extract.c writer.c zipopt.c dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o $(UZOBJS) $(DOS386_ZO_LIBS) -lm -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
-zipopt-preflight.exe: archive.c preflight.c
+zipopt.exe: archive.c extract.c writer.c zipopt.c dos386_port.h $(UZOBJS) dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
+	$(CC) $(CFLAGS) $(ZODEFS) archive.c extract.c writer.c zipopt.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o $(UZOBJS) $(DOS386_ZO_LIBS) -lm -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
+zipopt-preflight.exe: archive.c preflight.c ../xtrmeta/xtrrewrite.h
 	$(CC) $(CFLAGS) archive.c preflight.c -s -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
-zipopt-decodecheck.exe: archive.c extract.c decodecheck.c $(UZOBJS)
+zipopt-decodecheck.exe: archive.c extract.c decodecheck.c $(UZOBJS) ../xtrmeta/xtrrewrite.h
 	$(CC) $(CFLAGS) archive.c extract.c decodecheck.c $(UZOBJS) $(DOS386_ZO_LIBS) -lm -s -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
 clean:
 	rm -rf dosbuild zipopt.exe zipopt-preflight.exe zipopt-decodecheck.exe

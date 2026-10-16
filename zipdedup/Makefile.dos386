@@ -21,7 +21,7 @@ dosbuild/uz-%.o: $(UZDIR)/%.c | dosbuild
 	$(CC) $(UZFLAGS) -c $< -o $@
 dosbuild/uz-msdos.o: $(UZDIR)/msdos/msdos.c | dosbuild
 	$(CC) $(UZFLAGS) -c $< -o $@
-zipdedup.exe: zipdedup.c refptr9903.c ../zipopt/dos386_port.h $(UZOBJS)
-	$(CC) $(CFLAGS) $(DOS386_UNZIP_CPPFLAGS) -DDLL -DUSE_VFAT -I$(UZDIR) zipdedup.c refptr9903.c $(UZOBJS) $(DOS386_UNZIP_LIBS) -lm -s -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
+zipdedup.exe: zipdedup.c refptr9903.c ../zipopt/dos386_port.h $(UZOBJS) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
+	$(CC) $(CFLAGS) $(DOS386_UNZIP_CPPFLAGS) -DDLL -DUSE_VFAT -I$(UZDIR) zipdedup.c refptr9903.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c $(UZOBJS) $(DOS386_UNZIP_LIBS) -lm -s -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
 clean:
 	rm -rf dosbuild zipdedup.exe

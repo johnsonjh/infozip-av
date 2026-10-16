@@ -16,6 +16,13 @@
 #include "zip.h"
 #include "crc32.h"
 
+#if defined(XTR_WIN_NATIVE) && defined(WIN32) && defined(__MINGW32__) && !defined(UTIL) && !defined(WINDLL)
+/* Replace/unlink the archive using exactly the same Unicode pathname used
+ * when opening it. Never reinterpret UTF-8 as the Windows ANSI code page. */
+# define unlink xtr_zip_u8_unlink
+# define rename xtr_zip_u8_rename
+#endif
+
 #ifdef MACOS
 #  include "helpers.h"
 #endif
@@ -1330,6 +1337,10 @@ char *tempname(zip)
 /* Return a temporary file name in its own malloc'ed space, using tempath. */
 {
   char *t = zip;   /* malloc'ed space for name (use zip to avoid warning) */
+#if defined(XTR_WIN_NATIVE) && defined(WIN32) && defined(__MINGW32__) && !defined(UTIL) && !defined(WINDLL)
+  if (xtr_zip_u8_active()) return xtr_zip_u8_tempname(tempath);
+#endif
+
 
 # ifdef CMS_MVS
   if ((t = malloc(strlen(tempath) + L_tmpnam + 2)) == NULL)

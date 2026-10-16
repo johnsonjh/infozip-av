@@ -17,6 +17,7 @@
 #define UTIL
 #endif
 #include "zip.h"
+#include "xtro_pairs.h"
 #define DEFCPYRT        /* main module: enable copyright string defines! */
 #include "revision.h"
 #include <signal.h>
@@ -394,6 +395,7 @@ char **argv;            /* command line tokens */
   int w;                /* true if updating zip file from stdin */
   FILE *x;              /* input file for testing if can write it */
   struct zlist far *z;  /* steps through zfiles linked list */
+  int xtro_archive = 0; /* preserve verified owner/companion pairs */
 
 #ifdef THEOS
   setlocale(LC_CTYPE, "I");
@@ -540,6 +542,20 @@ char **argv;            /* command line tokens */
     EXIT(ZE_OK);
   }
 
+  /* Validate original owner/companion associations before accepting edits.
+   * The identities are independent of an owner's mutable ZIP filename.
+   * This preflight is structural, not a cryptographic payload check. */
+  if (xtro_prepare_pairs(zfiles, 0) != 0)
+    ziperr(ZE_FORM, "invalid Xtro metadata associations");
+  for (z = zfiles; z != NULL; z = z->nxt) {
+    unsigned char id[16], mode;
+    if (xtro_central_owner(z, id, &mode) != 0 ||
+        (z->iname && !strncmp(z->iname, "__XTRO_ZIP__/", 13U))) {
+      xtro_archive = 1;
+      break;
+    }
+  }
+
   /* If updating comments, make sure zip file is writeable */
   if ((x = fopen(zipfile, "a")) == NULL)
     ziperr(ZE_CREAT, zipfile);
@@ -559,6 +575,13 @@ char **argv;            /* command line tokens */
       ziperr(ZE_NOTE, "unknown entry name");
     if ((a = zgetline(abf, WRBUFSIZ+1)) != NULL && a[0] == MARK && a[1] == '=')
     {
+      /* A companion's path is its immutable owner association key.
+       * Allow owner renames, but never an arbitrary internal member rename
+       * or an owner moved into the reserved companion namespace. */
+      if (xtro_archive &&
+          ((!strncmp(z->iname, "__XTRO_ZIP__/", 13U)) ||
+           (!strncmp(a + 2, "__XTRO_ZIP__/", 13U))))
+        ziperr(ZE_PARMS, "Xtro companion names cannot be renamed");
       if (z->name != z->iname)
         free((zvoid *)z->iname);
       if ((z->iname = malloc(strlen(a+1))) == NULL)
@@ -595,6 +618,12 @@ char **argv;            /* command line tokens */
         ziperr(r, "was building new zipfile comment");
     zcomlen = strlen(zcomment);
   }
+
+  /* Check the post-edit namespace and graph before creating output.
+   * A file rename may never turn an ordinary owner into an internal
+   * companion or introduce a reserved-name collision. */
+  if (xtro_archive && xtro_prepare_pairs(zfiles, 0) != 0)
+    ziperr(ZE_FORM, "invalid Xtro associations after ZipNote edits");
 
   /* Open output zip file for writing */
 #if defined(UNIX) && !defined(NO_MKSTEMP)

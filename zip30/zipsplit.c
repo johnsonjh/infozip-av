@@ -17,6 +17,8 @@
 #define UTIL
 #endif
 #include "zip.h"
+#include "xtro_guard.h"
+#include "xtro_pairs.h"
 #define DEFCPYRT        /* main module: enable copyright string defines! */
 #include "revision.h"
 #include <signal.h>
@@ -480,6 +482,107 @@ uzoff_t d;          /* amount to deduct from first bin */
   return m;
 }
 
+/* Xtro-ZIP: assign whole owner/companion groups to one resulting archive.
+ * This is a pure ZIP byte-copy operation: no metadata or encryption changes.
+ * All allocation and capacity checks happen before any output is created.
+ */
+typedef struct xtro_split_node {
+  unsigned char id[16];
+  extent index;
+  unsigned char role; /* 1 owner, 2 companion */
+} xtro_split_node;
+
+local int xtro_split_compare(const void *aa, const void *bb)
+{
+  const xtro_split_node *a=(const xtro_split_node *)aa;
+  const xtro_split_node *b=(const xtro_split_node *)bb;
+  return memcmp(a->id,b->id,16);
+}
+
+local extent xtro_split_assign(uzoff_t *sizes, struct zlist far **entries,
+                                extent count, uzoff_t capacity,
+                                uzoff_t first_reserved, int sequential)
+{
+  xtro_split_node *nodes=NULL;
+  extent *group=NULL, *leaders=NULL;
+  uzoff_t *weights=NULL, *trial=NULL;
+  extent nn=0, ng=0, bins=0, j, k;
+  int rc;
+  unsigned char id[16], mode;
+
+  if (first_reserved>capacity)
+    ziperr(ZE_BIG,"index or reserved space exceeds Xtro split capacity");
+  if (count && (size_t)count > (size_t)-1 / sizeof(*nodes))
+    ziperr(ZE_MEM,"Xtro split entries exceed addressable size");
+  nodes=(xtro_split_node *)malloc((size_t)count*sizeof(*nodes));
+  group=(extent *)malloc((size_t)count*sizeof(*group));
+  leaders=(extent *)malloc((size_t)count*sizeof(*leaders));
+  weights=(uzoff_t *)malloc((size_t)count*sizeof(*weights));
+  trial=(uzoff_t *)malloc((size_t)count*sizeof(*trial));
+  if (!nodes || !group || !leaders || !weights || !trial)
+    ziperr(ZE_MEM,"allocating Xtro split groups");
+  for (j=0;j<count;j++) {
+    group[j]=j;
+    weights[j]=0;
+    rc=xtro_central_owner(entries[j],id,&mode);
+    if (rc<0) ziperr(ZE_FORM,"malformed Xtro owner");
+    if (rc==1 && mode==2U) {
+      memcpy(nodes[nn].id,id,16);
+      nodes[nn].index=j; nodes[nn].role=1; nn++;
+    } else if (entries[j]->iname &&
+               xtro_sidecar_id(entries[j]->iname,id)) {
+      memcpy(nodes[nn].id,id,16);
+      nodes[nn].index=j; nodes[nn].role=2; nn++;
+    }
+  }
+  qsort(nodes,nn,sizeof(*nodes),xtro_split_compare);
+  for (j=0;j<nn;) {
+    extent owner=(extent)-1, side=(extent)-1;
+    for (k=j;k<nn && !memcmp(nodes[j].id,nodes[k].id,16);k++) {
+      if (nodes[k].role==1) owner=nodes[k].index;
+      else side=nodes[k].index;
+    }
+    if (owner==(extent)-1 || side==(extent)-1)
+      ziperr(ZE_FORM,"invalid Xtro companion pair");
+    group[side]=owner;
+    j=k;
+  }
+  /* A pair must fit the user-requested limit as a unit. */
+  for (j=0;j<count;j++) {
+    extent dest=group[j];
+    if (sizes[j]>capacity || weights[dest]>capacity-sizes[j])
+      ziperr(ZE_BIG,"Xtro owner and companion exceed split size");
+    weights[dest]+=sizes[j];
+  }
+  for (j=0;j<count;j++) {
+    if (weights[j]) {
+      leaders[ng]=j;
+      trial[ng]=weights[j];
+      ng++;
+    }
+  }
+  if (sequential) bins=simple(trial,ng,capacity,first_reserved);
+  else {
+    uzoff_t *smart=(uzoff_t *)malloc((size_t)ng*sizeof(*smart));
+    extent plain, improved;
+    if (!smart) ziperr(ZE_MEM,"allocating Xtro greedy split");
+    memcpy(smart,trial,(size_t)ng*sizeof(*smart));
+    plain=simple(trial,ng,capacity,first_reserved);
+    improved=greedy(smart,ng,capacity,first_reserved);
+    if (plain<=improved) bins=plain;
+    else {
+      bins=improved;
+      memcpy(trial,smart,(size_t)ng*sizeof(*trial));
+    }
+    free(smart);
+  }
+  /* Map original entries back to each virtual group's assigned archive. */
+  for (j=0;j<ng;j++) weights[leaders[j]]=(uzoff_t)trial[j];
+  for (j=0;j<count;j++) sizes[j]=weights[group[j]];
+  free(trial);free(weights);free(leaders);free(group);free(nodes);
+  return bins;
+}
+
 /* keep compiler happy until implement long options - 11/4/2003 EG */
 struct option_struct far options[] = {
   /* short longopt        value_type        negatable        ID    name */
@@ -700,6 +803,11 @@ char **argv;            /* command line tokens */
   if (zfiles == NULL)
     ziperr(ZE_NAME, zipfile);
 
+  /* Reject invalid central owner/companion graphs before any split output.
+   * A valid graph may be split only as complete owner/companion groups. */
+  if (xtro_prepare_pairs(zfiles, 0) != 0)
+    ziperr(ZE_FORM, "invalid Xtro metadata associations");
+
   /* Make a list of sizes and check against capacity.  Also compute the
      size of the index file. */
   c -= ENDHEAD + 4;                     /* subtract overhead/zipfile */
@@ -728,23 +836,29 @@ char **argv;            /* command line tokens */
     }
   }
 
-  /* Decide on split to use, report number of files */
-  if (h)
-    s = simple(a, zcount, c, i);
-  else
-  {
-    if ((p = (uzoff_t *)talloc(zcount * sizeof(uzoff_t))) == NULL)
-      ziperr(ZE_MEM, "was computing split");
-    memcpy((char *)p, (char *)a, zcount * sizeof(uzoff_t));
-    s = simple(a, zcount, c, i);
-    g = greedy(p, zcount, c, i);
-    if (s <= g)
-      tfree((zvoid *)p);
+  /* Non-Xtro archives use the historical planner unmodified. Xtro
+   * companions are indivisible with their owners for both planners. */
+  if (xtro_transform_archive_has_metadata()) {
+    s = xtro_split_assign(a, w, zcount, c, i, h);
+  } else {
+    /* Decide on split to use, report number of files */
+    if (h)
+      s = simple(a, zcount, c, i);
     else
     {
-      tfree((zvoid *)a);
-      a = p;
-      s = g;
+      if ((p = (uzoff_t *)talloc(zcount * sizeof(uzoff_t))) == NULL)
+        ziperr(ZE_MEM, "was computing split");
+      memcpy((char *)p, (char *)a, zcount * sizeof(uzoff_t));
+      s = simple(a, zcount, c, i);
+      g = greedy(p, zcount, c, i);
+      if (s <= g)
+        tfree((zvoid *)p);
+      else
+      {
+        tfree((zvoid *)a);
+        a = p;
+        s = g;
+      }
     }
   }
   printf("%ld zip files w%s be made (%s%% efficiency)\n",

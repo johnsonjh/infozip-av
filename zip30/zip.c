@@ -14,6 +14,7 @@
 #define __ZIP_C
 
 #include "zip.h"
+#include "xtro_pairs.h"
 #include <time.h>       /* for tzset() declaration */
 #if defined(WIN32) || defined(WINDLL)
 #  define WIN32_LEAN_AND_MEAN
@@ -2922,6 +2923,8 @@ int set_filetype(out_path)
 #define o_aes_pass      0x153
 #define o_aes_strength  0x154
 #define o_aes_mode      0x155
+#define o_xtr_xattrs    0x15b
+#define o_xtr_streams   0x15c
 #define o_aes_iterations 0x156
 #define o_disable_store_fallback 0x157
 #define o_cmpsc_width   0x158
@@ -2948,6 +2951,39 @@ int set_filetype(out_path)
 #endif
 
 
+int xtr_zip_xattrs = 0; /* explicit, optional, native-platform capture */
+int xtr_zip_streams = 0; /* independent Windows ADS capture */
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+#ifdef XTR_WIN_NATIVE
+extern int xtr_zip_next_companion(char source[512],char member[52]);
+#else
+extern int xtr_zip_next_companion(char source[64],char member[52]);
+#endif
+extern void xtr_zip_companion_done(void);
+static char *xtr_zip_copy_string(const char *s)
+{
+  char *p=(char *)malloc(strlen(s)+1U);
+  if(p)strcpy(p,s);
+  return p;
+}
+#if defined(XTR_WIN_NATIVE) && defined(UNICODE_SUPPORT) && defined(WIN32)
+/* Native Windows Zip normally has Unicode support enabled by osdep.h.
+ * Internal companions have an ANSI temporary pathname but still require
+ * matching wide source names for filetimew() and zwopen(). */
+static wchar_t *xtr_zip_copy_wide(const char *s)
+{
+  int n=MultiByteToWideChar(CP_ACP,MB_ERR_INVALID_CHARS,s,-1,NULL,0);
+  wchar_t *p;
+  if(n<=0 || (size_t)n>65536U)return NULL;
+  p=(wchar_t *)malloc((size_t)n*sizeof(wchar_t));
+  if(!p)return NULL;
+  if(MultiByteToWideChar(CP_ACP,MB_ERR_INVALID_CHARS,s,-1,p,n)!=n){
+    free(p);return NULL;
+  }
+  return p;
+}
+#endif
+#endif
 static int iz_aes_selected = 0;
 static int iz_zipcrypto_selected = 0;
 static int iz_aes_strength_selected = 0;
@@ -3015,6 +3051,8 @@ struct option_struct far options[] = {
     {"FF", "fixfix",      o_NO_VALUE,       o_NOT_NEGATABLE, o_FF, "try harder to fix archive (not as reliable)"},
     {"FI", "fifo",        o_NO_VALUE,       o_NEGATABLE,     o_FI, "read Unix FIFO (zip will wait on open pipe)"},
     {"FS", "filesync",    o_NO_VALUE,       o_NOT_NEGATABLE, o_FS, "add/delete entries to make archive match OS"},
+    {"", "xattrs", o_NO_VALUE, o_NEGATABLE, o_xtr_xattrs, "capture supported native user extended attributes"},
+    {"", "streams", o_NO_VALUE, o_NEGATABLE, o_xtr_streams, "capture Windows named NTFS data streams (independent of xattrs)"},
     {"",   "fwkcs-md5",   o_NO_VALUE,       o_NOT_NEGATABLE, o_fwkcs_md5, "add FWKCS MD5 metadata"},
     {"f",  "freshen",     o_NO_VALUE,       o_NOT_NEGATABLE, 'f',  "freshen existing archive entries"},
     {"fd", "force-descriptors", o_NO_VALUE, o_NOT_NEGATABLE, o_des,"force data descriptors as if streaming"},
@@ -3587,6 +3625,16 @@ char **argv;            /* command line tokens */
    *    the MKS Korn Shell in place of the command line info from DOS.
    */
 
+#if defined(XTR_WIN_NATIVE) && defined(WIN32) && defined(__MINGW32__) && !defined(WINDLL)
+  /* Recover Unicode path arguments before the ACP CRT argv is copied.
+   * Otherwise a name like 元数据.zip becomes ???.zip irreversibly. */
+  if (xtr_zip_u8_argv(&argc, &argv) != 0)
+    ZIPERR(ZE_PARMS, "invalid Windows Unicode command line");
+#ifdef UNICODE_SUPPORT
+  if (xtr_zip_u8_active()) using_utf8 = 1;
+#endif
+#endif
+
   /* extract extended argument list from environment */
   expand_args(&argc, &argv);
 
@@ -3930,6 +3978,12 @@ char **argv;            /* command line tokens */
           break;
         case 'F':   /* fix the zip file */
           fix = 1; break;
+        case o_xtr_xattrs:
+          xtr_zip_xattrs = !negated;
+          break;
+        case o_xtr_streams:
+          xtr_zip_streams = !negated;
+          break;
         case o_fwkcs_md5: /* MD5 */
           fwkcs_md5 = 1;
           break;
@@ -5486,6 +5540,15 @@ char **argv;            /* command line tokens */
     ZIPERR(r, zipfile);
   }
 
+  /* Validate archive-level Xtro identity graph before any operation may
+   * copy or transform its members, including otherwise unrelated updates. */
+  {
+    int xrc = xtro_prepare_pairs(zfiles, 0);
+    if (xrc)
+      ZIPERR(xrc == 2 ? ZE_MEM : ZE_PARMS,
+             "Xtro central metadata graph is malformed or incomplete");
+  }
+
   if ((r = pkav_scan_source_archive()) != ZE_OK)
     ZIPERR(r, "scanning source PKAV authenticity information");
 
@@ -5700,6 +5763,17 @@ char **argv;            /* command line tokens */
   }
 #endif /* IZ_CHECK_TZ && USE_EF_UT_TIME */
 
+  /* Xtro owner/companion archive graph is validated before deciding which
+   * archive members survive. Deletion/copy of an owner selects its companion
+   * as one logical pair. A sidecar-only selection is never permitted. */
+  if (action == DELETE || action == ARCHIVE) {
+    int xrc = xtro_prepare_pairs(zfiles, action == DELETE ? 1 : 2);
+    if (xrc)
+      ZIPERR(xrc == 2 ? ZE_MEM : ZE_PARMS,
+             xrc == 3 ? "cannot select Xtro companion without its owner" :
+             "Xtro archive has invalid or ambiguous owner/companion associations");
+  }
+
   /* For each marked entry, if not deleting, check if it exists, and if
      updating or freshening, compare date with entry in old zip file.
      Unmark if it doesn't exist or is too old, else update marked count. */
@@ -5880,6 +5954,17 @@ char **argv;            /* command line tokens */
         }
       }
     }
+  }
+
+  /* The date constraints above can independently clear an owner's and
+   * its companion's marks. The earlier preflight cannot account for them.
+   * Refuse publication if the FINAL selection splits a logical pair.
+   * Do not silently widen a user-specified date window. */
+  if (action == DELETE || action == ARCHIVE) {
+    int xrc = xtro_prepare_pairs(zfiles, 3);
+    if (xrc)
+      ZIPERR(xrc == 2 ? ZE_MEM : ZE_PARMS,
+             "Xtro owner/companion selection differs after date filtering");
   }
 
   /* Remove entries from found list that do not exist or are too old */
@@ -6220,6 +6305,51 @@ char **argv;            /* command line tokens */
     RETURN(finish(ZE_OK));
   }
 
+  if (xtr_zip_streams) {
+#if !defined(XTR_WIN_NATIVE) || !defined(WIN32)
+    ZIPERR(ZE_PARMS, "--streams native writer not available on this platform");
+#endif
+  }
+  if (xtr_zip_xattrs || xtr_zip_streams) {
+#if !defined(__linux__) && !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(XTR_BSD_TEST) && !defined(XTR_WIN_NATIVE)
+    ZIPERR(ZE_PARMS, "--xattrs native writer not available on this platform");
+#else
+    /* No nonseekable or partial archive outputs until transactional handling
+       is implemented for those paths. The normal Zip temp-file publisher is
+       retained for supported ordinary seekable archive creation. */
+    if (!extra_fields || filesync || diff_mode || fix || dispose ||
+        split_method || zip_to_stdout || d ||
+        action == DELETE || action == ARCHIVE || action == FRESHEN ||
+        (pkav_enabled))
+      ZIPERR(ZE_PARMS, "--xattrs incompatible with this archive operation");
+#endif
+  }
+
+  /* FileSync, differential copy, and repair may rewrite logical entries
+   * without preserving the owner/companion graph; refuse those operations.
+   * Ordinary selected copy and pair deletion have already been validated. */
+  if (filesync || diff_mode || fix) {
+    for (z=zfiles;z;z=z->nxt) {
+      unsigned char xid[16], mode;
+      int xr=xtro_central_owner(z,xid,&mode);
+      if (xr<0) ZIPERR(ZE_PARMS,"malformed ZIP extra field in Xtro archive");
+      if (xr>0)
+        ZIPERR(ZE_PARMS,"Xtro metadata requires metadata-aware sync/diff/repair");
+    }
+  }
+
+  /* A replacement owns the identity of its former metadata set only until
+   * the new filesystem member has been written. Schedule old companions for
+   * removal and reject independently selected metadata companions. No member
+   * data is published before the complete graph preflight succeeds. */
+  if (action != DELETE && action != ARCHIVE && !filesync &&
+      !diff_mode && !fix) {
+    int xr=xtro_prepare_pairs(zfiles,4);
+    if (xr)
+      ZIPERR(xr==2 ? ZE_MEM : ZE_PARMS,
+             "Xtro replacement association is ambiguous or incomplete");
+  }
+
   d = (d && k == 0 && (zipbeg || zfiles != NULL)); /* d true if appending */
 
 #if CRYPT
@@ -6472,6 +6602,26 @@ char **argv;            /* command line tokens */
   }
   w = &zfiles;
   while ((z = *w) != NULL) {
+    if (z->mark == 4) {
+      /* This was the old companion of a successfully selected replacement.
+       * Drop it from the central directory and output member set; the owner
+       * is captured again if --xattrs was explicitly requested. */
+      v=z->nxt;
+      free((zvoid *)(z->iname));
+      free((zvoid *)(z->zname));
+      free(z->oname);
+#ifdef UNICODE_SUPPORT
+      if (z->uname) free((zvoid *)(z->uname));
+#endif
+      if (z->ext && z->extra) free((zvoid *)(z->extra));
+      if (z->cext && z->cextra != z->extra)
+        free((zvoid *)(z->cextra));
+      if (z->com) free((zvoid *)(z->comment));
+      farfree((zvoid far *)z);
+      *w=v;
+      zcount--;
+      continue;
+    }
     if (z->mark == 1)
     {
       uzoff_t len;
@@ -6485,6 +6635,10 @@ char **argv;            /* command line tokens */
       if (action != ARCHIVE && action != DELETE)
       {
         struct zlist far *localz; /* local header */
+        unsigned char old_xtro_id[16],old_xtro_mode=0;
+        int old_xtro=xtro_central_owner(z,old_xtro_id,&old_xtro_mode);
+        if (old_xtro<0)
+          ZIPERR(ZE_FORM,"invalid original Xtro owner metadata");
 
         if (verbose || !(filesync && z->current))
           DisplayRunningStats();
@@ -6527,6 +6681,8 @@ char **argv;            /* command line tokens */
 
         /* Get local header flags and extra fields */
         if (readlocal(&localz, z) != ZE_OK) {
+          if (old_xtro)
+            ZIPERR(ZE_FORM,"cannot verify old Xtro local metadata before replacement");
           zipwarn("could not read local entry information: ", z->oname);
           z->lflg = z->flg;
           z->ext = 0;
@@ -6534,6 +6690,14 @@ char **argv;            /* command line tokens */
           z->lflg = localz->lflg;
           z->ext = localz->ext;
           z->extra = localz->extra;
+          if (old_xtro) {
+            if (!xtro_strip_replaced_owner(z,old_xtro_id))
+              ZIPERR(ZE_FORM,"old Xtro local/central metadata mismatch");
+            zipwarn((xtr_zip_xattrs || xtr_zip_streams) ?
+                    "replacing Xtro owner; metadata recaptured: " :
+                    "replacing Xtro owner; previous metadata discarded: ",
+                    z->oname);
+          }
           if (localz->nam) free(localz->iname);
           if (localz->nam) free(localz->name);
 #ifdef UNICODE_SUPPORT
@@ -6607,6 +6771,8 @@ char **argv;            /* command line tokens */
         }
         if (r == ZE_OPEN || r == ZE_MISS)
         {
+          if (old_xtro)
+            ZIPERR(r,"Xtro owner replacement failed; original archive unchanged");
           o = 1;
           zipmessage_nl("", 1);
           /*
@@ -7131,6 +7297,59 @@ char **argv;            /* command line tokens */
       zcount++;
     }
   }
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+  if (xtr_zip_xattrs || xtr_zip_streams) {
+#ifdef XTR_WIN_NATIVE
+    char source[512], member[52];
+#else
+    char source[64], member[52];
+#endif
+    /* A requested metadata-preserving archive must not be published after
+       an input file was skipped, even when other files succeeded. */
+    if (bad_files_so_far)
+      ZIPERR(ZE_OPEN,"Xtro owner skipped; archive not published");
+    while (xtr_zip_next_companion(source,member)) {
+      struct zlist far *side;
+      int old_method=method;
+      int old_level=level;
+      if ((side=(struct zlist far *)farmalloc(sizeof(*side)))==NULL)
+        ZIPERR(ZE_MEM,"Xtro companion entry allocation");
+      memset(side,0,sizeof(*side));
+      side->name=xtr_zip_copy_string(source);
+      side->iname=xtr_zip_copy_string(member);
+      side->zname=xtr_zip_copy_string(member);
+      side->oname=xtr_zip_copy_string(member);
+      if (!side->name || !side->iname || !side->zname || !side->oname)
+        ZIPERR(ZE_MEM,"Xtro companion name allocation");
+#if defined(XTR_WIN_NATIVE) && defined(UNICODE_SUPPORT) && defined(WIN32)
+      side->namew=xtr_zip_copy_wide(source);
+      side->inamew=xtr_zip_copy_wide(member);
+      side->znamew=xtr_zip_copy_wide(member);
+      if(!side->namew || !side->inamew || !side->znamew)
+        ZIPERR(ZE_MEM,"Xtro companion wide pathname allocation");
+#endif
+      side->mark=1;
+      /* Native metadata is binary. Use universally supported Deflate;
+         allow the compressor's ordinary STORE fallback. */
+      method=DEFLATE;
+      /* -0 sets level=0, which is invalid for the Deflate engine. The
+         companion is intentionally Deflate regardless of owner -0; use a
+         valid default level without changing the owner's compression. */
+      if(level==0)level=6;
+      r=zipup(side);
+      level=old_level;
+      method=old_method;
+      if(r!=ZE_OK)ZIPERR(r,"writing Xtro companion");
+      side->nxt=NULL;
+      *w=side;
+      w=&side->nxt;
+      zcount++;
+      xtr_zip_companion_done();
+    }
+    if (xtro_prepare_pairs(zfiles,0)!=0)
+      ZIPERR(ZE_FORM,"new Xtro owner/companion graph validation failed");
+  }
+#endif
   if (key != NULL)
   {
     free((zvoid *)key);

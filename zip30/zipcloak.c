@@ -33,6 +33,10 @@
 #endif
 
 #if CRYPT       /* defined (as TRUE or FALSE) in crypt.h */
+#include "xtro_pairs.h"
+#ifdef XTRO_CLOAK_STORE
+#include "xtro_cloak_store.inc"
+#endif
 
 int main OF((int argc, char **argv));
 
@@ -564,6 +568,61 @@ int main(argc, argv)
     /* Read zip file */
     if ((res = readzipfile()) != ZE_OK) ziperr(res, zipfile);
     if (zfiles == NULL) ziperr(ZE_NAME, zipfile);
+    /* Validate the entire Xtro graph BEFORE opening output.  Encryption
+     * changes to metadata members require coordinated changes to the Xtro
+     * envelope and, for inline owners, moving values into a companion.
+     * Supported public→ZipCrypto transitions must stage the entire metadata
+     * set first; unsupported reverse/AES transitions remain fail-closed.
+     * Unchanged owner/companion pairs are copied byte-for-byte. */
+    if (xtro_prepare_pairs(zfiles, 0) != 0)
+      ziperr(ZE_FORM, "invalid Xtro owner/companion associations");
+    {
+      int xtro_present = 0;
+      unsigned char xid[16], xmode;
+      for (z = zfiles; z != NULL; z = z->nxt) {
+        int role = xtro_central_owner(z, xid, &xmode);
+        if (role < 0)
+          ziperr(ZE_FORM, "malformed Xtro owner extra field");
+        if (role || (z->iname && xtro_sidecar_id(z->iname, xid)))
+          xtro_present = 1;
+      }
+      if (xtro_present) {
+        for (z = zfiles; z != NULL; z = z->nxt) {
+          int role = xtro_central_owner(z, xid, &xmode);
+          int is_sidecar = z->iname && xtro_sidecar_id(z->iname, xid);
+          int changing = decrypt ? ((z->flg & 1U) != 0U) :
+                                   ((z->flg & 1U) == 0U);
+          if (changing && (role || is_sidecar)) {
+#ifdef XTRO_CLOAK_STORE
+            if ((!decrypt && ((role==1 && (xmode==1 || xmode==2) &&
+                    xtro_field_flags(z)==0 && !(z->flg&1U)) ||
+                    (is_sidecar && (z->how==0
+#ifdef XTRO_CLOAK_DEFLATE
+                     || z->how==8
+#endif
+                     ) && !(z->flg&1U)))) ||
+                (decrypt && ((role==1 && xmode==2 &&
+                    xtro_field_flags(z)==1 && (z->flg&1U)) ||
+                    (is_sidecar && (z->how==0
+#ifdef XTRO_CLOAK_DEFLATE
+                     || z->how==8
+#endif
+                     ) && (z->flg&1U))))) {
+              xtro_cloak_transition_requested=1;
+              continue;
+            }
+#endif
+            ziperr(ZE_PARMS,
+                   "Xtro encryption transition needs metadata-aware conversion");
+          }
+          /* ZipCloak's zipbare() implements ZipCrypto, not WinZip AES.
+           * Do not let an unrelated AES entry be silently damaged. */
+          if (changing && decrypt && z->how == 99U)
+            ziperr(ZE_PARMS,
+                   "ZipCloak cannot decrypt AES members in Xtro archives");
+        }
+      }
+    }
 
     /* Check for something to do */
     for (z = zfiles; z != NULL; z = z->nxt) {
@@ -645,6 +704,13 @@ int main(argc, argv)
     /* Open input zip file again, copy preamble if any */
     if ((in_file = fopen(zipfile, FOPR)) == NULL) ziperr(ZE_NAME, zipfile);
 
+#ifdef XTRO_CLOAK_STORE
+    /* Complete decoded-metadata validation before emitting a single byte. */
+    if (xtro_cloak_transition_requested &&
+        (res=(decrypt ? xtro_cloak_stage_decrypt(passwd) :
+                         xtro_cloak_stage_all())) != ZE_OK)
+      ziperr(res,"Xtro metadata transition preflight failed");
+#endif
     if (zipbeg && (res = bfcopy(zipbeg)) != ZE_OK)
     {
         ziperr(res, res == ZE_TEMP ? tempzip : zipfile);
@@ -656,7 +722,19 @@ int main(argc, argv)
         if (decrypt && (z->flg & 1)) {
             printf("decrypting: %s", z->zname);
             fflush(stdout);
-            if ((res = zipbare(z, passwd)) != ZE_OK)
+#ifdef XTRO_CLOAK_STORE
+            {
+              xtro_cloak_stage *p=xtro_cloak_find(z);
+              if(p && p->reverse && p->owner==z)
+                res=xtro_cloak_decrypt_owner(p,passwd);
+              else if(p && p->reverse && p->side==z)
+                res=xtro_cloak_decrypt_side(p);
+              else res=zipbare(z,passwd);
+            }
+#else
+            res=zipbare(z,passwd);
+#endif
+            if (res != ZE_OK)
             {
                 if (res != ZE_MISS) ziperr(res, "was decrypting an entry");
                 printf(" (wrong password--just copying)");
@@ -667,7 +745,17 @@ int main(argc, argv)
         } else if ((!decrypt) && !(z->flg & 1)) {
             printf("encrypting: %s\n", z->zname);
             fflush(stdout);
-            if ((res = zipcloak(z, passwd)) != ZE_OK)
+#ifdef XTRO_CLOAK_STORE
+            {
+              xtro_cloak_stage *p=xtro_cloak_find(z);
+              if(p && p->owner==z)res=xtro_cloak_encrypt_owner(p,passwd);
+              else if(p && p->side==z)res=xtro_cloak_encrypt_side(p,passwd);
+              else res=zipcloak(z,passwd);
+            }
+#else
+            res=zipcloak(z,passwd);
+#endif
+            if (res != ZE_OK)
             {
                 ziperr(res, "was encrypting an entry");
             }
@@ -681,8 +769,17 @@ int main(argc, argv)
         } /* if */
     } /* for */
 
+#ifdef XTRO_CLOAK_STORE
+    /* The output list now includes companions synthesized from inline
+     * attributes. Verify the complete output identity/encryption graph
+     * before publishing a central directory or replacing the input. */
+    if (xtro_prepare_pairs(zfiles, 0) != 0)
+      ziperr(ZE_FORM, "post-transition Xtro owner/companion graph invalid");
+#endif
     fclose(in_file);
-
+#ifdef XTRO_CLOAK_STORE
+    xtro_cloak_discard();
+#endif
 
     /* Write central directory and end of central directory */
 

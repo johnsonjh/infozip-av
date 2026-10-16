@@ -75,6 +75,20 @@
 #  endif
 #endif
 #include "../win32/nt.h"
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+# include "../../xtrmeta/xtrwin_utf8path.h"
+# define XTR_MKDIR(path) xtr_win_u8_mkdir(path)
+# define XTR_FS_OPEN(path,rights,share,disp,flags) \
+    xtr_win_u8_open(path,rights,share,disp,flags)
+# define XTR_FS_ATTR(path) xtr_win_u8_attributes(path)
+# define XTR_FS_SETATTR(path,attrs) xtr_win_u8_set_attributes(path,attrs)
+#else
+# define XTR_MKDIR(path) mkdir(path)
+# define XTR_FS_OPEN(path,rights,share,disp,flags) \
+    CreateFileA(path,rights,share,NULL,disp,flags,NULL)
+# define XTR_FS_ATTR(path) GetFileAttributesA(path)
+# define XTR_FS_SETATTR(path,attrs) SetFileAttributesA(path,attrs)
+#endif
 
 #ifndef FUNZIP          /* most of this file is not used with fUnZip */
 
@@ -86,7 +100,7 @@
 #if (defined(__EMX__) || defined(__CYGWIN__))
 #  define MKDIR(path,mode)   mkdir(path,mode)
 #else
-#  define MKDIR(path,mode)   mkdir(path)
+#  define MKDIR(path,mode)   XTR_MKDIR(path)
 #endif
 
 #ifdef HAVE_WORKING_DIRENT_H
@@ -1119,8 +1133,7 @@ int close_outfile(__G)
         /* open a handle to the file before processing extra fields;
            we do this in case new security on file prevents us from updating
            time stamps */
-        hFile = CreateFileA(Ansi_Fname, GENERIC_WRITE, FILE_SHARE_WRITE, NULL,
-             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        hFile = XTR_FS_OPEN(Ansi_Fname, GENERIC_WRITE, FILE_SHARE_WRITE, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL);
     } else {
         gotTime = 0;
     }
@@ -1134,7 +1147,7 @@ int close_outfile(__G)
        as an optimization because FILE_ATTRIBUTE_ARCHIVE gets applied to the
        file anyway, when it's created new. */
     if ((G.pInfo->file_attr & 0x7F) & ~FILE_ATTRIBUTE_ARCHIVE) {
-        if (!SetFileAttributesA(Ansi_Fname, G.pInfo->file_attr & 0x7F))
+        if (!XTR_FS_SETATTR(Ansi_Fname, G.pInfo->file_attr & 0x7F))
             Info(slide, 1, ((char *)slide,
               "\nwarning (%d): could not set file attributes\n",
               (int)GetLastError()));
@@ -1284,9 +1297,8 @@ int set_direc_attribs(__G__ d)
            So we use the more specific flag FILE_WRITE_ATTRIBUTES here to
            request the minimum required access rights. (This problem is a
            Windows bug that has been silently fixed in Windows XP SP2.) */
-        hFile = CreateFileA(Ansi_Dirname, FILE_WRITE_ATTRIBUTES,
-                            FILE_SHARE_READ|FILE_SHARE_WRITE, NULL,
-                            OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+        hFile = XTR_FS_OPEN(Ansi_Dirname, FILE_WRITE_ATTRIBUTES,
+                            FILE_SHARE_READ|FILE_SHARE_WRITE, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS);
     }
 
 #ifdef NTSD_EAS
@@ -1375,8 +1387,7 @@ int stamp_file(__GPRO__ ZCONST char *fname, time_t modtime)
 #endif
 
     /* open a handle to the file to prepare setting the mod-time stamp */
-    hFile = CreateFileA(Ansi_Fname, GENERIC_WRITE, FILE_SHARE_WRITE, NULL,
-         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    hFile = XTR_FS_OPEN(Ansi_Fname, GENERIC_WRITE, FILE_SHARE_WRITE, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL);
     if ( hFile == INVALID_HANDLE_VALUE ) {
         errstat = -1;
     } else {
@@ -1458,8 +1469,15 @@ static int NTQueryVolInfo(__GPRO__ const char *name)
         tmp0 = (char *)name;
     else
     {
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+        /* Volume queries need the drive only. A UTF-8 relative name cannot
+         * be supplied to GetFullPathNameA without lossy ACP conversion. */
+        if (!GetFullPathNameA(".", MAX_PATH, tmp1, &tmp0))
+            return FALSE;
+#else
         if (!GetFullPathNameA(name, MAX_PATH, tmp1, &tmp0))
             return FALSE;
+#endif
         tmp0 = &tmp1[0];
     }
     if (strncmp(G.lastRootPath, tmp0, 2) != 0) {
@@ -1709,6 +1727,14 @@ int mapname(__G__ renamed)
     G.created_dir = FALSE;      /* not yet */
     G.renamed_fullpath = FALSE;
     G.fnlen = strlen(G.filename);
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+    if(!renamed && !xtr_win_u8_member_safe(G.filename)){
+        Info(slide, 0x401, ((char *)slide,
+          "error: unsafe Windows Unicode ZIP member name: %s\n",
+          FnFilter1(G.filename)));
+        return MPN_ERR_SKIP;
+    }
+#endif
 
     if (renamed) {
         cp = G.filename;    /* point to beginning of renamed name... */
@@ -1859,7 +1885,7 @@ int mapname(__G__ renamed)
                attribute need not be masked, since it does not prevent
                modifications in the new directory. */
             if(G.pInfo->file_attr & (0x7F & ~FILE_ATTRIBUTE_DIRECTORY)) {
-                if (!SetFileAttributesA(Ansi_Fname, G.pInfo->file_attr & 0x7F))
+                if (!XTR_FS_SETATTR(Ansi_Fname, G.pInfo->file_attr & 0x7F))
                     Info(slide, 1, ((char *)slide,
                       "\nwarning (%d): could not set file attributes for %s\n",
                       (int)GetLastError(), FnFilter1(G.filename)));
@@ -1872,7 +1898,7 @@ int mapname(__G__ renamed)
 
             /* set file attributes: */
             if(G.pInfo->file_attr & (0x7F & ~FILE_ATTRIBUTE_DIRECTORY)) {
-                if (!SetFileAttributesA(Ansi_Fname, G.pInfo->file_attr & 0x7F))
+                if (!XTR_FS_SETATTR(Ansi_Fname, G.pInfo->file_attr & 0x7F))
                     Info(slide, 1, ((char *)slide,
                       "\nwarning (%d): could not set file attributes for %s\n",
                       (int)GetLastError(), FnFilter1(G.filename)));
@@ -1921,7 +1947,14 @@ int mapname(__G__ renamed)
         return (error & ~MPN_MASK) | MPN_ERR_SKIP;
     }
 
-    checkdir(__G__ pathcomp, APPEND_NAME);  /* returns 1 if truncated: care? */
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+    /* Any truncated UTF-8 code point or path would name a different file.
+     * Do not publish such output, even if the old mapper allowed warnings. */
+    if ((error = checkdir(__G__ pathcomp, APPEND_NAME)) != MPN_OK)
+        return (error & ~MPN_MASK) | MPN_ERR_TOOLONG;
+#else
+    checkdir(__G__ pathcomp, APPEND_NAME);  /* legacy truncation policy */
+#endif
     checkdir(__G__ G.filename, GETPATH);
 
     if (G.pInfo->vollabel) {    /* set the volume label now */
@@ -1993,7 +2026,13 @@ static void maskDOSdevice(__G__ pathcomp)
                FnFilter1(pathcomp)));
     }
 #endif
-    if (zstat(pathcomp, &G.statbuf) == 0 && S_ISCHR(G.statbuf.st_mode)) {
+    if (
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+        xtr_win_u8_stat(pathcomp, &G.statbuf) == 0 &&
+#else
+        zstat(pathcomp, &G.statbuf) == 0 &&
+#endif
+        S_ISCHR(G.statbuf.st_mode)) {
         extent i;
 
         /* pathcomp contains a name of a DOS character device (builtin or
@@ -2314,7 +2353,11 @@ int checkdir(__G__ pathcomp, flag)
               "checkdir warning:  path too long; truncating\n \
               %s\n                -> %s\n",
               FnFilter1(G.filename), FnFilter2(G.buildpathHPFS)));
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+            error = MPN_ERR_TOOLONG; /* no truncated Unicode pathname writes */
+#else
             error = MPN_INF_TRUNC;  /* filename truncated */
+#endif
         }
 
         /* The buildpathFAT buffer has the same allocated size as the
@@ -2443,7 +2486,22 @@ int checkdir(__G__ pathcomp, flag)
                 G.rootlen = 0;
                 return MPN_NOMEM;
             }
+#if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+            {
+                /* W3D2 console argv is already converted directly from
+                 * GetCommandLineW() to UTF-8. Treating it as ACP here would
+                 * double-encode non-ASCII -d paths and redirect output. */
+                if(!xtr_win_u8_valid(pathcomp)){
+                    free(tmproot);G.rootlen=0;return MPN_ERR_SKIP;
+                }
+                if((size_t)G.rootlen+3U>=FILNAMSIZ){
+                    free(tmproot);G.rootlen=0;return MPN_ERR_TOOLONG;
+                }
+                strcpy(tmproot,pathcomp);
+            }
+#else
             strcpy(tmproot, pathcomp);
+#endif
             if (isalpha((uch)tmproot[0]) && tmproot[1] == ':')
                 has_drive = TRUE;   /* drive designator */
             if (tmproot[G.rootlen-1] == '/' || tmproot[G.rootlen-1] == '\\') {
@@ -2750,7 +2808,11 @@ int screensize(int *tt_rows, int *tt_cols)
 
 int zstat_win32(__W32STAT_GLOBALS__ const char *path, z_stat *buf)
 {
+    #if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32) && !defined(SFX) && !defined(DLL)
+    if (!xtr_win_u8_stat(path, buf))
+#else
     if (!zstat(path, buf))
+#endif
     {
         /* stat was successful, now redo the time-stamp fetches */
 #ifndef NO_W32TIMES_IZFIX
@@ -2768,9 +2830,8 @@ int zstat_win32(__W32STAT_GLOBALS__ const char *path, z_stat *buf)
 #endif
 
         TTrace((stdout, "stat(%s) finds modtime %08lx\n", path, buf->st_mtime));
-        h = CreateFileA(Ansi_Path, GENERIC_READ,
-                        FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
-                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        h = XTR_FS_OPEN(Ansi_Path, GENERIC_READ,
+                        FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL);
         if (h != INVALID_HANDLE_VALUE) {
             BOOL ftOK = GetFileTime(h, &Creft, &Accft, &Modft);
             CloseHandle(h);
@@ -2833,7 +2894,7 @@ int zstat_win32(__W32STAT_GLOBALS__ const char *path, z_stat *buf)
 #       define Ansi_Path  path
 #endif
 
-        flags = GetFileAttributesA(Ansi_Path);
+        flags = XTR_FS_ATTR(Ansi_Path);
         if (flags != 0xFFFFFFFF && flags & FILE_ATTRIBUTE_DIRECTORY) {
             Trace((stderr, "\nstat(\"%s\",...) failed on existing directory\n",
                    FnFilter1(path)));
