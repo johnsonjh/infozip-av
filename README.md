@@ -17,6 +17,9 @@
 - [Usage](#usage)
   * [De-duplication (`zipdedup`)](#de-duplication-zipdedup)
   * [Optimization (`zipopt`)](#optimization-zipopt)
+  * [Filesystem metadata preservation](#filesystem-metadata-preservation)
+    + [Metadata platform support](#metadata-platform-support)
+    + [Metadata preservation notes](#metadata-preservation-notes)
   * [PKAV](#pkav)
     + [PKAV archive creation (`zip`)](#pkav-archive-creation-zip)
     + [PKAV archive testing (`unzip`)](#pkav-archive-testing-unzip)
@@ -250,7 +253,7 @@ ZipCrypto or AES encryption.
 | Linux           |   ✅   | Save/restore of Linux [`xattr` extended attributes](https://en.wikipedia.org/wiki/Extended_file_attributes#Linux) |
 | FreeBSD         |   ✅   | Save/restore of FreeBSD [`extattr` extended attributes](https://man.freebsd.org/cgi/man.cgi?query=extattr)        |
 | NetBSD          |   ✅   | Save/restore of NetBSD [`extattr` extended attributes](https://man.netbsd.org/extattr.3)                          |
-| Windows         |   ✅   | Full save/restore support for NT extended attributes, and NTFS named data streams                                 |
+| Windows         |   ✅   | Full save/restore support for NT extended attributes and NTFS named data streams                                  |
 | OpenBSD         |        | Support is untested                                                                                               |
 | AIX             |        | Support is planned                                                                                                |
 | Solaris/illumos |        | Support is planned                                                                                                |
