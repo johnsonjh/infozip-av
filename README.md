@@ -249,23 +249,25 @@ ZipCrypto or AES encryption.
 #### Metadata platform support
 
 | Platform        | Status | Description |
-|----------------:|:-------|:------------------------------------------------------------------------------------------------------------------|
+|----------------:|:------:|:------------------------------------------------------------------------------------------------------------------|
 | Linux           |   ✅   | Save/restore of Linux [`xattr` extended attributes](https://en.wikipedia.org/wiki/Extended_file_attributes#Linux) |
 | FreeBSD         |   ✅   | Save/restore of FreeBSD [`extattr` extended attributes](https://man.freebsd.org/cgi/man.cgi?query=extattr)        |
 | NetBSD          |   ✅   | Save/restore of NetBSD [`extattr` extended attributes](https://man.netbsd.org/extattr.3)                          |
 | Windows         |   ✅   | Full save/restore support for NT extended attributes and NTFS named data streams                                  |
-| OpenBSD         |        | Support is untested                                                                                               |
-| AIX             |        | Support is planned                                                                                                |
-| Solaris/illumos |        | Support is planned                                                                                                |
-| macOS           |        | Support is planned                                                                                                |
-| OS/2            |        | Support is planned (*low priority*)                                                                               |
+| OpenBSD         | **?**  | Support is **untested**                                                                                           |
+| AIX             |        | Support is **planned**                                                                                            |
+| Solaris/illumos |        | Support is **planned**                                                                                            |
+| macOS           |        | Support is **planned**                                                                                            |
+| Haiku           |        | Support is **planned**                                                                                            |
+| OS/2            |        | Support is **planned** (*low priority*)                                                                           |
+| HP‑UX           |        | No support planned                                                                                                |
 
 * Save/restore extended attributes:
 
-```
-zip --xattrs archive.zip file
-unzip --xattrs archive.zip
-```
+  ```
+  zip --xattrs archive.zip file(s)
+  unzip --xattrs archive.zip
+  ```
 
 On Windows, `--xattrs` indicates NT extended attributes and `--streams`
 indicates NTFS named data streams.  The corresponding `--no-xattrs` and
@@ -273,10 +275,10 @@ indicates NTFS named data streams.  The corresponding `--no-xattrs` and
 
 * Save/restore Windows extended attributes and NTFS data streams
 
-```
-zip --xattrs --streams archive.zip file
-unzip --xattrs --streams archive.zip
-```
+  ```
+  zip --xattrs --streams archive.zip file(s)
+  unzip --xattrs --streams archive.zip
+  ```
 
 #### Metadata preservation notes
 
