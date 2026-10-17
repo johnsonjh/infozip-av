@@ -5104,6 +5104,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
         // falls in one of those gaps, then there should be no adverse
         // consequences for picking the unintended one.
         int len = 0;
+        int back;
 #       define SIG 0x08074b50           // optional data descriptor signature
 #ifdef LARGE_FILE_SUPPORT
         uch buf[24];
@@ -5146,7 +5147,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
         // Back up got-len bytes, to position the read pointer after the data
         // descriptor. Or to where the data descriptor was supposed to be, in
         // the event none was found.
-        int back = got - len;
+        back = got - len;
         if (G.incnt + back > INBUFSIZ) {
             // Need to load the preceding buffer. We've been here before.
             G.cur_zipfile_bufstart -= INBUFSIZ;

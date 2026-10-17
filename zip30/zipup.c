@@ -560,7 +560,7 @@ local int iz_aes_write_initial(strength, password)
 {
     unsigned char salt[16],ver[4],ctr[4];
     unsigned n=iz_aes_quantum ? 16U : iz_aes_salt_size((unsigned)strength);
-    if(!iz_aes_entropy(salt,n))return ZE_TEMP;
+    if(!iz_aes_entropy(salt,n))return ZE_ENTROPY;
     if (iz_aes_quantum) {
         iz_ae3_salt_counter(salt,ctr);
         if (!iz_ae3_init(&iz_zip_ae3_ctx,password,salt,ctr,

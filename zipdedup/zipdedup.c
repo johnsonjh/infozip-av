@@ -9,15 +9,15 @@
 #undef ZD_DATE
 #define ZD_DATE "2026-10-16"
 
-#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(_FILE_OFFSET_BITS)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(ZD_DOS16) && !defined(_FILE_OFFSET_BITS)
 # define _FILE_OFFSET_BITS 64
 #endif /* _FILE_OFFSET_BITS */
 
-#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(_POSIX_C_SOURCE)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(ZD_DOS16) && !defined(_POSIX_C_SOURCE)
 # define _POSIX_C_SOURCE 200809L
 #endif /* ifndef _POSIX_C_SOURCE */
 
-#if !defined(_WIN32) && !defined(__DJGPP__)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(ZD_DOS16)
 #define UNIX 1
 #endif
 #define DLL 1
@@ -31,7 +31,12 @@
 #elif defined(USE_ZLIB)
 # include <zlib.h>
 #else
+#if defined(ZD_DOS16)
+/* UnZip's CRC routine is compiled with the Watcom cdecl/stack ABI. */
+extern unsigned long __cdecl crc32 (unsigned long, const unsigned char *, size_t);
+#else
 extern unsigned long crc32 (unsigned long, const unsigned char *, size_t);
+#endif
 #endif
 
 #include <limits.h>
@@ -54,6 +59,9 @@ extern unsigned long crc32 (unsigned long, const unsigned char *, size_t);
 # define fdopen _fdopen
 # define mkstemp iz_win_mkstemp
 # define link(a,b) iz_win_publish_noreplace((a),(b))
+#elif defined(ZD_DOS16)
+# include "dos16_port.h"
+# include <io.h>
 #elif defined(__DJGPP__)
 # include <unistd.h>
 # include "../zipopt/dos386_port.h"
@@ -121,6 +129,15 @@ struct zd_archive
 
 static const char *zd_error;
 static int zd_verbose;
+
+/*
+ * Reject oversized in-core structures before any narrowing
+ * cast. Data payload copying remains streaming
+ */
+
+#if defined(ZD_DOS16)
+# define ZD_DOS16_MAX_ALLOC 60000UL
+#endif
 
 static void
 zd_fail (const char *s)
@@ -225,7 +242,7 @@ zd_write (FILE *f, const void *p, size_t n)
   long pos = ftell (f);
 
   if (pos < 0 || pos > ZD_POS_MAX
-      || n > (size_t)(ZD_POS_MAX - pos))
+      || (unsigned long)n > (unsigned long)(ZD_POS_MAX - pos))
     {
       zd_fail ("output ZIP exceeds this build's LONG_MAX file-offset limit");
       return 0;
@@ -391,6 +408,11 @@ zd_find_end (struct zd_archive *a)
 
   a->bytes = (unsigned long)ftell (a->in);
   len = a->bytes < 65557UL ? a->bytes : 65557UL;
+#ifdef ZD_DOS16
+  /* Limit in-core EOCD scan; comments requiring a larger tail are not
+   * supported in the DOS16 experimental build. */
+  if (len > ZD_DOS16_MAX_ALLOC) len = ZD_DOS16_MAX_ALLOC;
+#endif
   start = a->bytes - len;
   buf = (unsigned char *)malloc ((size_t)(len ? len : 1));
   if (!buf)
@@ -423,7 +445,11 @@ zd_find_end (struct zd_archive *a)
   if (j < 22)
     {
       free (buf);
+#ifdef ZD_DOS16
+      zd_fail ("ZIP end record not found within DOS 60000-byte scan limit");
+#else
       zd_fail ("end of central directory not found");
+#endif
       return 0;
     }
 
@@ -519,6 +545,14 @@ zd_load (struct zd_archive *a)
       return 1;
     }
 
+#ifdef ZD_DOS16
+  if (a->count > ZD_DOS16_MAX_ALLOC / sizeof (*a->members)
+      || a->count > ZD_DOS16_MAX_ALLOC / sizeof (*a->order))
+    {
+      zd_fail ("DOS member table exceeds segment allocation limit");
+      return 0;
+    }
+#endif
   a->members
       = (struct zd_entry *)calloc ((size_t)a->count, sizeof (*a->members));
   a->order = (unsigned long *)malloc ((size_t)a->count * sizeof (*a->order));
@@ -556,6 +590,13 @@ zd_load (struct zd_archive *a)
           return 0;
         }
 
+#ifdef ZD_DOS16
+      if (n > ZD_DOS16_MAX_ALLOC || (unsigned long)nam + 1UL > ZD_DOS16_MAX_ALLOC)
+        {
+          zd_fail ("DOS central-directory record exceeds segment limit");
+          return 0;
+        }
+#endif
       e->cen = (unsigned char *)malloc ((size_t)n);
       e->name = (char *)malloc ((size_t)nam + 1);
       if (!e->cen || !e->name)
@@ -759,6 +800,13 @@ zd_load (struct zd_archive *a)
           return 0;
         }
 
+#ifdef ZD_DOS16
+      if (e->loclen > ZD_DOS16_MAX_ALLOC)
+        {
+          zd_fail ("DOS local-header record exceeds segment limit");
+          return 0;
+        }
+#endif
       e->loc = (unsigned char *)malloc ((size_t)e->loclen);
       if (!e->loc)
         {
@@ -871,6 +919,12 @@ zd_unzip_cb (zvoid *g, uch *p, ulg len, int flag)
       return 1;
     }
 
+#ifdef ZD_DOS16
+  if (len > ZD_DOS16_MAX_ALLOC) {
+    zd_hash_failed = 1;
+    return 1;
+  }
+#endif
   iz_sha1_update (&zd_hash_state, p, (size_t)len);
   zd_hash_bytes += (unsigned long)len;
   zd_hash_crc = zd_crc32_step (zd_hash_crc, p, (unsigned long)len);
@@ -905,6 +959,12 @@ zd_md5_cb (zvoid *g, uch *p, ulg len, int flag)
       return 1;
     }
 
+#ifdef ZD_DOS16
+  if (len > ZD_DOS16_MAX_ALLOC) {
+    zd_md5_failed = 1;
+    return 1;
+  }
+#endif
   {
     ulg remain = len;
     const uch *buf = p;
@@ -1105,8 +1165,17 @@ zd_xtr_cb(zvoid *g,uch *p,ulg len,int flag)
 {
   (void)g;
   if (flag!=0) return 0;
-  if (!zd_xtr_stage || len>33554432UL-zd_xtr_bytes ||
-      fwrite(p,1,(size_t)len,zd_xtr_stage)!=(size_t)len) {
+  if (!zd_xtr_stage || len>33554432UL-zd_xtr_bytes) {
+    zd_xtr_failed=1;return 1;
+  }
+#if defined(ZD_DOS16)
+  /* A callback is backed by one segment-sized buffer.  Do not narrow an
+   * overlong length or advance an unbounded near/far buffer pointer. */
+  if (len > ZD_DOS16_MAX_ALLOC) {
+    zd_xtr_failed=1;return 1;
+  }
+#endif
+  if (fwrite(p,1,(size_t)len,zd_xtr_stage)!=(size_t)len) {
     zd_xtr_failed=1;return 1;
   }
   zd_xtr_bytes+=(unsigned long)len;
@@ -1621,6 +1690,13 @@ zd_rewrite_central (struct zd_entry *e, FILE *out)
       len += 23UL;
     }
 
+#ifdef ZD_DOS16
+  if (len > ZD_DOS16_MAX_ALLOC)
+    {
+      zd_fail ("DOS rewritten central record exceeds segment limit");
+      return 0;
+    }
+#endif
   c = (unsigned char *)malloc ((size_t)len);
   if (!c)
     {
@@ -2324,13 +2400,15 @@ main (int argc, char **argv)
     }
 
   out = NULL;
-#ifdef __DJGPP__
+#if defined(ZD_DOS16)
+  if (iz_dos16_publish_noreplace (tmp, a.output) != 0)
+#elif defined(__DJGPP__)
   if (iz_dos386_publish_noreplace (tmp, a.output) != 0)
 #else
   if (link (tmp, a.output) != 0)
 #endif
     {
-#ifdef __DJGPP__
+#if defined(__DJGPP__) || defined(ZD_DOS16)
       zd_fail ("cannot publish output (destination exists or DOS copy failed)");
 #else
       zd_fail (
