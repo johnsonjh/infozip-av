@@ -14,6 +14,7 @@ core-*
 /dos16/
 /dos386/
 /.envrc
+*.err
 log.pvs
 *.orig
 /*.patch
@@ -22,12 +23,9 @@ pvsreport/
 /TODO
 /unzip60/conftest
 /unzip60/conftest.c
-/unzip60/crypt.err
-/unzip60/fileio.err
 /unzip60/flags
 /unzip60/funzip
 /unzip60/*.o
-/unzip60/process.err
 /unzip60/unzip
 /unzip60/unzipsfx
 /win32/
@@ -46,7 +44,6 @@ pvsreport/
 /zip30/*.o
 /zip30/zip
 /zip30/zipcloak
-/zip30/zipfile.err
 /zip30/zipnote
 /zip30/zipsplit
 /zipdedup/test-refptr9903
