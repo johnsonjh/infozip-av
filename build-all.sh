@@ -327,4 +327,6 @@ rm -f ./dos386/zipopt-decodecheck.exe
 
 upx -qq --best ./dos386/unzipsfx.exe || :
 
-./build-dos16.sh
+# 16-bit DOS build
+
+env DOS16_EXPERIMENTAL_ZIPDEDUP=1 ./build-dos16.sh
