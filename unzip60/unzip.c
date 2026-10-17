@@ -2073,9 +2073,7 @@ opts_done:  /* yes, very ugly...but only used by UnZipSFX with -x xlist */
 #ifdef SFX
     /* print our banner unless we're being fairly quiet */
     if (uO.qflag < 2)
-        Info(slide, error? 1 : 0, ((char *)slide, LoadFarString(UnzipSFXBanner),
-          UZ_MAJORVER, UZ_MINORVER, UZ_PATCHLEVEL, UZ_BETALEVEL,
-          LoadFarStringSmall(VersionDate)));
+        Info(slide, error? 1 : 0, ((char *)slide, LoadFarString(UnzipSFXBanner)));
 #ifdef BETA
     /* always print the beta warning:  no unauthorized distribution!! */
     Info(slide, error? 1 : 0, ((char *)slide, LoadFarString(BetaVersion), "\n",
@@ -2157,9 +2155,7 @@ int usage(__G__ error)   /* return PK-type error code */
     __GDEF
     int error;
 {
-    Info(slide, error? 1 : 0, ((char *)slide, LoadFarString(UnzipSFXBanner),
-      UZ_MAJORVER, UZ_MINORVER, UZ_PATCHLEVEL, UZ_BETALEVEL,
-      LoadFarStringSmall(VersionDate)));
+    Info(slide, error? 1 : 0, ((char *)slide, LoadFarString(UnzipSFXBanner)));
     Info(slide, error? 1 : 0, ((char *)slide, LoadFarString(UnzipSFXOpts),
       SFXOPT1, LOCAL));
 #ifdef PKAV_SUPPORT
