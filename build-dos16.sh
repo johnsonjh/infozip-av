@@ -301,17 +301,21 @@ case "${DOS16_UPX:-1}" in
   if command -v apack1p > /dev/null 2>&1; then
     apack_dir="$build/apack-unzipsfx"
     if mkdir -p "$apack_dir"; then
+      # aPACK originates from DOS and is more reliable with a basename
+      # than a long absolute Unix pathname. Stage the input alongside OUT.EXE.
       # Never accept OUT.EXE left by an earlier build or failed invocation.
       rm -f "$apack_dir/OUT.EXE"
-      if (cd "$apack_dir" && apack1p -r -q -x -v "$out/unzipsfx.exe") >> "$log" 2>&1 \
+      if cp "$raw_sfx" "$apack_dir/unzipsfx.exe" \
+          && (cd "$apack_dir" && apack1p -r -q -1 -x -v unzipsfx.exe) >> "$log" 2>&1 \
           && is_dos_mz "$apack_dir/OUT.EXE"; then
         mv -f "$apack_dir/OUT.EXE" "$out/unzipsfx.exe"
+        chmod a+x "$out/unzipsfx.exe"
         sfx_packed=1
         echo 'DOS16: aPACK packed unzipsfx.exe'
       else
-        echo 'WARNING: aPACK failed or produced no valid OUT.EXE; trying UPX.' >&2
+        echo "WARNING: aPACK failed or produced no valid OUT.EXE (see $log); trying UPX." >&2
       fi
-      rm -f "$apack_dir/OUT.EXE"
+      rm -f "$apack_dir/OUT.EXE" "$apack_dir/unzipsfx.exe"
     else
       echo 'WARNING: aPACK work directory unavailable; trying UPX.' >&2
     fi
