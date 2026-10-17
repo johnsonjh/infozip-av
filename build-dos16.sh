@@ -280,24 +280,59 @@ link_target sfx
 
 mv "$out/sfx.exe" "$out/unzipsfx.exe"
 
+# Preserve DOS16_UPX=0 as the established raw-SFX opt-out for all packers.
+# aPACK always writes OUT.EXE in its current working directory.
+is_dos_mz()
+{
+  [ -s "$1" ] || return 1
+  # An MZ executable needs at least the 28-byte fixed DOS header.
+  [ "$(wc -c < "$1")" -ge 28 ] || return 1
+  mz_magic=$(od -An -N2 -tx1 "$1" 2>/dev/null | tr -d '[:space:]')
+  [ "$mz_magic" = 4d5a ] || [ "$mz_magic" = 5a4d ]
+}
+
 case "${DOS16_UPX:-1}" in
-0) echo 'DOS16: UPX disabled (DOS16_UPX=0).' ;;
+0) echo 'DOS16: SFX packing disabled (DOS16_UPX=0).' ;;
 1)
-  if command -v upx > /dev/null 2>&1; then
-    raw_sfx="$build/unzipsfx.raw.exe"
-    cp "$out/unzipsfx.exe" "$raw_sfx"
+  raw_sfx="$build/unzipsfx.raw.exe"
+  cp "$out/unzipsfx.exe" "$raw_sfx"
+  sfx_packed=0
 
-    if upx -qq --8086 --best "$out/unzipsfx.exe"; then
-      echo 'DOS16: UPX packed unzipsfx.exe'
+  if command -v apack1p > /dev/null 2>&1; then
+    apack_dir="$build/apack-unzipsfx"
+    if mkdir -p "$apack_dir"; then
+      # Never accept OUT.EXE left by an earlier build or failed invocation.
+      rm -f "$apack_dir/OUT.EXE"
+      if (cd "$apack_dir" && apack1p -r -q -x -v "$out/unzipsfx.exe") >> "$log" 2>&1 \
+          && is_dos_mz "$apack_dir/OUT.EXE"; then
+        mv -f "$apack_dir/OUT.EXE" "$out/unzipsfx.exe"
+        sfx_packed=1
+        echo 'DOS16: aPACK packed unzipsfx.exe'
+      else
+        echo 'WARNING: aPACK failed or produced no valid OUT.EXE; trying UPX.' >&2
+      fi
+      rm -f "$apack_dir/OUT.EXE"
     else
-      cp "$raw_sfx" "$out/unzipsfx.exe"
-      echo 'WARNING: UPX rejected DOS16 unzipsfx.exe; restored raw MZ.' >&2
+      echo 'WARNING: aPACK work directory unavailable; trying UPX.' >&2
     fi
-
-    rm -f "$raw_sfx"
-  else
-    echo 'WARNING: UPX unavailable; retaining raw DOS16 unzipsfx.exe.' >&2
   fi
+
+  if [ "$sfx_packed" = 0 ]; then
+    # The original executable is untouched by aPACK output handling.
+    cp "$raw_sfx" "$out/unzipsfx.exe"
+    if command -v upx > /dev/null 2>&1; then
+      if upx -qq --8086 --best "$out/unzipsfx.exe" && is_dos_mz "$out/unzipsfx.exe"; then
+        echo 'DOS16: UPX packed unzipsfx.exe'
+      else
+        cp "$raw_sfx" "$out/unzipsfx.exe"
+        echo 'WARNING: UPX rejected DOS16 unzipsfx.exe; restored raw MZ.' >&2
+      fi
+    else
+      echo 'WARNING: UPX unavailable; retaining raw DOS16 unzipsfx.exe.' >&2
+    fi
+  fi
+
+  rm -f "$raw_sfx"
   ;;
 *)
   echo 'ERROR: DOS16_UPX must be 0 or 1' >&2; exit 2
