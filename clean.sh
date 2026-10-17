@@ -63,6 +63,12 @@ rm -rf ./win32 2> /dev/null || :
 rm -rf ./win64 2> /dev/null || :
 rm -rf ./win64ucrt 2> /dev/null || :
 
+find "${ZIPDIR:?}" "${UNZIPDIR:?}" "${ZIPDEDUPDIR:?}" xtrmeta \
+  -type f -name '*.err' -exec rm -f '{}' + 2> /dev/null || :
+
+rm -rf ./build-dos16 2> /dev/null || :
+rm -rf ./dos16 2> /dev/null || :
+
 rm -rf ./build-dos386 2> /dev/null || :
 rm -rf ./dos386 2> /dev/null || :
 
