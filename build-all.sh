@@ -296,7 +296,27 @@ test -d build-dos386/lzma \
   && make -j "${CPUS:-1}" \
   && make install "$(pwd -P)"/install)
 
-./build-dos386.sh
+# zstd: build only the static library with DOS-target objects, no threading or
+# target-specific assembly.  Use the upstream makefiles instead of host CMake.
+test -d build-dos386/zstd \
+  || git clone https://github.com/facebook/zstd build-dos386/zstd
+(cd build-dos386/zstd \
+  && git clean -fdx \
+  && rm -rf ./install \
+  && make -C lib -j "${CPUS:-1}" libzstd.a \
+    CC="${CC:?}" AR="${HOST:?}-ar" \
+    CFLAGS="-O3 -flto=auto" ZSTD_NO_ASM=1 ZSTD_LEGACY_SUPPORT=0 \
+  && mkdir -p install/include install/lib \
+  && cp lib/zstd.h lib/zstd_errors.h install/include/ \
+  && cp lib/libzstd.a install/lib/)
+
+# Release builds require every selected external codec. An unsuccessful target
+# link probe must fail the build, not silently publish reduced-feature EXEs.
+DOS386_BZIP2="${DOS386_BZIP2:-on}" \
+DOS386_LZMA="${DOS386_LZMA:-on}" \
+DOS386_WAVPACK="${DOS386_WAVPACK:-on}" \
+DOS386_ZSTD="${DOS386_ZSTD:-on}" \
+  ./build-dos386.sh
 rm -rf ./dos386
 mv -f ./build-dos386/bin dos386
 cp -f ./dos386/unzip.exe ./dos386/zipinfo.exe

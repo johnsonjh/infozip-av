@@ -75,7 +75,7 @@ case " ${LOCAL_DOS16_CFLAGS:-} " in
   ;;
 esac
 
-common='-bt=DOS -0 -d0 -zt -zq -os -oh -s'
+common='-bt=DOS -0 -d0 -zt -zq -ot -oe -ob -oc -oh -oi -ok -ol -ol+ -om -or -s'
 log="$build/build.log"
 : > "$log"
 compile()

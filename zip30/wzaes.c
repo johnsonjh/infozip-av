@@ -1,4 +1,5 @@
-/* Self-contained WinZip AES crypto (AE-1/AE-2), strictly ANSI C89 core.
+/*
+ * Self-contained WinZip AES crypto (AE-1/AE-2), strictly ANSI C89 core.
  *
  * This file is explicitly dedicated to the public domain.  To the extent
  * possible under law, its authors waive all copyright and related rights in
@@ -10,6 +11,7 @@
  * No amount of deterministic conditioning proves true entropy.
  * Separate file input and ZIP parsing are supplied by the host applications.
  */
+
 #include "wzaes.h"
 #ifndef NO_AES
 # include <string.h>
@@ -57,8 +59,8 @@ iz_dos_pool_selected (void)
 #  include <dos.h>
 # endif /* if defined( MSDOS16 ) && defined( __WATCOMC__ ) */
 # if defined(_WIN32) || defined(WIN32)
-#  include <wincrypt.h>
 #  include <windows.h>
+#  include <wincrypt.h>
 /* Resolve advapi32 at runtime so ordinary Win32 builds don't need to add
  * an import library just to gain the built-in AES feature. */
 typedef BOOL (WINAPI *iz_acquire_fn) (HCRYPTPROV *, LPCSTR, LPCSTR, DWORD,

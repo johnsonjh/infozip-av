@@ -19,18 +19,21 @@ Environment:
   DOS386_BZIP2         auto (default), on (require), off
   DOS386_LZMA          auto (default), on (require), off
   DOS386_WAVPACK       auto (default), on (require), off
+  DOS386_ZSTD          auto (default), on (require), off
   DOS386_BZIP2_DIR     Prefix containing bzlib.h and libbz2.a
                        (default: build-dos386/bzip2)
   DOS386_LZMA_DIR      Prefix with include/lzma.h and lib/liblzma.a
                        (default: build-dos386/lzma/install)
   DOS386_WAVPACK_DIR   Prefix with include/wavpack/wavpack.h and lib/libwavpack.a
                        (default: build-dos386/wavpack/install)
+  DOS386_ZSTD_DIR      Prefix with include/zstd.h and lib/libzstd.a
+                       (default: build-dos386/zstd/install)
   DOS386_CWSDSTUB      DPMI stub (default: /opt/cwsdpmi/cwsdstub.exe)
   DOS386_EXE2COFF      Path to host exe2coff utility (optional override)
   DOS386_EMBED_STUB    auto (default), on, or off; auto embeds when stub exists
   KEEP_DOS386_STAGE=1  Retain the temporary source tree for debugging
 
-Bundled codecs and CRC are always available. BZip2, LZMA/XZ, and WavPack
+Bundled codecs and CRC are always available. BZip2, LZMA/XZ, WavPack, and Zstd
 are selected independently after target link probes; no x86 assembly.
 funzip and unzipsfx remain self-contained. Generates zip, zipcloak, zipnote, zipsplit,
 unzip, funzip, unzipsfx, zipopt, zipopt-preflight, zipopt-decodecheck and zipdedup.
@@ -153,7 +156,7 @@ DOS_CODEC_FLAGS=
 DOS_CODEC_INC=
 DOS_ZIP_LIBS=
 DOS_UNZIP_LIBS=
-for setting in DOS386_BZIP2_DIR DOS386_LZMA_DIR DOS386_WAVPACK_DIR; do
+for setting in DOS386_BZIP2_DIR DOS386_LZMA_DIR DOS386_WAVPACK_DIR DOS386_ZSTD_DIR; do
   eval 'val=${'"$setting"'-}'
   case "$val" in
     *' '* | *'	'* | *'
@@ -188,6 +191,16 @@ int main(void) {
     WavpackContext *w = WavpackOpenFileInputEx64(0, 0, 0, 0, 0, 0);
     if (w) WavpackCloseFile(w);
     return WavpackGetLibraryVersion() == 0;
+}
+PROBE
+cat > "$STAGE/probe-zstd.c" << 'PROBE'
+#include <zstd.h>
+int main(void) {
+    ZSTD_CStream *c = ZSTD_createCStream();
+    ZSTD_DStream *d = ZSTD_createDStream();
+    ZSTD_freeCStream(c);
+    ZSTD_freeDStream(d);
+    return ZSTD_versionNumber() == 0;
 }
 PROBE
 
@@ -230,10 +243,20 @@ probe_dos_library()
   if [ "$DOS_FOUND" != yes ]; then
     prefixvar=${setting}_DIR
     eval 'explicit_prefix=${'"$prefixvar"'-}'
-    if [ "$mode" = on ] || [ -n "$explicit_prefix" ]; then
-      fail "$libname requested but missing or failed the DJGPP link probe (KEEP_DOS386_STAGE=1 retains probe logs)"
+    if [ ! -f "$incdir/$header" ]; then
+      reason="missing header $incdir/$header"
+    elif [ ! -f "$libdir/$archive" ]; then
+      reason="missing target archive $libdir/$archive"
+    else
+      reason="DJGPP link probe failed; see $STAGE/probe-$libname.log"
     fi
-    printf 'build-dos386: %s unavailable; using bundled codecs only\n' "$libname"
+    if [ "$mode" = on ] || [ -n "$explicit_prefix" ]; then
+      if [ -f "$STAGE/probe-$libname.log" ]; then
+        cat "$STAGE/probe-$libname.log" >&2
+      fi
+      fail "$libname requested but unavailable: $reason (KEEP_DOS386_STAGE=1 retains probe logs)"
+    fi
+    printf 'build-dos386: %s unavailable: %s\n' "$libname" "$reason"
   else
     printf 'build-dos386: enabled %s: %s\n' "$libname" "$DOS_ARCHIVE"
   fi
@@ -260,6 +283,15 @@ fi
 probe_dos_library wavpack DOS386_WAVPACK "${DOS386_WAVPACK_DIR:-$ROOT/wavpack/install}" wavpack/wavpack.h libwavpack.a
 if [ "$DOS_FOUND" = yes ]; then
   DOS_UNZIP_FLAGS="$DOS_UNZIP_FLAGS -DUSE_WAVP $DOS_INCLUDE"
+  DOS_UNZIP_LIBS="$DOS_UNZIP_LIBS $DOS_ARCHIVE"
+fi
+probe_dos_library zstd DOS386_ZSTD "${DOS386_ZSTD_DIR:-$ROOT/zstd/install}" zstd.h libzstd.a
+if [ "$DOS_FOUND" = yes ]; then
+  DOS_ZIP_FLAGS="$DOS_ZIP_FLAGS -DZSTD_SUPPORT $DOS_INCLUDE"
+  DOS_UNZIP_FLAGS="$DOS_UNZIP_FLAGS -DUSE_ZSTD $DOS_INCLUDE"
+  DOS_CODEC_FLAGS="$DOS_CODEC_FLAGS -DZO_WITH_ZSTD"
+  DOS_CODEC_INC="$DOS_CODEC_INC $DOS_INCLUDE"
+  DOS_ZIP_LIBS="$DOS_ZIP_LIBS $DOS_ARCHIVE"
   DOS_UNZIP_LIBS="$DOS_UNZIP_LIBS $DOS_ARCHIVE"
 fi
 # A single set of compile flags drives each private UnZip decoder build.
