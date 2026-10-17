@@ -255,12 +255,10 @@ ZipCrypto or AES encryption.
 | FreeBSD         |   ✅   | Save/restore of FreeBSD [`extattr` extended attributes](https://man.freebsd.org/cgi/man.cgi?query=extattr)        |
 | NetBSD          |   ✅   | Save/restore of NetBSD [`extattr` extended attributes](https://man.netbsd.org/extattr.3)                          |
 | Windows         |   ✅   | Save/restore of [NT extended attributes and NTFS named data streams](https://learn.microsoft.com/en-us/windows/win32/fileio/file-streams) |
-| AIX             |        | Support is **planned**                                                                                            |
-| Solaris/illumos |        | Support is **planned**                                                                                            |
-| macOS           |        | Support is **planned**                                                                                            |
-| Haiku           |        | Support is **planned**                                                                                            |
-| OS/2            |        | Support is **planned** (*low priority*)                                                                           |
-| HP‑UX           |        | No support planned                                                                                                |
+| AIX             |        | [Support](https://en.wikipedia.org/wiki/Extended_file_attributes#AIX) is **planned**                              |
+| Solaris/illumos |        | [Support](https://en.wikipedia.org/wiki/Extended_file_attributes#Solaris) is **planned**                          |
+| macOS           |        | [Support](https://en.wikipedia.org/wiki/Extended_file_attributes#macOS) is **planned**                            |
+| Haiku           |        | [Support](https://www.haiku-os.org/docs/userguide/en/attributes.html) is **planned**                              |
 
 * Save/restore extended attributes:
 
