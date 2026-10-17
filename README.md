@@ -57,7 +57,7 @@
 * **ultra** compression levels
 * data **de‑duplication**
 * ZIP **optimization**
-* Optional filesystem **metadata preservation**
+* filesystem **metadata preservation**
 * CRC/SHA/AES/compression **hardware** **acceleration**<sup>1</sup>
 * [**PKAV**](https://github.com/johnsonjh/pkstuff#authenticity-verification)
   (create *and* verify for PKAV&nbsp;2.x, verification‑only for PKAV&nbsp;1.x)
