@@ -255,7 +255,6 @@ ZipCrypto or AES encryption.
 | FreeBSD         |   ✅   | Save/restore of FreeBSD [`extattr` extended attributes](https://man.freebsd.org/cgi/man.cgi?query=extattr)        |
 | NetBSD          |   ✅   | Save/restore of NetBSD [`extattr` extended attributes](https://man.netbsd.org/extattr.3)                          |
 | Windows         |   ✅   | Save/restore of [NT extended attributes and NTFS named data streams](https://learn.microsoft.com/en-us/windows/win32/fileio/file-streams) |
-| OpenBSD         |    ?   | Support is **untested**                                                                                           |
 | AIX             |        | Support is **planned**                                                                                            |
 | Solaris/illumos |        | Support is **planned**                                                                                            |
 | macOS           |        | Support is **planned**                                                                                            |
