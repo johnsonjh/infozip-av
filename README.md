@@ -69,7 +69,7 @@
 * innumerable **bug fixes** and other improvements
 
 > [!NOTE]
-> [**Precompiled binaries are available for download.**](#downloads)
+> [**Precompiled binaries for several platforms are available for download.**](#downloads)
 
 ### Features
 
