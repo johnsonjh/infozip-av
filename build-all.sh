@@ -304,7 +304,7 @@ test -d build-dos386/zstd \
   && git clean -fdx \
   && rm -rf ./install \
   && make -C lib -j "${CPUS:-1}" libzstd.a \
-    CC="${CC:?}" AR="${HOST:?}-ar" \
+    CC="${CC:?}" AR="$(dirname "${CC:?}")/${HOST:?}-ar" \
     CFLAGS="-O3 -flto=auto" ZSTD_NO_ASM=1 ZSTD_LEGACY_SUPPORT=0 \
   && mkdir -p install/include install/lib \
   && cp lib/zstd.h lib/zstd_errors.h install/include/ \
