@@ -4,10 +4,10 @@
 #include "xtrwin_utf8argv.h"
 #include <errno.h>
 #include <limits.h>
+#include <windows.h>   /* shellapi.h requires Win32 base declarations first. */
 #include <shellapi.h>
 #include <stdlib.h>
 #include <string.h>
-#include <windows.h>
 
 void
 xtr_win_utf8_free_argv (int argc, char **argv)

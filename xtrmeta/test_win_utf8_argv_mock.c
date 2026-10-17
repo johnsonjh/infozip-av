@@ -1,11 +1,11 @@
 /* Win32 wide command-line converter contract on Linux, strict C89. MIT-0. */
 #include "xtrwin_utf8argv.h"
+#include <windows.h>
 #include <shellapi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
-#include <windows.h>
 
 static int scenario, freed, called;
 static wchar_t exe_name[] = { L'u', L'n', L'z', L'i', L'p', 0 };
