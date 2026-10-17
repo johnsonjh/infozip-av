@@ -263,8 +263,8 @@ test -d build-dos386/bzip2 \
 (cd build-dos386/bzip2 \
   && make clean \
   && make CC="${CC:?}" \
-    CFLAGS="-O3 -flto=auto -D_FILE_OFFSET_BITS=64" \
-    LDFLAGS="-O3 -flto=auto" -j "${CPUS:-1}" libbz2.a)
+    CFLAGS="-march=i386 -O3 -flto=auto -D_FILE_OFFSET_BITS=64" \
+    LDFLAGS="-march=i386 -O3 -flto=auto" -j "${CPUS:-1}" libbz2.a)
 
 # WavPack
 test -d build-dos386/wavpack \
@@ -275,7 +275,7 @@ test -d build-dos386/wavpack \
   && {
     test -x ./configure || autoreconf -vfi
   } \
-  && env CC="${CC:?}" CFLAGS="-O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
+  && env CC="${CC:?}" CFLAGS="-march=i386 -O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
     ./configure --disable-apps --disable-shared --enable-static \
     --disable-threads --disable-asm --host="${HOST:?}" --prefix="$(pwd -P)"/install \
   && make -j "${CPUS:-1}" \
@@ -290,7 +290,7 @@ test -d build-dos386/lzma \
   && {
     test -x ./configure || autoreconf -vfi
   } \
-  && env CC="${CC:?}" CFLAGS="-Wno-incompatible-pointer-types -O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
+  && env CC="${CC:?}" CFLAGS="-march=i386 -Wno-incompatible-pointer-types -O3 -flto=auto" LDFLAGS="-O3 -flto=auto" \
     ./configure --disable-shared --enable-static --enable-threads=no --disable-clmul-crc --disable-nls \
     --host="${HOST:?}" --prefix="$(pwd -P)/install" \
   && make -j "${CPUS:-1}" \
@@ -305,17 +305,20 @@ test -d build-dos386/zstd \
   && rm -rf ./install \
   && make -C lib -j "${CPUS:-1}" libzstd.a \
     CC="${CC:?}" AR="$(dirname "${CC:?}")/${HOST:?}-ar" \
-    CFLAGS="-O3 -flto=auto" ZSTD_NO_ASM=1 ZSTD_LEGACY_SUPPORT=0 \
+    CFLAGS="-march=i386 -O3 -flto=auto" ZSTD_NO_ASM=1 ZSTD_LEGACY_SUPPORT=0 \
   && mkdir -p install/include install/lib \
   && cp lib/zstd.h lib/zstd_errors.h install/include/ \
   && cp lib/libzstd.a install/lib/)
 
 # Release builds require every selected external codec. An unsuccessful target
 # link probe must fail the build, not silently publish reduced-feature EXEs.
-DOS386_BZIP2="${DOS386_BZIP2:-on}" \
-DOS386_LZMA="${DOS386_LZMA:-on}" \
-DOS386_WAVPACK="${DOS386_WAVPACK:-on}" \
-DOS386_ZSTD="${DOS386_ZSTD:-on}" \
+env LOCAL_ZIP="-march=i386 -O3 -flto=auto" \
+  LOCAL_UNZIP="-march=i386 -O3 -flto=auto" \
+  LOCAL_GLDFLAGS="-march=i386 -s -flto=auto" \
+  DOS386_BZIP2="${DOS386_BZIP2:-on}" \
+  DOS386_LZMA="${DOS386_LZMA:-on}" \
+  DOS386_WAVPACK="${DOS386_WAVPACK:-on}" \
+  DOS386_ZSTD="${DOS386_ZSTD:-on}" \
   ./build-dos386.sh
 rm -rf ./dos386
 mv -f ./build-dos386/bin dos386
