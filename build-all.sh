@@ -22,6 +22,21 @@ export LOCAL_GLDFLAGS="-s -flto=auto"
 
 ################################################################################
 
+DOS16_WATCOM=${WATCOM:-/opt/watcom}
+if ! {
+  test -x "$DOS16_WATCOM/binl64/wcc" \
+    && test -x "$DOS16_WATCOM/binl64/wlink"
+} \
+  && ! {
+    test -x "$DOS16_WATCOM/binl/wcc" \
+      && test -x "$DOS16_WATCOM/binl/wlink"
+  }; then
+  printf 'ERROR: Open Watcom V2 not found in %s.\n' "$DOS16_WATCOM" >&2
+  exit 1
+fi
+
+################################################################################
+
 # Check for git
 
 command -v git > /dev/null 2>&1 \
@@ -288,7 +303,8 @@ cp -f ./dos386/unzip.exe ./dos386/zipinfo.exe
 rm -f ./dos386/zipopt-preflight.exe
 rm -f ./dos386/zipopt-decodecheck.exe
 
-
 # Compress stub
 
 upx -qq --best ./dos386/unzipsfx.exe || :
+
+./build-dos16.sh
