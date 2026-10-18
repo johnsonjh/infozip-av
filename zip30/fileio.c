@@ -1645,18 +1645,24 @@ int bfcopy(n)
 
     if ((k = fread(b, 1, brd, in_file)) == 0)
     {
-      if (fix == 2 && k < brd) {
-        free((zvoid *)b);
-        return ZE_READ;
-      }
-      else if (ferror(in_file))
+      if (ferror(in_file))
       {
         free((zvoid *)b);
         return ZE_READ;
       }
-      else {
-        break;
+      if (feof(in_file) &&
+          (des || (n != (uzoff_t)(-1L) && m < n))) {
+        /* A split may end exactly on a CBSZ boundary.  The preceding
+           full fread does not set EOF, so the next fread returns zero.
+           Continue at the next split, including when -FF searches for
+           a data descriptor instead of copying a known data length. */
+        goto next_input_split;
       }
+      if (des) {
+        free((zvoid *)b);
+        return ZE_READ;
+      }
+      break;
     }
 
 
@@ -1873,12 +1879,14 @@ int bfcopy(n)
       continue;
 
     if ((des || n != (uzoff_t)(-1L)) && m < n && feof(in_file)) {
+next_input_split:
       /* open next split */
       current_in_disk++;
 
       if (current_in_disk >= total_disks) {
-        /* done */
-        break;
+        /* The entry's advertised data length was not available. */
+        free((zvoid *)b);
+        return ZE_READ;
 
       } else if (current_in_disk == total_disks - 1) {
         /* last disk is archive.zip */
@@ -1949,6 +1957,8 @@ int bfcopy(n)
     }
   }
   free((zvoid *)b);
+  if (!des && n != (uzoff_t)(-1L) && m < n)
+    return ZE_READ;
   return ZE_OK;
 }
 
