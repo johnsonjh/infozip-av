@@ -41,6 +41,7 @@ pvsreport/
 /xtrmeta/test_win_nt_native.exe
 /xtrmeta/test_win_restore_plan
 /xtrmeta/test_win_unzip_mock
+/*.zip
 /zip30/conftest
 /zip30/conftest.c
 /zip30/flags
