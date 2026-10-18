@@ -25,8 +25,10 @@ int zo_candidate_available (unsigned);
 
 typedef struct zo_settings
 {
-  unsigned zopfli_iterations; /* 1..10000, default 15 */
-  int dcl_optimal;            /* default off; explicit level 11 enables */
+  unsigned wavpack_level;             /* 1..4, default extra (4) */
+  unsigned wavpack_extra_level;       /* 0..6, default 6 */
+  unsigned zopfli_iterations;         /* 1..10000, default 15 */
+  int dcl_optimal;                    /* default off; level 11 enables */
   int disable_zopfli;
   unsigned levels[ZO_MAX_CANDIDATES]; /* candidate levels by registry order */
 } zo_settings;

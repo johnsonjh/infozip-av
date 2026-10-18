@@ -1,3 +1,4 @@
+.DEFAULT_GOAL := all
 # zipopt — private, in-process UnZip build (early implementation stages)
 # SPDX-License-Identifier: MIT-0
 ifneq ($(filter default undefined,$(origin CC)),)
@@ -114,13 +115,48 @@ ZO_ACCEL_FLAGS = $(filter -DNO_PCLMUL_CRC -DNO_PCLMUL_CRC32 \
     -DCRC_TABLE_ONLY -DIZ_CRC_BE_OPTIMIZ,$(LOCAL_UNZIP))
 LDLIBS += -lbz2 -llzma -lzstd $(ZO_DEFLATE_LIBS)
 
+# Optional method-97 encoder and private decoder. Test actual headers AND a
+# linkable encoder symbol; do not make libwavpack mandatory on any platform.
+ZO_WAVPACK ?= auto
+ZO_WAVPACK_CFLAGS ?= $(shell pkg-config --cflags wavpack 2>/dev/null)
+ZO_WAVPACK_LIBS ?= $(shell pkg-config --libs wavpack 2>/dev/null)
+ifeq ($(strip $(ZO_WAVPACK_LIBS)),)
+  ZO_WAVPACK_LIBS = -lwavpack
+endif
+ZO_WAVPACK_FOUND := no
+ifneq ($(ZO_WAVPACK),off)
+  ZO_WAVPACK_FOUND := $(shell $(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_WAVPACK_CFLAGS) tests/wavpack_probe.c $(ZO_WAVPACK_LIBS) -o /dev/null >/dev/null 2>&1 && echo yes)
+endif
+ifeq ($(ZO_WAVPACK),on)
+  ifneq ($(ZO_WAVPACK_FOUND),yes)
+    $(error ZO_WAVPACK=on requires linkable libwavpack encoder and headers)
+  endif
+endif
+ifeq ($(ZO_WAVPACK_FOUND),yes)
+  ZO_WAVPACK_FLAGS = -DZO_WITH_WAVPACK $(ZO_WAVPACK_CFLAGS)
+  UZFLAGS += -DUSE_WAVP $(ZO_WAVPACK_CFLAGS)
+  LDLIBS += $(ZO_WAVPACK_LIBS)
+  ZO_WAVPACK_ENCODER = build/zo-wavpack-encoder.o
+  ZO_WAVPACK_SRCS = wavpack_encoder.c wavpack_encoder.h
+else
+  ZO_WAVPACK_FLAGS =
+  ZO_WAVPACK_ENCODER =
+  ZO_WAVPACK_SRCS =
+endif
+ZO_WAVPACK_STAMP = build/zo-wavpack-$(ZO_WAVPACK_FOUND).stamp
+$(ZO_WAVPACK_STAMP): | build
+	rm -f build/zo-wavpack-*.stamp
+	touch $@
+build/zo-wavpack-encoder.o: wavpack_encoder.c wavpack_encoder.h archive.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_WAVPACK_FLAGS) -c $< -o $@
+
 # The Zip-side codec adapter is compiled separately to prevent cross-pollution
 # of LOCAL_ZIP/LOCAL_UNZIP and to preserve conditional ABI declarations.
-ZOCODEC = build/zo-codec-$(ZO_SELECTED_BACKEND).o
+ZOCODEC = build/zo-codec-$(ZO_SELECTED_BACKEND)-wv$(ZO_WAVPACK_FOUND).o
 ZO_BACKEND_STAMP = build/zo-backend-$(ZO_SELECTED_BACKEND).stamp
 all: zipopt zipopt-preflight zipopt-decodecheck
-zipopt: $(ZO_BACKEND_STAMP) archive.c archive.h extract.c extract.h writer.c writer.h codec.c codec.h $(CODEC_DEPS) display.h fwkcs_md5.h ../zip30/fwkcs_fast_md5.inc zipopt.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c zipopt.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
+zipopt: $(ZO_WAVPACK_STAMP) $(ZO_BACKEND_STAMP) archive.c archive.h extract.c extract.h writer.c writer.h codec.c codec.h $(CODEC_DEPS) $(ZO_WAVPACK_SRCS) display.h fwkcs_md5.h ../zip30/fwkcs_fast_md5.inc zipopt.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) $(UZOBJS) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c zipopt.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 zipopt-preflight: archive.c archive.h preflight.c ../xtrmeta/xtrrewrite.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c preflight.c -o $@ $(LOCAL_GLDFLAGS)
 zipopt-decodecheck: archive.c archive.h extract.c extract.h decodecheck.c $(UZOBJS) ../xtrmeta/xtrrewrite.h
@@ -132,20 +168,20 @@ $(ZO_BACKEND_STAMP): | build
 	touch $@
 build/zo-zip-deflate.o: zip_deflate.c zip_deflate.h ../zip30/zip.h ../zip30/deflate.c ../zip30/trees.c | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LOCAL_ZIP) -c zip_deflate.c -o $@
-$(ZOCODEC): codec.c codec.h zip_deflate.h archive.h $(CODEC_DEPS) | build
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(LOCAL_ZIP) $(EXTERNAL_ZLIB) $(ZO_DEFLATE_FLAGS) -DZO_SHARED_UNZIP_CODECS -c codec.c -o $@
-build/uz-unix.o: $(UZDIR)/unix/unix.c | build
+$(ZOCODEC): codec.c codec.h zip_deflate.h archive.h $(CODEC_DEPS) $(ZO_WAVPACK_STAMP) | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LOCAL_ZIP) $(EXTERNAL_ZLIB) $(ZO_DEFLATE_FLAGS) $(ZO_WAVPACK_FLAGS) -DZO_SHARED_UNZIP_CODECS -c codec.c -o $@
+build/uz-unix.o: $(UZDIR)/unix/unix.c $(ZO_WAVPACK_STAMP) | build
 	$(CC) $(UZFLAGS) -MMD -MP -MF $(@:.o=.d) -MT $@ -c $(UZDIR)/unix/unix.c -o $@
-build/uz-%.o: $(UZDIR)/%.c | build
+build/uz-%.o: $(UZDIR)/%.c $(ZO_WAVPACK_STAMP) | build
 	$(CC) $(UZFLAGS) -MMD -MP -MF $(@:.o=.d) -MT $@ -c $(UZDIR)/$*.c -o $@
 # Test only: rename the compressor entry point for this main object so a
 # shim can force recoverable and fatal failures without changing production.
 build/zo-failure-test-main.o: zipopt.c codec.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) -Dzo_compress=zo_compress_test -c zipopt.c -o $@
-zipopt-test-candidate-failure: $(ZO_BACKEND_STAMP) archive.c extract.c writer.c build/zo-failure-test-main.o tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c build/zo-failure-test-main.o ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
+zipopt-test-candidate-failure: $(ZO_BACKEND_STAMP) archive.c extract.c writer.c build/zo-failure-test-main.o tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) $(UZOBJS) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c build/zo-failure-test-main.o ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 codec-probe: $(ZO_BACKEND_STAMP) tests/codec_probe.c codec.c codec.h archive.h $(CODEC_DEPS) $(ZO_INTERNAL_DEFLATE)
-	$(CC) $(CPPFLAGS) -O2 -std=gnu89 -I../zip30 $(LOCAL_ZIP) $(EXTERNAL_ZLIB) $(ZO_DEFLATE_FLAGS) tests/codec_probe.c codec.c $(ZO_INTERNAL_DEFLATE) -lbz2 -llzma -lzstd $(ZO_DEFLATE_LIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
+	$(CC) $(CPPFLAGS) -O2 -std=gnu89 -I../zip30 $(LOCAL_ZIP) $(EXTERNAL_ZLIB) $(ZO_DEFLATE_FLAGS) $(ZO_WAVPACK_FLAGS) tests/codec_probe.c codec.c $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) -lbz2 -llzma -lzstd $(ZO_DEFLATE_LIBS) $(if $(filter yes,$(ZO_WAVPACK_FOUND)),$(ZO_WAVPACK_LIBS),) -lm -o $@ $(LOCAL_GLDFLAGS)
 test-display: tests/test_display.c display.h archive.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_display.c -o $@ $(LOCAL_GLDFLAGS)
 test-index: tests/test_index.c archive.c extract.c $(UZOBJS)
@@ -174,6 +210,7 @@ test: test-display test-index test-structures test-zip64-offset test-interrupt t
 	python3 tests/test_fwkcs_md5.py
 	python3 tests/test_level_options.py
 	python3 tests/test_backend_selection.py
+	python3 ../tests/test_zipopt_wavpack_encoder.py
 ifeq ($(ZO_SELECTED_BACKEND),internal)
 	python3 tests/test_internal_deflate.py
 endif
@@ -183,3 +220,6 @@ clean:
 	rm -f test-zopfli-oom zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-display test-index test-structures test-interrupt test-source-stability codec-probe test-zip64-offset
 	rm -rf build
 .PHONY: all clean test print-deflate-backend
+
+print-wavpack-backend:
+	@printf "%s\n" "$(ZO_WAVPACK_FOUND)"

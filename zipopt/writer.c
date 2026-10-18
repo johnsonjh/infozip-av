@@ -282,6 +282,7 @@ zo_need_version (unsigned method)
     {
     case 8:
     case 10:
+    case 97:
     case 93:
     case 95:
       return 20;

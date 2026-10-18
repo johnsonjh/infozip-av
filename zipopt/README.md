@@ -162,6 +162,55 @@ concurrent file mutation, not malicious transformations that can restore the
 original bytes and metadata between checks. Ordinary Zip/UnZip/zipdedup object files are not reused or
 replaced by this build.
 
+## WavPack / WinZip method 97 (optional encoder)
+
+WavPack method 97 is included in `--methods=all` when libwavpack headers
+and the encoder are linkable. Use `--methods=wavpack` to limit compression to
+supported lossless WAV input, or `--methods=store,wavpack` to add a fallback.
+If the library is absent, all other methods build as before; an explicit
+`--methods=wavpack` fails with `codec wavpack was not built`.
+The method is a strictly opt-in build dependency, not a new global ZIP option.
+
+The settings `--wavpack-level=1|2|3|4|fast|standard|high|extra|very|veryhigh|very-high`
+and `--wavpack-extra-level=0..6` default to `extra` and `6`. A zero extra
+level disables only extra analysis, not WavPack compression. These settings
+are accepted but ignored when the method is not selected. On success the
+encoder calls **WavpackSetConfiguration()**, the legacy, compatible API,
+and checks the *entire* emitted block stream for the WinZip-compatible
+WavPack version `0x407`. It never produces the newer `0x410` stream.
+
+Only ordinary RIFF/WAVE files with structurally valid 8/16/24/32-bit
+PCM, 32-bit float, or their supported WAVEFORMATEXTENSIBLE variants are
+candidates. Files are detected by content, not extension. Strict RIFF
+length, chunk bounds, block alignment and sample-rate checks reject
+unsupported formats as skipped candidates. Header and trailing RIFF chunks
+(including padding) are saved losslessly through the WavPack wrapper API.
+Large wrappers above 16 MiB, RF64, RIFX, Wave64, compressed WAV and unknown
+formats are deliberately not WavPack candidates; other selected methods can
+still compete. An already-encoded method-97 member may win unchanged whenever
+WavPack is selected, following zipopt's general original retention rule.
+When libwavpack decoding is linked, existing method-97 input is decoded even
+with `--methods=store` or other selections that do not include WavPack.
+WZ-MP3 and WZ-JPEG candidate/retention policies are unchanged.
+
+On Unix, `ZO_WAVPACK=auto` (default) checks that the header and encoder
+library both compile and link (pkg-config, with `-lwavpack` fallback).
+Set `ZO_WAVPACK=off` to disable both encoder and private decoder, or
+`ZO_WAVPACK=on` to require a working SDK. Override `ZO_WAVPACK_CFLAGS` and
+`ZO_WAVPACK_LIBS` for nonstandard installations.
+
+The native Windows and DOS386 makefiles never auto-link WavPack. To opt in,
+provide **both** the target encoder `-DZO_WITH_WAVPACK` (`WIN_CODEC_CPPFLAGS`
+/ `DOS386_CODEC_CPPFLAGS`) and decoder `-DUSE_WAVP`
+(`WIN_UNZIP_CPPFLAGS` / `DOS386_UNZIP_CPPFLAGS`), the target WavPack header
+include flags, and the target WavPack library in `WIN_STATIC_LIBS` /
+`DOS386_ZO_LIBS`. Omitting all these settings preserves the existing builds.
+
+Run `python3 tests/test_zipopt_wavpack_encoder.py` after building. This test
+checks WinZip stream-version headers, all 28 compression profiles, WAV
+eligibility, lossless round trips, and original-stream retention. It does not
+replace testing with actual WinZip releases or native DOS/Windows builds.
+
 ## Validation and scope
 
 The shell/C regression suite in `tests/` checks the 19 encoders, the ordinal

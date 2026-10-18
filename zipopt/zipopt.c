@@ -4,7 +4,7 @@
  */
 
 #undef ZO_VER
-#define ZO_VER "0.3"
+#define ZO_VER "0.4"
 
 #undef ZO_DATE
 #define ZO_DATE "2026-10-18"
@@ -14,8 +14,10 @@
 #include "display.h"
 #include "extract.h"
 #include "fwkcs_md5.h"
+
 #include "../xtrmeta/xtrv1.h"
 #include "../xtrmeta/xtrverify_inline.h"
+
 #include "writer.h"
 
 #define NO_AES
@@ -268,6 +270,8 @@ zo_usage (void)
   puts (
         "  --compress-level=algo=LEVEL    set encoder compress level (1..9, 11)\n"
         "  --zstd-level=N                 native Zstd compress level (1..22)\n"
+        "  --wavpack-level=N              native Wavpack level (1..4; default 4)\n"
+        "  --wavpack-extra-level=N        WavPack extra level (0..6; default 6)\n"
         "  --disable-zopfli               ordinary Deflate instead of Zopfli\n"
         "  --zopfli-iterations=N          Zopfli passes (1..10000; default 15)\n"
         "  -v, --verbose                  verbose output display mode\n"
@@ -473,6 +477,30 @@ static int
 zo_name (const char *p, size_t n, const char *name)
 {
   return strlen (name) == n && memcmp (p, name, n) == 0;
+}
+
+/* WavPack tuning is accepted even if WavPack is not selected. */
+static int
+zo_wavpack_level(const char *value, unsigned *out)
+{
+  if (!strcmp(value, "fast") || !strcmp(value, "1")) *out = 1U;
+  else if (!strcmp(value, "standard") || !strcmp(value, "2")) *out = 2U;
+  else if (!strcmp(value, "high") || !strcmp(value, "3")) *out = 3U;
+  else if (!strcmp(value, "extra") || !strcmp(value, "very") ||
+           !strcmp(value, "veryhigh") || !strcmp(value, "very-high") ||
+           !strcmp(value, "4")) *out = 4U;
+  else return 0;
+  return 1;
+}
+
+static int
+zo_wavpack_extra(const char *value, unsigned *out)
+{
+  if (value && value[0] >= '0' && value[0] <= '6' && !value[1]) {
+    *out = (unsigned)(value[0] - '0');
+    return 1;
+  }
+  return 0;
 }
 
 static int
@@ -749,6 +777,8 @@ main (int argc, char **argv)
   memset (requested, 0, sizeof (requested));
 
   settings.zopfli_iterations = 15U;
+  settings.wavpack_level = 4U;
+  settings.wavpack_extra_level = 6U;
 
   for (k = 0; k < zo_candidate_count && k < ZO_MAX_CANDIDATES; k++)
     {
@@ -799,6 +829,22 @@ main (int argc, char **argv)
         {
           settings.disable_zopfli = 1;
           disable_zopfli_set = 1;
+        }
+      else if (!strncmp (arg, "--wavpack-level=", 16))
+        {
+          if (!zo_wavpack_level(arg + 16, &settings.wavpack_level))
+            {
+              fprintf(stderr, "zipopt: invalid --wavpack-level (1..4 or named mode)\n");
+              return 2;
+            }
+        }
+      else if (!strncmp (arg, "--wavpack-extra-level=", 22))
+        {
+          if (!zo_wavpack_extra(arg + 22, &settings.wavpack_extra_level))
+            {
+              fprintf(stderr, "zipopt: invalid --wavpack-extra-level (0..6)\n");
+              return 2;
+            }
         }
       else if (!strncmp (arg, "--zstd-level=", 13))
         {

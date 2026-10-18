@@ -18,6 +18,10 @@
 #include "codec.h"
 #include "zip_deflate.h"
 
+#ifdef ZO_WITH_WAVPACK
+# include "wavpack_encoder.h"
+#endif
+
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,7 +80,8 @@ const zo_candidate zo_candidates[] = { { "store",              0,  0,    0 },
                                        { "lzma",               14, 9,    2 },
                                        { "zstd",               93, 22,   0 },
                                        { "xz",                 95, 9,    0 },
-                                       { "ppmd",               98, 9,    0 } };
+                                       { "ppmd",               98, 9,    0 },
+                                       { "wavpack",            97, 0,    0 } };
 const unsigned zo_candidate_count
     = sizeof (zo_candidates) / sizeof (zo_candidates[0]);
 
@@ -93,6 +98,9 @@ zo_candidate_available (unsigned id)
 #endif
 #ifndef ZO_BUILD_ZSTD
   if (id == 16U) return 0;
+#endif
+#ifndef ZO_WITH_WAVPACK
+  if (zo_candidates[id].method == 97U) return 0;
 #endif
   return 1;
 }
@@ -897,6 +905,22 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
     case 18:
       rc = zo_ppmd (&s, settings->levels[id]);
 
+      break;
+
+    case 19:
+#ifdef ZO_WITH_WAVPACK
+      {
+        zo_u64 wavpack_size = 0;
+        int wr = zo_wavpack_encode(in, out, &wavpack_size,
+                                   settings->wavpack_level,
+                                   settings->wavpack_extra_level);
+        if (wr < 0) return ZO_COMPRESS_FATAL;
+        if (wr > 0) s.written = wavpack_size;
+        rc = wr > 0;
+      }
+#else
+      rc = 0;
+#endif
       break;
 
     default:

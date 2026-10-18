@@ -1,3 +1,7 @@
+.DEFAULT_GOAL := all
+# To enable WavPack: supply -DZO_WITH_WAVPACK in DOS386_CODEC_CPPFLAGS,
+# -DUSE_WAVP in DOS386_UNZIP_CPPFLAGS, and the target libwavpack in DOS386_ZO_LIBS.
+# Baseline builds have no dependency on libwavpack.
 # SPDX-License-Identifier: MIT-0
 # DJGPP DOS/386, optional target-verified codecs. No foreign objects.
 CC = i586-pc-msdosdjgpp-gcc
@@ -8,6 +12,13 @@ DOS386_CODEC_CPPFLAGS =
 DOS386_CODEC_INCFLAGS =
 DOS386_ZO_LIBS =
 CFLAGS = -std=gnu89 -O3 -Wall -DDOS -DNO_ASM -DNO_ZLIB_NG $(DOS386_CFLAGS) $(LOCAL_ZIP) $(LOCAL_UNZIP)
+# A method-97 encoder must have the matching private extraction decoder:
+# verification of new compressed candidates is mandatory.
+ifneq ($(filter -DZO_WITH_WAVPACK,$(DOS386_CODEC_CPPFLAGS)),)
+  ifeq ($(filter -DUSE_WAVP,$(DOS386_UNZIP_CPPFLAGS)),)
+    $(error WavPack encoder requires -DUSE_WAVP in DOS386_UNZIP_CPPFLAGS)
+  endif
+endif
 UZDIR = ../unzip60
 # Private UnZip decodes to a stream: timestamps are never restored.
 # Missing TZ must not turn verified data into a PK_WARN result.
@@ -25,13 +36,19 @@ dosbuild/uz-%.o: $(UZDIR)/%.c | dosbuild
 	$(CC) $(UZFLAGS) -c $< -o $@
 dosbuild/uz-msdos.o: $(UZDIR)/msdos/msdos.c | dosbuild
 	$(CC) $(UZFLAGS) -c $< -o $@
-dosbuild/zo-codec.o: codec.c codec.h | dosbuild
+dosbuild/zo-codec.o: codec.c codec.h wavpack_encoder.h | dosbuild
 	$(CC) $(CFLAGS) $(ZODEFS) -DZO_SHARED_UNZIP_CODECS -c $< -o $@
 dosbuild/zo-zip-deflate.o: zip_deflate.c zip_deflate.h | dosbuild
 	$(CC) $(CFLAGS) -c $< -o $@
 
-zipopt.exe: archive.c extract.c writer.c zipopt.c dos386_port.h $(UZOBJS) dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
-	$(CC) $(CFLAGS) $(ZODEFS) archive.c extract.c writer.c zipopt.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o $(UZOBJS) $(DOS386_ZO_LIBS) -lm -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
+DOS386_WAVPACK_OBJ =
+ifneq ($(filter -DZO_WITH_WAVPACK,$(DOS386_CODEC_CPPFLAGS)),)
+DOS386_WAVPACK_OBJ = dosbuild/zo-wavpack-encoder.o
+endif
+dosbuild/zo-wavpack-encoder.o: wavpack_encoder.c wavpack_encoder.h | dosbuild
+	$(CC) $(CFLAGS) $(ZODEFS) -c wavpack_encoder.c -o $@
+zipopt.exe: archive.c extract.c writer.c zipopt.c dos386_port.h $(UZOBJS) dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o $(DOS386_WAVPACK_OBJ) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
+	$(CC) $(CFLAGS) $(ZODEFS) archive.c extract.c writer.c zipopt.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c dosbuild/zo-codec.o dosbuild/zo-zip-deflate.o $(DOS386_WAVPACK_OBJ) $(UZOBJS) $(DOS386_ZO_LIBS) -lm -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
 zipopt-preflight.exe: archive.c preflight.c ../xtrmeta/xtrrewrite.h
 	$(CC) $(CFLAGS) archive.c preflight.c -s -o $@ $(DOS386_LDFLAGS) $(LOCAL_GLDFLAGS)
 zipopt-decodecheck.exe: archive.c extract.c decodecheck.c $(UZOBJS) ../xtrmeta/xtrrewrite.h

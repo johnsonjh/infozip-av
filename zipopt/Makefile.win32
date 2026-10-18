@@ -1,3 +1,7 @@
+.DEFAULT_GOAL := all
+# To enable WavPack: supply -DZO_WITH_WAVPACK in WIN_CODEC_CPPFLAGS,
+# -DUSE_WAVP in WIN_UNZIP_CPPFLAGS, and the target libwavpack in WIN_STATIC_LIBS.
+# Baseline builds have no dependency on libwavpack.
 # MinGW-w64 native Win32 build of zipopt; private UnZip core, no Unix objects.
 # SPDX-License-Identifier: MIT-0
 CC ?= gcc
@@ -11,6 +15,13 @@ WIN_UNZIP_CPPFLAGS ?=
 WIN_STATIC_LIBS ?=
 WIN_ZNG_CPPFLAGS ?=
 WIN_ZNG_LIBS ?=
+# A method-97 encoder must have the matching private extraction decoder:
+# verification of new compressed candidates is mandatory.
+ifneq ($(filter -DZO_WITH_WAVPACK,$(WIN_CODEC_CPPFLAGS)),)
+  ifeq ($(filter -DUSE_WAVP,$(WIN_UNZIP_CPPFLAGS)),)
+    $(error WavPack encoder requires -DUSE_WAVP in WIN_UNZIP_CPPFLAGS)
+  endif
+endif
 UZDIR = ../unzip60
 WIN_DEFS = -DWIN32 -DFORCE_WIN32_OVER_UNIX -DDLL -DNO_EXCEPT_SIGNALS $(WIN_UNZIP_CPPFLAGS)
 # Baseline uses internal codecs and never searches host pkg-config paths.
@@ -37,8 +48,14 @@ winbuild/zo-codec.o: codec.c codec.h $(ZIPDEPS) | winbuild
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LOCAL_ZIP) $(WIN_ZIPOPT_DEFS) -DZO_SHARED_UNZIP_CODECS -c $< -o $@
 winbuild/zo-zip-deflate.o: zip_deflate.c zip_deflate.h ../zip30/zip.h | winbuild
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LOCAL_ZIP) -c $< -o $@
-zipopt.exe: archive.c extract.c writer.c zipopt.c win32_port.h $(UZOBJS) winbuild/zo-codec.o winbuild/zo-zip-deflate.o ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(WIN_ZIPOPT_DEFS) archive.c extract.c writer.c zipopt.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c winbuild/zo-codec.o winbuild/zo-zip-deflate.o $(UZOBJS) $(LIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
+WIN_WAVPACK_OBJ =
+ifneq ($(filter -DZO_WITH_WAVPACK,$(WIN_CODEC_CPPFLAGS)),)
+WIN_WAVPACK_OBJ = winbuild/zo-wavpack-encoder.o
+endif
+winbuild/zo-wavpack-encoder.o: wavpack_encoder.c wavpack_encoder.h | winbuild
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(WIN_ZIPOPT_DEFS) -c wavpack_encoder.c -o $@
+zipopt.exe: archive.c extract.c writer.c zipopt.c win32_port.h $(UZOBJS) winbuild/zo-codec.o winbuild/zo-zip-deflate.o $(WIN_WAVPACK_OBJ) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(WIN_ZIPOPT_DEFS) archive.c extract.c writer.c zipopt.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c winbuild/zo-codec.o winbuild/zo-zip-deflate.o $(WIN_WAVPACK_OBJ) $(UZOBJS) $(LIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 zipopt-preflight.exe: archive.c preflight.c ../xtrmeta/xtrrewrite.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) archive.c preflight.c -o $@ $(LOCAL_GLDFLAGS)
 zipopt-decodecheck.exe: archive.c extract.c decodecheck.c $(UZOBJS) ../xtrmeta/xtrrewrite.h

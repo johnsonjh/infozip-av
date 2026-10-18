@@ -120,7 +120,7 @@ the **DEFLATE** (using a custom
 | **`94`** | WZ‑MP3                                                |       ✅      |             |
 | **`95`** | XZ/LZMA2<sup>3</sup>                                  |       ✅      |      ✅     |
 | **`96`** | WZ‑JPEG<sup>3</sup>                                   |       ✅      |             |
-| **`97`** | WavPack<sup>8</sup>                                   |       ✅      |             |
+| **`97`** | WavPack<sup>8</sup>                                   |       ✅      |      ✅     |
 | **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;(8)&nbsp;Rev&nbsp;1     |       ✅      |      ✅     |
 | **`99`** | LZFSE<sup>9</sup>                                     |       ✅      |      ✅     |
 
@@ -162,7 +162,8 @@ the **DEFLATE** (using a custom
 > [`libzstd`](https://facebook.github.io/zstd/).
 >
 > <sup>**8**</sup>&nbsp;WavPack support requires
-> [`libwavpack`](https://www.wavpack.com/).
+> [`libwavpack`](https://www.wavpack.com/); compression supported via
+> [`zipopt`](#optimization-zipopt).
 >
 > <sup>**9**</sup>&nbsp;LZFSE is a non‑standard Apple extension that shares
 > method `99` with WinZip AES; Xtro‑ZIP automatically determines the proper
