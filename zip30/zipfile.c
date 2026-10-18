@@ -150,7 +150,7 @@
 # define ZIP64_EFIELD_OFS_DISK           (ZIP64_EFIELD_OFS_OFS + 8)    /* zip64 extra field: offset to start disk # */
 /* -------------------------------------------------------------------------------------------------------------------------- */
  local int adjust_zip_local_entry OF((struct zlist far *));
- local void adjust_zip_central_entry OF((struct zlist far *));
+ local int adjust_zip_central_entry OF((struct zlist far *));
 #if 0
  local int remove_local_extra_field OF((struct zlist far *, ulg));
  local int remove_central_extra_field OF((struct zlist far *, ulg));
@@ -1046,47 +1046,51 @@ local void read_Unicode_Path_local_entry(pZipListEntry)
 /* set to its max value we have to use the corresponding value from the zip64 extra */
 /* field. as of now the dsk member of zlist is not much of interest since we should */
 /* not modify multi volume archives at all.                                         */
-local void adjust_zip_central_entry(pZipListEntry)
+local int adjust_zip_central_entry(pZipListEntry)
   struct zlist far *pZipListEntry;
 {
-  char  *pTemp;
+  char *pTemp;
+  unsigned remaining;
+  unsigned needed = 0;
 
-  /* assume not using zip64 fields */
   zip64_entry = 0;
+  pTemp = get_extra_field(ZIP64_EF_TAG, pZipListEntry->cextra,
+                          pZipListEntry->cext);
+  if (pTemp == NULL)
+    return ZE_OK;
 
-  /* check if we have a "large file" Zip64 extra field ... */
-  pTemp = get_extra_field( ZIP64_EF_TAG, pZipListEntry->cextra, pZipListEntry->cext );
-  if( pTemp == NULL )
-    return;
+  /* A well-formed extra-field header does not guarantee that its Zip64
+   * payload contains every 64-bit value requested by the central header.
+   * Validate the entire payload before reading any of its fields. */
+  remaining = (unsigned)SH(pTemp + 2);
+  if (pZipListEntry->len == ZIP_UWORD32_MAX)
+    needed += 8;
+  if (pZipListEntry->siz == ZIP_UWORD32_MAX)
+    needed += 8;
+  if (pZipListEntry->off == ZIP_UWORD32_MAX)
+    needed += 8;
+  if (pZipListEntry->dsk == ZIP_UWORD16_MAX)
+    needed += 4;
+  if (remaining < needed)
+    return ZE_FORM;
 
-  /* using zip64 field */
   zip64_entry = 1;
   pTemp += ZIP_EF_HEADER_SIZE;
-
-  /* ... if so, update corresponding entries in struct zlist */
-  if (pZipListEntry->len == ZIP_UWORD32_MAX)
-  {
+  if (pZipListEntry->len == ZIP_UWORD32_MAX) {
     pZipListEntry->len = LLG(pTemp);
     pTemp += 8;
   }
-
-  if (pZipListEntry->siz == ZIP_UWORD32_MAX)
-  {
+  if (pZipListEntry->siz == ZIP_UWORD32_MAX) {
     pZipListEntry->siz = LLG(pTemp);
     pTemp += 8;
   }
-
-  if (pZipListEntry->off == ZIP_UWORD32_MAX)
-  {
+  if (pZipListEntry->off == ZIP_UWORD32_MAX) {
     pZipListEntry->off = LLG(pTemp);
     pTemp += 8;
   }
-
   if (pZipListEntry->dsk == ZIP_UWORD16_MAX)
-  {
     pZipListEntry->dsk = LG(pTemp);
-  }
-
+  return ZE_OK;
 }
 
 
@@ -1097,34 +1101,33 @@ local void adjust_zip_central_entry(pZipListEntry)
 local int adjust_zip_local_entry(pZipListEntry)
   struct zlist far *pZipListEntry;
 {
-  char  *pTemp;
+  char *pTemp;
+  unsigned needed = 0;
 
-  /* assume not using zip64 fields */
   zip64_entry = 0;
+  pTemp = get_extra_field(ZIP64_EF_TAG, pZipListEntry->extra,
+                          pZipListEntry->ext);
+  if (pTemp == NULL)
+    return 0;
 
-  /* check if we have a "large file" Zip64 extra field ... */
-  pTemp = get_extra_field(ZIP64_EF_TAG, pZipListEntry->extra, pZipListEntry->ext );
-  if( pTemp == NULL )
-    return zip64_entry;
+  if (pZipListEntry->len == ZIP_UWORD32_MAX)
+    needed += 8;
+  if (pZipListEntry->siz == ZIP_UWORD32_MAX)
+    needed += 8;
+  if ((unsigned)SH(pTemp + 2) < needed)
+    return -1;                    /* malformed Zip64 payload */
 
-  /* using zip64 field */
   zip64_entry = 1;
   pTemp += ZIP_EF_HEADER_SIZE;
-
-  /* ... if so, update corresponding entries in struct zlist */
-  if (pZipListEntry->len == ZIP_UWORD32_MAX)
-  {
+  if (pZipListEntry->len == ZIP_UWORD32_MAX) {
     pZipListEntry->len = LLG(pTemp);
     pTemp += 8;
   }
-
   if (pZipListEntry->siz == ZIP_UWORD32_MAX)
-  {
     pZipListEntry->siz = LLG(pTemp);
-    pTemp += 8;
-  }
   return zip64_entry;
 }
+
 
 /* adds a zip64 extra field to the data the cextra member of zlist points to. If
  * there is already a zip64 extra field present delete it first.
@@ -1137,7 +1140,7 @@ local int add_central_zip64_extra_field(pZipListEntry)
   ush    usTemp;
   ush    efsize = 0;
   ush    esize;
-  ush    oldefsize;
+  unsigned long oldefsize; /* may exceed 65535 before validation */
   extent len;
   int    used_zip64 = 0;
 
@@ -1188,6 +1191,9 @@ local int add_central_zip64_extra_field(pZipListEntry)
   }
   else
   {
+    /* Do not append a new Zip64 field to a malformed extra-field list. */
+    if (!extra_fields_valid(pZipListEntry->cextra, pZipListEntry->cext))
+      return ZE_FORM;
     /* check if we have a "large file" extra field ... */
     pExtraFieldPtr = get_extra_field(ZIP64_EF_TAG, pZipListEntry->cextra, pZipListEntry->cext);
     if( pExtraFieldPtr == NULL )
@@ -1195,6 +1201,8 @@ local int add_central_zip64_extra_field(pZipListEntry)
       /* ... we don't, so re-malloc enough memory for the old extra data plus
        * the size of the zip64 extra field
        */
+      if (efsize > EF_SIZE_MAX - pZipListEntry->cext)
+        return ZE_BIG;
       if ((pExtraFieldPtr = (char *) malloc(efsize + pZipListEntry->cext)) == NULL) {
         return ZE_MEM;
       }
@@ -1212,6 +1220,13 @@ local int add_central_zip64_extra_field(pZipListEntry)
        * left plus the size of the zip64 extra field
        */
       usTemp = SH(pExtraFieldPtr + 2);
+      len = (extent)(pExtraFieldPtr - pZipListEntry->cextra);
+      oldefsize = (unsigned long)usTemp + ZIP_EF_HEADER_SIZE;
+      /* The reader normally guarantees these bounds.  Check again at the
+       * allocation/copy site so neither subtraction can underflow. */
+      if (len > pZipListEntry->cext ||
+          oldefsize > pZipListEntry->cext - len)
+        return ZE_FORM;
       /* if pZipListEntry->cextra == pExtraFieldPtr and pZipListEntry->cext == usTemp + efsize
        * we should have only one extra field, and this is a zip64 extra field. as some
        * zip tools seem to require fixed zip64 extra fields we have to check if
@@ -1235,7 +1250,8 @@ local int add_central_zip64_extra_field(pZipListEntry)
       else
       {
         /* get the old Zip64 extra field out and add new */
-        oldefsize = usTemp + ZIP_EF_HEADER_SIZE;
+        if (efsize > EF_SIZE_MAX - (pZipListEntry->cext - oldefsize))
+          return ZE_BIG;
         if ((pTemp = (char *) malloc(pZipListEntry->cext - oldefsize + efsize)) == NULL) {
           return ZE_MEM;
         }
@@ -2070,6 +2086,8 @@ local int scanzipf_fix(f)
       /* there is a zip64 extra field assigned to a CDH PKZIP */
       /* uses it, we should do so, too.                       */
       zip64_entry = adjust_zip_local_entry(z);
+      if (zip64_entry < 0)
+        return ZE_FORM;
       /* z->siz may be updated */
       s = fix > 1 ? 0L : z->siz; /* discard compressed size with -FF */
 #  endif
@@ -2304,6 +2322,8 @@ int readlocal(localz, z)
   locz->crc = LG(LOCCRC + buf);
   locz->nam = SH(LOCNAM + buf);
   locz->ext = SH(LOCEXT + buf);
+  locz->siz = LG(LOCSIZ + buf);
+  locz->len = LG(LOCLEN + buf);
 
   /* Initialize all fields pointing to malloced data to NULL */
   locz->zname = locz->name = locz->iname = locz->extra = NULL;
@@ -2340,6 +2360,8 @@ int readlocal(localz, z)
 
 #ifdef ZIP64_SUPPORT
   zip64_entry = adjust_zip_local_entry(locz);
+  if (zip64_entry < 0)
+    return ZE_FORM;
 #endif
 
   /* Compare localz to z */
@@ -2736,7 +2758,8 @@ printf("start of central directory cenbeg %ld\n", cenbeg);
       /* PKZIP does not care of the version set in a CDH: if  */
       /* there is a zip64 extra field assigned to a CDH PKZIP */
       /* uses it, we should do so, too.                       */
-      adjust_zip_central_entry(z);
+      if (adjust_zip_central_entry(z) != ZE_OK)
+        return ZE_FORM;
 #endif /* ZIP64_SUPPORT */
 
       /* Update zipbeg offset, prepare for next header */
@@ -4954,7 +4977,8 @@ local int scanzipf_regnew()
       /* PKZIP does not care of the version set in a CDH: if  */
       /* there is a zip64 extra field assigned to a CDH PKZIP */
       /* uses it, we should do so, too.                       */
-      adjust_zip_central_entry(z);
+      if (adjust_zip_central_entry(z) != ZE_OK)
+        return ZE_FORM;
 #endif
       /* if adjusting for sfx prefix, add the offset */
       if ((fix ==1 && total_disks == 1) || adjust) z->off += adjust_offset;
@@ -6211,10 +6235,9 @@ int zipcopy(z)
   localz->crc = LG(LOCCRC + buf);
   localz->nam = SH(LOCNAM + buf);
   localz->ext = SH(LOCEXT + buf);
-  if (fix == 2) {
-    localz->siz = LG(LOCSIZ + buf);
-    localz->len = LG(LOCLEN + buf);
-  }
+  /* Always initialize the on-disk sizes before interpreting Zip64. */
+  localz->siz = LG(LOCSIZ + buf);
+  localz->len = LG(LOCLEN + buf);
 
   if (fix == 2) {
     /* Do some sanity checks to make reasonably sure this is a local header */
@@ -6279,6 +6302,8 @@ int zipcopy(z)
 
 #ifdef ZIP64_SUPPORT
   zip64_entry = adjust_zip_local_entry(localz);
+  if (zip64_entry < 0)
+    return ZE_FORM;
 #endif
 
   localz->vem = 0;
