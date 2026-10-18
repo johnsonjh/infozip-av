@@ -15,7 +15,7 @@ docker build --progress=plain --rm=true -t xtro-zip-build-fedora:latest -f docke
 
 2) Run the build using the container:
 
-./clean.sh && docker run -it -h xtro-zip-build-fedora -v "$(pwd -P)":/work -w /work xtro-zip-build-fedora ./build-all.sh
+sudo ./clean.sh && docker run -it -h xtro-zip-build-fedora -v "$(pwd -P)":/work -w /work xtro-zip-build-fedora ./build-all.sh
 
 3) Make the zips to update https://github.com/johnsonjh/infozip-av/releases/tag/v0  (zip -11 -r xxx.zip xxx)
 
