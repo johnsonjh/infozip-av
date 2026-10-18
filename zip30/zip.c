@@ -14,6 +14,9 @@
 #define __ZIP_C
 
 #include "zip.h"
+#if defined(UNIX) && defined(UNICODE_SUPPORT)
+# include "unix/utf8_locale.h"
+#endif
 #include "xtro_pairs.h"
 #include <time.h>       /* for tzset() declaration */
 #if defined(WIN32) || defined(WINDLL)
@@ -94,58 +97,16 @@
 local int action = ADD; /* one of ADD, UPDATE, FRESHEN, DELETE, or ARCHIVE */
 
 #if defined(UNIX) && defined(UNICODE_SUPPORT)
-/* Use the archive's UTF-8 name for delete diagnostics when the active
-   or requested output locale is UTF-8.  Some Unix builds leave the
-   process in the C locale because SETLOCALE() is a no-op. */
-local int zip_delete_locale_is_utf8(loc)
-  const char *loc;
-{
-  const char *encoding;
-
-  if (loc == NULL)
-    return 0;
-  encoding = strrchr(loc, '.');
-  encoding = encoding ? encoding + 1 : loc;
-  if (toupper((uch)encoding[0]) != 'U' ||
-      toupper((uch)encoding[1]) != 'T' ||
-      toupper((uch)encoding[2]) != 'F')
-    return 0;
-  encoding += 3;
-  if (*encoding == '-')
-    encoding++;
-  return encoding[0] == '8' &&
-         (encoding[1] == '\0' || encoding[1] == '@');
-}
-
-local int zip_delete_display_is_utf8()
-{
-  const char *loc;
-
-  if (using_utf8)
-    return 1;
-  loc = setlocale(LC_CTYPE, NULL);
-  if (zip_delete_locale_is_utf8(loc))
-    return 1;
-  /* On historical Unix builds SETLOCALE() is a no-op unless _MBCS is
-     defined.  When the active locale remains C, use the requested
-     output locale without altering the locale used by Zip itself. */
-  if (loc != NULL && strcmp(loc, "C") != 0 && strcmp(loc, "POSIX") != 0)
-    return 0;
-  loc = getenv("LC_ALL");
-  if (loc == NULL || *loc == '\0')
-    loc = getenv("LC_CTYPE");
-  if (loc == NULL || *loc == '\0')
-    loc = getenv("LANG");
-  return zip_delete_locale_is_utf8(loc);
-}
-
+/* Use the validated Unicode archive name only if the process truly uses
+   UTF-8.  The common Unix locale initializer sets using_utf8 based on the
+   effective multibyte decoder rather than the spelling of LANG/LC_CTYPE. */
 local const char *zip_delete_display_name(z)
   struct zlist far *z;
 {
   const uch *p;
   zwchar *wide;
 
-  if (!z->uname || unicode_escape_all || !zip_delete_display_is_utf8())
+  if (!z->uname || unicode_escape_all || !using_utf8)
     return z->oname;
 
   /* The Unicode Path CRC is checked by the archive reader, but a
@@ -3340,39 +3301,8 @@ char **argv;            /* command line tokens */
   SETLOCALE(LC_CTYPE, "");
 #endif
 
-#ifdef UNICODE_SUPPORT
-# ifdef UNIX
-  /* For Unix, set the locale to UTF-8.  Any UTF-8 locale is
-     OK and they should all be the same.  This allows seeing,
-     writing, and displaying (if the fonts are loaded) all
-     characters in UTF-8. */
-  {
-    char *loc;
-
-    /*
-      loc = setlocale(LC_CTYPE, NULL);
-      printf("  Initial language locale = '%s'\n", loc);
-    */
-
-    loc = setlocale(LC_CTYPE, "en_US.UTF-8");
-
-    /*
-      printf("langinfo %s\n", nl_langinfo(CODESET));
-    */
-
-    if (loc != NULL) {
-      /* using UTF-8 character set so can set UTF-8 GPBF bit 11 */
-      using_utf8 = 1;
-      /*
-        printf("  Locale set to %s\n", loc);
-      */
-    } else {
-      /*
-        printf("  Could not set Unicode UTF-8 locale\n");
-      */
-    }
-  }
-# endif
+#if defined(UNIX) && defined(UNICODE_SUPPORT)
+  zip_init_unix_utf8_locale();
 #endif
 
 #if defined(__IBMC__) && defined(__DEBUG_ALLOC__)

@@ -136,6 +136,7 @@ zipcloak.o zipfile_.o fileio_.o crc32_.o crypt_.o: crc32.h
 zip.o zipup.o crypt.o ttyio.o zipcloak.o crypt_.o: crypt.h
 crypt.o crypt_.o: wzaes.c wzaes.h izsha1_ni.h iz_aes_x86.h iz_arm_crypto.h iz_arm_caps.h ae3_impl.h
 zip.o zipup.o zipnote.o zipcloak.o zipsplit.o: revision.h
+zip.o zipnote.o zipcloak.o zipsplit.o: unix/utf8_locale.h
 zip.o crypt.o ttyio.o zipcloak.o crypt_.o: ttyio.h
 zipup.o: unix/zipup.h fwkcs_fast_md5.inc deflate64.c deflate64.h d64opt.inc d64split.inc d64joint.inc
 
