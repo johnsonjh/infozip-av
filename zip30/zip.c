@@ -7687,10 +7687,18 @@ char **argv;            /* command line tokens */
   /*
   tempzf = NULL;
   */
-  if (fclose(y)) {
-    ZIPERR(d ? ZE_WRITE : ZE_TEMP, tempzip);
+  {
+    FILE *closing_output = y;
+    /* The last local header may still reference the output stream.
+       In particular, -T tests the archive after it is closed; if the
+       external test fails, ziperr() must not close that stream again. */
+    if (current_local_file == closing_output)
+      current_local_file = NULL;
+    y = NULL;
+    if (fclose(closing_output)) {
+      ZIPERR(d ? ZE_WRITE : ZE_TEMP, tempzip);
+    }
   }
-  y = NULL;
   if (in_file != NULL) {
     fclose(in_file);
     in_file = NULL;
