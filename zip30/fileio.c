@@ -3513,30 +3513,43 @@ char *utf8_to_escape_string(utf8_string)
 zwchar *local_to_wide_string(local_string)
   char *local_string;
 {
-  int wsize;
+  size_t wsize, n, i;
   wchar_t *wc_string;
   zwchar *wide_string;
 
-  /* for now try to convert as string - fails if a bad char in string */
-  wsize = mbstowcs(NULL, local_string, MB_CUR_MAX );
+  /* Count wide characters, excluding the terminating NUL. */
+  wsize = mbstowcs(NULL, local_string, MB_CUR_MAX);
   if (wsize == (size_t)-1) {
     /* could not convert */
     return NULL;
   }
 
-  /* convert it */
+  /* Leave room for the terminator, without overflowing size_t. */
+  if (wsize >= ((size_t)-1) / sizeof(wchar_t) ||
+      wsize >= ((size_t)-1) / sizeof(zwchar)) {
+    ZIPERR(ZE_MEM, "local_to_wide_string");
+  }
+
   if ((wc_string = (wchar_t *)malloc((wsize + 1) * sizeof(wchar_t))) == NULL) {
     ZIPERR(ZE_MEM, "local_to_wide_string");
   }
-  wsize = mbstowcs(wc_string, local_string, wsize + 1);
-  wc_string[wsize] = (wchar_t) 0;
 
-  /* in case wchar_t is not zwchar */
+  /* The output limit is in wchar_t elements, not source bytes.  The
+   * second conversion must consume the entire string and its NUL. */
+  n = mbstowcs(wc_string, local_string, wsize + 1);
+  if (n != wsize) {
+    free(wc_string);
+    ZIPERR(ZE_LOGIC, "local_to_wide_string: inconsistent conversion");
+  }
+  wc_string[wsize] = (wchar_t)0;
+
+  /* wchar_t and zwchar need not have the same representation. */
   if ((wide_string = (zwchar *)malloc((wsize + 1) * sizeof(zwchar))) == NULL) {
+    free(wc_string);
     ZIPERR(ZE_MEM, "local_to_wide_string");
   }
-  for (wsize = 0; (wide_string[wsize] = (zwchar)wc_string[wsize]); wsize++) ;
-  wide_string[wsize] = (zwchar)0;
+  for (i = 0; i <= wsize; i++)
+    wide_string[i] = (zwchar)wc_string[i];
   free(wc_string);
 
   return wide_string;
