@@ -667,6 +667,17 @@ int is_seekable(y)
 {
   zoff_t pos;
 
+#if defined(UNIX) && defined(F_GETFL) && defined(O_APPEND)
+  {
+    int flags = fcntl(fileno(y), F_GETFL);
+
+    /* A seek may succeed on an O_APPEND stream, but each write still
+       goes to EOF.  Local ZIP headers cannot be rewritten in place. */
+    if (flags != -1 && (flags & O_APPEND) != 0)
+      return 0;
+  }
+#endif
+
 #ifdef BROKEN_FSEEK
   if (!fseekable(y)) {
     return 0;
@@ -674,6 +685,13 @@ int is_seekable(y)
 #endif
 
   pos = zftello(y);
+#ifdef UNIX
+  /* Streaming a ZIP to stdout after a prefix (for example an escript
+     header) must not seek back to offset zero and overwrite the prefix.
+     ZIP entry offsets are relative to the ZIP stream, not that prefix. */
+  if (y == stdout && pos != (zoff_t)0)
+    return 0;
+#endif
   if (zfseeko(y, pos, SEEK_SET)) {
     return 0;
   }
