@@ -288,12 +288,15 @@ uz_wavpack_decompress (__G) __GDEF
       return PK_ERR;
     }
 
+  /* libwavpack 5 decodes stream version 0x410.  Older WinZip-compatible
+   * encoders emit 0x407, but decoding must accept both.  Versions beyond
+   * libwavpack's documented 0x402..0x410 range remain unsupported. */
   if (stream.error || stream.first_have < 10
       || memcmp (stream.first, "wvpk", 4) != 0
       || ((unsigned)stream.first[8] | ((unsigned)stream.first[9] << 8))
              < 0x402U
       || ((unsigned)stream.first[8] | ((unsigned)stream.first[9] << 8))
-             >= 0x410U
+             > 0x410U
       || !(WavpackGetMode (ctx) & MODE_LOSSLESS) || WavpackLossyBlocks (ctx)
       || WavpackGetFileFormat (ctx) != WP_FORMAT_WAV)
     {
