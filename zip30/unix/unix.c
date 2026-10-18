@@ -422,8 +422,16 @@ ulg filetime(f, a, n, t)
       *a |= MSDOS_DIR_ATTR;
     }
   }
-  if (n != NULL)
-    *n = (s.st_mode & S_IFMT) == S_IFREG ? s.st_size : -1L;
+  if (n != NULL) {
+    /* When storing symbolic links, LSSTAT uses lstat().  The link text
+       is the archived payload, so its length must participate in the
+       FileSync size comparison just like an ordinary file's length. */
+    *n = (s.st_mode & S_IFMT) == S_IFREG
+#ifdef S_IFLNK
+         || (s.st_mode & S_IFMT) == S_IFLNK
+#endif
+         ? s.st_size : -1L;
+  }
   if (t != NULL) {
     t->atime = s.st_atime;
     t->mtime = s.st_mtime;
