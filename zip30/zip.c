@@ -92,6 +92,77 @@
 #define FRESHEN 3
 #define ARCHIVE 4
 local int action = ADD; /* one of ADD, UPDATE, FRESHEN, DELETE, or ARCHIVE */
+
+#if defined(UNIX) && defined(UNICODE_SUPPORT)
+/* Use the archive's UTF-8 name for delete diagnostics when the active
+   or requested output locale is UTF-8.  Some Unix builds leave the
+   process in the C locale because SETLOCALE() is a no-op. */
+local int zip_delete_locale_is_utf8(loc)
+  const char *loc;
+{
+  const char *encoding;
+
+  if (loc == NULL)
+    return 0;
+  encoding = strrchr(loc, '.');
+  encoding = encoding ? encoding + 1 : loc;
+  if (toupper((uch)encoding[0]) != 'U' ||
+      toupper((uch)encoding[1]) != 'T' ||
+      toupper((uch)encoding[2]) != 'F')
+    return 0;
+  encoding += 3;
+  if (*encoding == '-')
+    encoding++;
+  return encoding[0] == '8' &&
+         (encoding[1] == '\0' || encoding[1] == '@');
+}
+
+local int zip_delete_display_is_utf8()
+{
+  const char *loc;
+
+  if (using_utf8)
+    return 1;
+  loc = setlocale(LC_CTYPE, NULL);
+  if (zip_delete_locale_is_utf8(loc))
+    return 1;
+  /* On historical Unix builds SETLOCALE() is a no-op unless _MBCS is
+     defined.  When the active locale remains C, use the requested
+     output locale without altering the locale used by Zip itself. */
+  if (loc != NULL && strcmp(loc, "C") != 0 && strcmp(loc, "POSIX") != 0)
+    return 0;
+  loc = getenv("LC_ALL");
+  if (loc == NULL || *loc == '\0')
+    loc = getenv("LC_CTYPE");
+  if (loc == NULL || *loc == '\0')
+    loc = getenv("LANG");
+  return zip_delete_locale_is_utf8(loc);
+}
+
+local const char *zip_delete_display_name(z)
+  struct zlist far *z;
+{
+  const uch *p;
+  zwchar *wide;
+
+  if (!z->uname || unicode_escape_all || !zip_delete_display_is_utf8())
+    return z->oname;
+
+  /* The Unicode Path CRC is checked by the archive reader, but a
+     matching CRC alone does not establish valid UTF-8.  Also retain
+     the control-character escaping of the original display name. */
+  for (p = (const uch *)z->uname; *p; p++)
+    if (*p < 0x20)
+      return z->oname;
+  wide = utf8_to_wide_string(z->uname);
+  if (wide == NULL)
+    return z->oname;
+  free(wide);
+  return z->uname;
+}
+#else
+# define zip_delete_display_name(z) ((z)->oname)
+#endif
 local int comadd = 0;   /* 1=add comments for new files */
 local int zipedit = 0;  /* 1=edit zip comment and all file comments */
 local int latest = 0;   /* 1=set zip file time to time of latest file */
@@ -5604,8 +5675,13 @@ char **argv;            /* command line tokens */
 
   /* Process file arguments from command line */
   if (filelist) {
-    if (action == ARCHIVE) {
-      /* find in archive */
+    if (action == ARCHIVE
+#ifdef UNIX
+        || action == DELETE
+#endif
+       ) {
+      /* Copy mode and Unix deletion select members of the archive,
+         regardless of whether matching files exist on disk. */
       if (show_what_doing) {
         fprintf(mesg, "sd: Scanning archive entries\n");
         fflush(mesg);
@@ -5623,7 +5699,8 @@ char **argv;            /* command line tokens */
 #else
             n = filelist->name;
 #endif
-            zipwarn("not in archive: ", n);
+            zipwarn(action == DELETE ? "name not matched: " :
+                    "not in archive: ", n);
 #ifdef WIN32
             free(n);
 #endif
@@ -6967,10 +7044,12 @@ char **argv;            /* command line tokens */
       }
       else
       {
+        const char *delete_name = (noisy || logall) ?
+            zip_delete_display_name(z) : z->oname;
         DisplayRunningStats();
         if (noisy)
         {
-          fprintf(mesg, "deleting: %s", z->oname);
+          fprintf(mesg, "deleting: %s", delete_name);
           if (display_usize) {
             fprintf(mesg, " (");
             DisplayNumString(mesg, z->len );
@@ -6981,7 +7060,7 @@ char **argv;            /* command line tokens */
         }
         if (logall)
         {
-          fprintf(logfile, "deleting: %s", z->oname);
+          fprintf(logfile, "deleting: %s", delete_name);
           if (display_usize) {
             fprintf(logfile, " (");
             DisplayNumString(logfile, z->len );
@@ -7065,11 +7144,13 @@ char **argv;            /* command line tokens */
       else
       {
         if (filesync) {
+          const char *delete_name = (noisy || logall) ?
+              zip_delete_display_name(z) : z->oname;
           /* Delete entries if don't match a file on OS */
           BlankRunningStats();
           if (noisy)
           {
-            fprintf(mesg, "deleting: %s", z->oname);
+            fprintf(mesg, "deleting: %s", delete_name);
             if (display_usize) {
               fprintf(mesg, " (");
               DisplayNumString(mesg, z->len );
@@ -7081,7 +7162,7 @@ char **argv;            /* command line tokens */
           }
           if (logall)
           {
-            fprintf(logfile, "deleting: %s", z->oname);
+            fprintf(logfile, "deleting: %s", delete_name);
             if (display_usize) {
               fprintf(logfile, " (");
               DisplayNumString(logfile, z->len );

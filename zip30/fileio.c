@@ -418,16 +418,31 @@ int proc_archive_name(n, caseflag)
 #else
         char *zuname = z->zuname;
 #endif
-        if (MATCH(p, zuname, caseflag))
+        /* Keep local-charset matching first.  On Unix, if that
+           conversion required #U escapes, also accept the UTF-8 name
+           from a validated Unicode Path extra field (or GPBF bit 11).
+           In a working UTF-8 locale the representations are identical,
+           so the existing matching path remains unchanged. */
         {
-          z->mark = pcount ? filter(zuname, caseflag) : 1;
-          if (verbose) {
+          char *matched_name = NULL;
+          if (MATCH(p, zuname, caseflag))
+            matched_name = zuname;
+#if defined(UNIX) && !defined(WIN32)
+          else if (z->uname != NULL && strcmp(zuname, z->uname) != 0 &&
+                   MATCH(p, z->uname, caseflag))
+            matched_name = z->uname;
+#endif
+          if (matched_name != NULL)
+          {
+            z->mark = pcount ? filter(matched_name, caseflag) : 1;
+            if (verbose) {
               fprintf(mesg, "zip diagnostic: %scluding %s\n",
-                 z->mark ? "in" : "ex", z->oname);
+                  z->mark ? "in" : "ex", z->oname);
               fprintf(mesg, "     Escaped Unicode:  %s\n",
-                 z->ouname);
+                  z->ouname);
+            }
+            m = 0;
           }
-          m = 0;
         }
       }
     }
