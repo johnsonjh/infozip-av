@@ -33,7 +33,7 @@ docker build --progress=plain --rm=true -t xtro-zip-build-alpine:latest -f docke
 
 2) Build:
 
-./clean.sh && docker run -it -h xtro-zip-build-alpine -v "$(pwd -P)":/work -w /work xtro-zip-build-alpine sh -xc 'export LOCAL_ZIP="-O3 -flto=auto"; export LOCAL_UNZIP="-O3 -flto=auto"; export LOCAL_GLDFLAGS="-s -static -flto=auto"; ./build-unix.sh'
+sudo ./clean.sh && docker run -it -h xtro-zip-build-alpine -v "$(pwd -P)":/work -w /work xtro-zip-build-alpine sh -xc 'export LOCAL_ZIP="-O3 -flto=auto"; export LOCAL_UNZIP="-O3 -flto=auto"; export LOCAL_GLDFLAGS="-s -static -flto=auto"; ./build-unix.sh' && zip --fwkcs-md5 -11 --zopfli-iterations 100 linux64.zip -r build
 
 3) Make the zips to update https://github.com/johnsonjh/infozip-av/releases/tag/v0
 
@@ -53,7 +53,7 @@ docker build --progress=plain --rm=true -t xtro-zip-build-alpine32:latest -f doc
 
 2) Build:
 
-./clean.sh && docker run -it -h xtro-zip-build-alpine32 -v "$(pwd -P)":/work -w /work xtro-zip-build-alpine32 sh -xc 'export LOCAL_ZIP="-D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -O3 -flto=auto"; export LOCAL_UNZIP="-D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -O3 -flto=auto"; export LOCAL_GLDFLAGS="-s -static -flto=auto"; ./build-unix.sh'
+sudo ./clean.sh && docker run -it -h xtro-zip-build-alpine32 -v "$(pwd -P)":/work -w /work xtro-zip-build-alpine32 sh -xc 'export LOCAL_ZIP="-D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -O3 -flto=auto"; export LOCAL_UNZIP="-D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -O3 -flto=auto"; export LOCAL_GLDFLAGS="-s -static -flto=auto"; ./build-unix.sh' && zip --fwkcs-md5 -11 --zopfli-iterations 100 linux32.zip -r build
 
 3) Make the zips to update https://github.com/johnsonjh/infozip-av/releases/tag/v0
 
