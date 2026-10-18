@@ -136,7 +136,7 @@ the **DEFLATE** (using a custom
 >
 > <sup>**2**</sup>&nbsp;bzip2 support requires
 > [`libbz2`](https://sourceware.org/bzip2/);
-> [`bz2-ng`](https://github.com/tfenne/bz2-ng) recommended.
+> [`bz2‑ng`](https://github.com/tfenne/bz2-ng) recommended.
 >
 > <sup>**3**</sup>&nbsp;LZMA, XZ/LZMA2, and WZ‑JPEG support requires
 > [`liblzma`](https://tukaani.org/xz/).
@@ -151,7 +151,7 @@ the **DEFLATE** (using a custom
 > table, as are other specifically reserved (`7`, `11`, `13`, `15`, `17`, etc.)
 > identifiers.
 >
-> <sup>**5**</sup>&nbsp;LPAQ8 is a non-standard PAQZIP extension that shares
+> <sup>**5**</sup>&nbsp;LPAQ8 is a non‑standard PAQZIP extension that shares
 > method `20` with the (deprecated) Zstandard (now method&nbsp;93); Xtro‑ZIP
 > automatically determines the proper format by analyzing the data stream.
 >
