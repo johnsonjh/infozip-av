@@ -136,7 +136,7 @@ the **DEFLATE** (using a custom
 >
 > <sup>**2**</sup>&nbsp;bzip2 support requires
 > [`libbz2`](https://sourceware.org/bzip2/);
-> [`bz2‑ng`](https://github.com/tfenne/bz2-ng) recommended.
+> use of [`bz2‑ng`](https://github.com/tfenne/bz2-ng) recommended.
 >
 > <sup>**3**</sup>&nbsp;LZMA, XZ/LZMA2, and WZ‑JPEG support requires
 > [`liblzma`](https://tukaani.org/xz/).
