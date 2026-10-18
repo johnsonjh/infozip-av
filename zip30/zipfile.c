@@ -4112,6 +4112,10 @@ local int scanzipf_regnew()
   uzoff_t in_cd_start_offset;      /* offset of start of cd on cd start disk */
   uzoff_t adjust_offset = 0;       /* bytes before first entry (size of sfx prefix) */
   uzoff_t cd_total_size = 0;       /* total size of cd */
+  uzoff_t legacy_next_cd_offset = 0;  /* expected next CD signature */
+  uzoff_t legacy_cd_end = 0;          /* position of CD terminator */
+  int legacy_cd_contiguous = 1;       /* no gaps between CD records */
+  int has_zip64_eocdr = 0;            /* ZIP64 count takes precedence */
 
 
   int first_CD = 1;           /* looking for first CD entry */
@@ -4261,8 +4265,9 @@ local int scanzipf_regnew()
 #endif /* EBCDIC */
   }
 
-  if (cd_total_entries == 0) {
-    /* empty archive */
+  if (cd_total_entries == 0 && cd_total_size == 0) {
+    /* A legacy Zip 2.x archive containing 65536 entries may wrap the
+       16-bit count to zero while retaining a nonempty central directory. */
 
     fclose(in_file);
     in_file = NULL;
@@ -4512,6 +4517,7 @@ local int scanzipf_regnew()
   }
 #else /* ZIP64_SUPPORT */
   {
+    has_zip64_eocdr = 1;
     z64eocdl_offset = zftello(in_file) - 4;
     /* read Z64 EOCDL */
     if (fread(scbuf, EC64LOC, 1, in_file) != 1) {
@@ -4680,6 +4686,7 @@ local int scanzipf_regnew()
 
   in_cd_start_offset += adjust_offset;
   cenbeg = in_cd_start_offset;
+  legacy_next_cd_offset = in_cd_start_offset;
   zipbegset = 0;
   zipbeg = 0;
   first_CD = 1;
@@ -4773,7 +4780,15 @@ local int scanzipf_regnew()
     while (find_next_signature(in_file)) {
       current_in_offset = zftello(in_file);
 
+      /* The old 16-bit entry-count wraparound is acceptable only for a
+         completely contiguous, correctly sized central directory.  The
+         general scanner may otherwise skip over arbitrary bytes. */
+      if (current_in_offset < 4 ||
+          (uzoff_t)(current_in_offset - 4) != legacy_next_cd_offset)
+        legacy_cd_contiguous = 0;
+
       if (is_signature(sigbuf, "PK\05\06")) {
+        legacy_cd_end = (uzoff_t)(current_in_offset - 4);
         /* End Of Central Directory Record */
         /*
           fprintf(mesg, "EOCDR signature at %d / %I64d\n",
@@ -4916,6 +4931,13 @@ local int scanzipf_regnew()
           continue;
         }
         return ferror(in_file) ? ZE_READ : ZE_EOF;
+      }
+      {
+        zoff_t next_cd_offset = zftello(in_file);
+        if (next_cd_offset < 0)
+          legacy_cd_contiguous = 0;
+        else
+          legacy_next_cd_offset = (uzoff_t)next_cd_offset;
       }
       z->iname[z->nam] = '\0';                  /* terminate name */
 #ifdef UNICODE_SUPPORT
@@ -5150,6 +5172,24 @@ local int scanzipf_regnew()
   } /* for each disk */
 
   if (zcount != cd_total_entries) {
+    /* Zip 2.x could write more than 65535 central directory records
+       without ZIP64, truncating only the count modulo 65536.  Accept
+       that historical format only if the full central directory is
+       contiguous, exactly fills the recorded size, and ends directly
+       at the ordinary EOCD.  ZIP64 and split archives retain strict
+       count matching. */
+    if (!has_zip64_eocdr && total_disks == 1 &&
+        in_cd_start_disk == 0 && eocdr_disk == 0 &&
+        zcount > ZIP_UWORD16_MAX &&
+        (zcount & ZIP_UWORD16_MAX) == cd_total_entries &&
+        legacy_cd_contiguous &&
+        legacy_cd_end >= in_cd_start_offset &&
+        legacy_cd_end - in_cd_start_offset == cd_total_size &&
+        eocdr_offset >= 4 && legacy_cd_end == eocdr_offset - 4) {
+      zipwarn("legacy archive with truncated 16-bit entry count; ",
+              "accepting verified central directory");
+      return ZE_OK;
+    }
     sprintf(errbuf, "expected %s entries but found %s",
       zip_fzofft(cd_total_entries, NULL, "u"),
       zip_fzofft(zcount, NULL, "u"));
