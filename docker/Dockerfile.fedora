@@ -135,7 +135,8 @@ RUN set -x && \
   sed -i '\|CFLAGS="-O2 -g \$CFLAGS -std=gnu11"|a CXXFLAGS="CXXFLAGS=-g -O2 -std=gnu++11"' script/14.3.0 && \
   env ENABLE_LANGUAGES=c ./build-djgpp.sh 14.3.0 && \
   /opt/djgpp/bin/i586-pc-msdosdjgpp-gcc --version && \
-  (cd /tmp && git clone https://github.com/johnsonjh/cwsdpmi-novcpi && cp -ax cwsdpmi-novcpi/cwsdpmi7.nvc /opt/cwsdpmi) && \
+  (cd /tmp && git clone https://github.com/johnsonjh/cwsdpmi-novcpi && cp -ax cwsdpmi-novcpi/cwsdpmi7.nvc /opt/cwsdpmi && cd && rm -rf /tmp/cwsdpmi-novcpi) && \
+  (cd /tmp && git clone https://github.com/pts/apack1p && cd apack1p && ./compile.sh && cp apack1p /usr/bin && cd .. && rm -rf apack1p) && \
   (mkdir -p /opt/watcom && cd /opt/watcom && wget https://github.com/open-watcom/open-watcom-v2/releases/download/Last-CI-build/ow-snapshot.tar.xz && tar axf ow-snapshot.tar.xz && rm -f ow-snapshot.tar.xz)
 
 RUN touch /.OK
