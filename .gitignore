@@ -20,6 +20,7 @@ log.pvs
 /*.patch
 pvsreport/
 *.rej
+/staging
 /TODO
 /unzip60/conftest
 /unzip60/conftest.c
@@ -40,6 +41,8 @@ pvsreport/
 /xtrmeta/test_win_nt_native.exe
 /xtrmeta/test_win_restore_plan
 /xtrmeta/test_win_unzip_mock
+/zip30/conftest
+/zip30/conftest.c
 /zip30/flags
 /zip30/*.o
 /zip30/zip
