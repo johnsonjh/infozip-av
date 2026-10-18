@@ -2979,15 +2979,16 @@ static int ut32_interpretation(raw, dos_mdatetime)
 {
     if ((raw & (ulg)0x80000000UL) == 0)
         return 1;
-#ifdef TIME_T_TYPE_DOUBLE
-    /* Historical floating-point time_t supports either interpretation. */
+    /* A minimum DOS timestamp is the historical marker for a pre-1980
+     * (possibly pre-epoch) Unix timestamp.  This interpretation depends on
+     * the archive, not on the width or representation of host time_t. */
     if (dos_mdatetime == DOSTIME_MINIMUM)
         return -1;
-#else
-    /* Preserve the historical signed-time32 interpretation.  A signed
-     * 32-bit time_t cannot represent post-2038 unsigned timestamps. */
+#ifndef TIME_T_TYPE_DOUBLE
+    /* A signed 32-bit time_t cannot represent post-2038 unsigned values.
+     * With wider time_t, the DOS date can disambiguate them. */
     if (sizeof(time_t) == 4 && (time_t)-1 < (time_t)0)
-        return (dos_mdatetime == DOSTIME_MINIMUM) ? -1 : 0;
+        return 0;
 #endif
     /* Wide signed or unsigned time_t: use high-bit values as nonnegative
      * seconds when the DOS date confirms the post-2038 interpretation. */
