@@ -114,6 +114,15 @@ Disabled by default.
 Generate central-directory FWKCS MD5 metadata for all regular files.
 Existing valid FWKCS will be verified.
 .TP
+.B \--wavpack-compat-reencode
+Do not retain an original ZIP method-97 member containing WavPack 5 blocks.
+The normal selected-method competition still applies; if WavPack wins, its
+new stream must use the WinZip-compatible WavPack 4 format. A larger output
+may result. Existing compatible V4 streams remain eligible for retention.
+The option has no effect on unrelated methods and is accepted even when the
+optional WavPack encoder is not available. If a replacement is impossible,
+fail without publishing the temporary output archive.
+.TP
 .BR \-h , " \-\-help"
 Display usage.
 .SH INPUT RESTRICTIONS

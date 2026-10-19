@@ -272,6 +272,7 @@ zo_usage (void)
         "  --zstd-level=N                 native Zstd compress level (1..22)\n"
         "  --wavpack-level=N              native Wavpack level (1..4; default 4)\n"
         "  --wavpack-extra-level=N        WavPack extra level (0..6; default 6)\n"
+        "  --wavpack-compat-reencode      do not retain WavPack V5 streams\n"
         "  --disable-zopfli               ordinary Deflate instead of Zopfli\n"
         "  --zopfli-iterations=N          Zopfli passes (1..10000; default 15)\n"
         "  -v, --verbose                  verbose output display mode\n"
@@ -580,6 +581,50 @@ zo_selected_methods (const char *s, unsigned char *enabled)
   return 1;
 }
 
+/*
+ * Inspect the entire method-97 bitstream, not just its initial block.
+ * A corrupt or unrecognized layout must never be treated as proven V4.
+ * This reader is deliberately independent of the optional encoder SDK.
+ * Return -1 for an unrecognized layout, 0 for V4-only, 1 if any V5 block.
+ */
+
+static int
+zo_wavpack_stream_version (zo_archive *a, const zo_entry *e)
+{
+  zo_u64 consumed = 0;
+  int v5 = 0;
+  unsigned char block[32];
+
+  if (e->method != 97U || e->csize < 32U)
+    return -1;
+
+  while (consumed < e->csize)
+    {
+      zo_u64 length;
+      unsigned version;
+
+      if (e->csize - consumed < sizeof (block)
+          || !zo_archive_at (a, e->data_offset + consumed,
+                             block, sizeof (block))
+          || memcmp (block, "wvpk", 4))
+        return -1;
+
+      length = (zo_u64)block[4] | ((zo_u64)block[5] << 8)
+               | ((zo_u64)block[6] << 16) | ((zo_u64)block[7] << 24);
+      length += 8U;
+      version = (unsigned)block[8] | ((unsigned)block[9] << 8);
+      if (length < sizeof (block) || length > e->csize - consumed
+          || version < 0x402U || version > 0x410U)
+        return -1;
+
+      if (version == 0x410U)
+        v5 = 1;
+      consumed += length;
+    }
+
+  return v5;
+}
+
 /* Selection tests METHOD not the ZIP-Implode or DCL variant */
 static int
 zo_original_allowed (unsigned method, const unsigned char *enabled)
@@ -653,7 +698,8 @@ zo_equal_records (zo_archive *a, zo_u64 ao, zo_archive *b, zo_u64 bo, zo_u64 n)
 }
 
 static int
-zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size)
+zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
+                  int wavpack_compat_reencode)
 {
   zo_archive output;
   zo_u64 i;
@@ -683,6 +729,21 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size)
     {
       zo_entry *x = &original->entries[(size_t)i];
       zo_entry *y = &output.entries[(size_t)i];
+
+      /*
+       * A last independent gate before the temporary ZIP is published.
+       * Reject V5, unknown, truncated or mixed malformed method-97 output.
+       */
+
+      if (wavpack_compat_reencode && y->method == 97U
+          && zo_wavpack_stream_version (&output, y) != 0)
+        {
+          fprintf (stderr,
+                   "zipopt: compatibility check rejected method-97 member %lu\n",
+                   (unsigned long)i);
+          ok = 0;
+          break;
+        }
 
       if (y->name_len != x->name_len || memcmp (y->name, x->name, x->name_len)
           || y->has_fwkcs != (unsigned)w->entries[(size_t)i].has_md5
@@ -764,6 +825,7 @@ main (int argc, char **argv)
   unsigned size_width = 0, verbose_count = 0;
   unsigned member_width = 0;
   int rc = 1, verbose = 0, original_win, iterations_set = 0;
+  int wavpack_compat_reencode = 0;
   int candidate_rc;
   int zstd_native_set = 0, disable_zopfli_set = 0;
   int dcl_group_requested = 0, dcl_explicit_option = 0;
@@ -829,6 +891,10 @@ main (int argc, char **argv)
         {
           settings.disable_zopfli = 1;
           disable_zopfli_set = 1;
+        }
+      else if (!strcmp (arg, "--wavpack-compat-reencode"))
+        {
+          wavpack_compat_reencode = 1;
         }
       else if (!strncmp (arg, "--wavpack-level=", 16))
         {
@@ -1208,6 +1274,13 @@ main (int argc, char **argv)
        * metadata. Validate its CRC/FWKCS, then retain exact compressed bytes
        * and compression method; arbitrary codecs would break xattr restore. */
       if (e->xtr.role==3) {
+        if (wavpack_compat_reencode && e->method == 97U
+            && zo_wavpack_stream_version (&a, e) != 0)
+          {
+            fputs ("zipopt: incompatible WavPack members cannot "
+                   "be retained in compatibility mode\n", stderr);
+            goto done;
+          }
         decoded=tmpfile();
         if (!decoded || !zo_extract_index(&a,i,decoded) ||
             !zo_xtr_validate(decoded,e) ||
@@ -1284,6 +1357,17 @@ main (int argc, char **argv)
 
       skipped_count = 0;
       original_win = zo_original_allowed (e->method, enabled);
+
+      /*
+       * Compatibility is an original-stream eligibility constraint, not a
+       * requirement to select method 97. A smaller selected codec still wins.
+       * Unknown method-97 layouts are also not proven legacy-compatible.
+       */
+
+      if (original_win && wavpack_compat_reencode && e->method == 97U
+          && zo_wavpack_stream_version (&a, e) != 0)
+        original_win = 0;
+
       best_size = original_win ? e->csize : (zo_u64)-1;
       best_id = zo_candidate_count;
 
@@ -1495,7 +1579,9 @@ main (int argc, char **argv)
                     fprintf (stderr, " [%s, method %u",
                              zo_method_name (e->method), e->method);
 
-                    if (!zo_original_allowed (e->method, enabled))
+                    if (!zo_original_allowed (e->method, enabled)
+                        || (wavpack_compat_reencode && e->method == 97U
+                            && zo_wavpack_stream_version (&a, e) != 0))
                       {
                         fputs (", excluded", stderr);
                       }
@@ -1559,7 +1645,8 @@ main (int argc, char **argv)
       goto done;
     }
 
-  if (!zo_verify_output (&a, &w, &final_archive_size))
+  if (!zo_verify_output (&a, &w, &final_archive_size,
+                         wavpack_compat_reencode))
     {
       fprintf (stderr,
                "zipopt: output validation or byte comparison failed\n");

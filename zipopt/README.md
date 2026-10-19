@@ -193,6 +193,20 @@ When libwavpack decoding is linked, existing method-97 input is decoded even
 with `--methods=store` or other selections that do not include WavPack.
 WZ-MP3 and WZ-JPEG candidate/retention policies are unchanged.
 
+`--wavpack-compat-reencode` (off by default) excludes original method-97
+streams containing any WavPack 5 (`0x410`) block from original-stream
+retention. A smaller alternative enabled by `--methods=` can still win; if
+WavPack wins, it is freshly encoded as a WinZip-compatible V4 `0x407` stream,
+even when this increases the archive size. Existing V4 streams may still win
+unchanged. The option does not select an encoder and is accepted even without
+WavPack support. If the only selected method is WavPack and it cannot
+re-encode the decoded content, optimization fails without publishing output.
+The final pre-publication verification independently rejects any method-97
+output that is not a complete sequence of recognized pre-V5 blocks, including
+opaque Xtro companions that cannot be rewritten.  The original archive is
+never rewritten in place. Without the flag, existing retention behavior is
+unchanged.
+
 On Unix, `ZO_WAVPACK=auto` (default) checks that the header and encoder
 library both compile and link (pkg-config, with `-lwavpack` fallback).
 Set `ZO_WAVPACK=off` to disable both encoder and private decoder, or
@@ -214,8 +228,9 @@ replace testing with actual WinZip releases or native DOS/Windows builds.
 ## Validation and scope
 
 The shell/C regression suite in `tests/` checks the 19 encoders, the ordinal
-UnZip decoder, ZIP writer, directory entries, SIGINT cleanup, and no-clobber behavior. Optional real-world input
-fixtures can be provided using `ZIPOPT_EXTRA_ARCHIVE=/path/to/sample.zip`.
+UnZip decoder, ZIP writer, directory entries, SIGINT cleanup, and no-clobber
+behavior. Optional real-world input fixtures can be provided using
+`ZIPOPT_EXTRA_ARCHIVE=/path/to/sample.zip`.
 
 The initial Unix backend uses `fseeko`/`ftello` and POSIX `mkstemp`, `link`,
 and `unlink` for safe atomic publication; Windows requires a separate platform
