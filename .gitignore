@@ -16,6 +16,7 @@ core-*
 /dos386/
 /.envrc
 *.err
+/*.err
 log.pvs
 *.orig
 /os2/

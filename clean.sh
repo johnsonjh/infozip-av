@@ -72,6 +72,9 @@ rm -rf ./dos16 2> /dev/null || :
 rm -rf ./build-dos386 2> /dev/null || :
 rm -rf ./dos386 2> /dev/null || :
 
+rm -rf ./build-os2 2> /dev/null || :
+rm -rf ./os2 2> /dev/null || :
+
 test -d "${PREFIX:?}" && rmdir "${PREFIX:?}"
 
 git clean -ndx 2> /dev/null || :
