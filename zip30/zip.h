@@ -812,7 +812,9 @@ char *copy_nondup_extra_fields OF((char *, unsigned, char *, unsigned, unsigned 
    ulg dostime OF((int, int, int, int, int, int));
    ulg unix2dostime OF((time_t *));
    int issymlnk OF((ulg a));
-#  ifdef S_IFLNK
+#  if defined(OS2) && defined(OS2_KLIBC_SYMLINKS)
+#    define rdsymlnk(p,b,n) iz_os2_link_body(p,b,n)
+#  elif defined(S_IFLNK)
 #    define rdsymlnk(p,b,n) readlink(p,b,n)
 /*   extern int readlink OF((char *, char *, int)); */
 #  else /* !S_IFLNK */

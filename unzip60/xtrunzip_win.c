@@ -769,11 +769,15 @@ static int xtr_apply_pending(int selective){
     for(p=xtr_win_head;p;p=p->next){
         if(selective && !p->has_owner)continue;
         if(!p->has_owner || !p->has_companion || !p->companion_verified ||
-           p->owner_crypto>4U ||
-           p->owner_crypto!=p->companion_crypto ||
-           p->owner_strength!=p->companion_strength ||
-           p->owner_iterations!=p->companion_iterations ||
-           (((p->outer.flags&XTR_V1_ENCRYPTED)!=0)!=(p->owner_crypto!=0)) ||
+           p->owner_crypto>4U || p->companion_crypto>4U ||
+           (p->is_dir && p->owner_crypto!=0U) ||
+           !((p->owner_crypto==p->companion_crypto &&
+              p->owner_strength==p->companion_strength &&
+              p->owner_iterations==p->companion_iterations) ||
+             (p->is_dir && p->owner_crypto==0U &&
+              p->companion_crypto!=0U &&
+              (p->outer.flags&XTR_V1_ENCRYPTED)!=0)) ||
+           (((p->outer.flags&XTR_V1_ENCRYPTED)!=0)!=(p->companion_crypto!=0)) ||
            (p->owner_crypto && p->companion_fwkcs)){
             fprintf(stderr,"unzip: Windows Xtro owner/companion association rejected\n");
             return 1;

@@ -7,7 +7,8 @@
  *
  * AES-CTR little-endian counter (initial 1), PBKDF2-HMAC-SHA1, 1000 rounds,
  * and 10-byte truncated HMAC-SHA1 over ciphertext.  All counts explicit.
- * DOS16 can explicitly permit PIT-derived salt in its compatibility policy.
+ * DOS16 and OS/2 can explicitly permit weak system-derived salts in their
+ * compatibility policies, with visible warnings on encryption.
  * No amount of deterministic conditioning proves true entropy.
  * Separate file input and ZIP parsing are supplied by the host applications.
  */
@@ -58,6 +59,16 @@ iz_dos_pool_selected (void)
 #  include <conio.h>
 #  include <dos.h>
 # endif /* if defined( MSDOS16 ) && defined( __WATCOMC__ ) */
+# if defined(__OS2__) && defined(__WATCOMC__)
+/* Native LX/OW2 build: no kLIBC or POSIX pseudo-device dependency.
+ * OS/2's Dos* time/memory/process status APIs are NOT a secure RNG.
+ */
+#  include <time.h>
+#  define INCL_DOSPROCESS
+#  define INCL_DOSDATETIME
+#  define INCL_DOSMISC
+#  include <os2.h>
+# endif
 # if defined(_WIN32) || defined(WIN32)
 #  include <windows.h>
 #  include <wincrypt.h>
@@ -658,6 +669,146 @@ iz_aes_dos_pit_salt (unsigned char *out, size_t n)
 }
 # endif /* if defined( MSDOS16 ) && defined( __WATCOMC__ ) && !defined(        \
           IZ_AES_DOS_REQUIRE_POOL ) */
+/* OS/2 compatibility-only salt generator. NEVER treat this as a CSPRNG.
+ * System clock (including hundredths), uptime, available memory, and PID
+ * are observable / guessable, particularly in virtual machines. SHA-1 is
+ * merely a conditioner; it does not increase min-entropy. A state chain,
+ * domain separator and monotonic per-process sequence make repeats less
+ * likely within one process, but not impossible across program invocations.
+ * This backend is intentionally restricted to OW2's native OS/2 target.
+ * Future work: replace it with a verified high-quality entropy provider.
+ */
+# if defined(__OS2__) && defined(__WATCOMC__)
+static unsigned char iz_os2_weak_state[20];
+static unsigned long iz_os2_weak_seq;
+static int iz_os2_weak_seeded;
+static int iz_os2_weak_warned;
+
+/* Update with the numerical value, not ABI padding or host byte order. */
+static void
+iz_os2_hash_u32 (iz_sha1 *ctx, unsigned long n)
+{
+  unsigned char b[4];
+  unsigned i;
+  for (i = 0; i < 4; ++i)
+    {
+      b[i] = (unsigned char)(n & 255UL);
+      n >>= 8;
+    }
+  sha_update (ctx, b, 4);
+  iz_aes_wipe (b, sizeof (b));
+}
+
+static int
+iz_os2_collect_weak (iz_sha1 *ctx)
+{
+  DATETIME dt;
+  ULONG info[6];
+  PTIB tib;
+  PPIB pib;
+  unsigned i;
+  clock_t cpu_ticks;
+
+  if (DosGetDateTime (&dt) != 0)
+    return 0;
+  /* QSV_MS_COUNT through QSV_TOTAVAILMEM are six contiguous ULONGs. */
+  if (DosQuerySysInfo (QSV_MS_COUNT, QSV_TOTAVAILMEM,
+                       info, sizeof (info)) != 0)
+    return 0;
+  iz_os2_hash_u32 (ctx, dt.year);
+  iz_os2_hash_u32 (ctx, dt.month);
+  iz_os2_hash_u32 (ctx, dt.day);
+  iz_os2_hash_u32 (ctx, dt.hours);
+  iz_os2_hash_u32 (ctx, dt.minutes);
+  iz_os2_hash_u32 (ctx, dt.seconds);
+  iz_os2_hash_u32 (ctx, dt.hundredths);
+  iz_os2_hash_u32 (ctx, (unsigned short)dt.timezone);
+  for (i = 0; i < sizeof (info) / sizeof (info[0]); ++i)
+    iz_os2_hash_u32 (ctx, info[i]);
+  /* A process identifier helps separate simultaneous instances. */
+  if (DosGetInfoBlocks (&tib, &pib) == 0 && pib != NULL)
+    iz_os2_hash_u32 (ctx, pib->pib_ulpid);
+  cpu_ticks = clock ();
+  if (cpu_ticks != (clock_t)-1)
+    iz_os2_hash_u32 (ctx, (unsigned long)cpu_ticks);
+  iz_aes_wipe (info, sizeof (info));
+  iz_aes_wipe (&dt, sizeof (dt));
+  return 1;
+}
+
+static int
+iz_os2_weak_salt (unsigned char *out, size_t n)
+{
+  iz_sha1 ctx;
+  unsigned char digest[20];
+  unsigned char domain;
+  size_t done, count;
+  unsigned long block;
+
+  if (out == NULL || n == 0U)
+    return 0;
+  if (!iz_os2_weak_seeded)
+    {
+      sha_init (&ctx);
+      domain = 0x4fU; /* Initial OS/2 pool domain. */
+      sha_update (&ctx, &domain, 1);
+      if (!iz_os2_collect_weak (&ctx))
+        {
+          iz_aes_wipe (out, n);
+          return 0;
+        }
+      sha_finish (&ctx, iz_os2_weak_state);
+      iz_os2_weak_seeded = 1;
+    }
+  ++iz_os2_weak_seq;
+  if (iz_os2_weak_seq == 0UL)
+    {
+      iz_aes_wipe (out, n);
+      return 0;
+    }
+
+  done = 0;
+  block = 0;
+  while (done < n)
+    {
+      sha_init (&ctx);
+      domain = 0x53U; /* Output domain. */
+      sha_update (&ctx, &domain, 1);
+      sha_update (&ctx, iz_os2_weak_state, sizeof (iz_os2_weak_state));
+      iz_os2_hash_u32 (&ctx, iz_os2_weak_seq);
+      iz_os2_hash_u32 (&ctx, block++);
+      if (!iz_os2_collect_weak (&ctx))
+        {
+          iz_aes_wipe (out, n);
+          iz_aes_wipe (digest, sizeof (digest));
+          return 0;
+        }
+      sha_finish (&ctx, digest);
+      count = n - done;
+      if (count > sizeof (digest))
+        count = sizeof (digest);
+      memcpy (out + done, digest, count);
+      done += count;
+
+      /* Independently evolve pool state for subsequent requests/blocks. */
+      sha_init (&ctx);
+      domain = 0x52U;
+      sha_update (&ctx, &domain, 1);
+      sha_update (&ctx, iz_os2_weak_state, sizeof (iz_os2_weak_state));
+      sha_update (&ctx, digest, sizeof (digest));
+      sha_finish (&ctx, iz_os2_weak_state);
+    }
+  iz_aes_wipe (digest, sizeof (digest));
+  if (!iz_os2_weak_warned)
+    {
+      fputs ("zip warning: OS/2 AES uses time/memory-derived salts; "
+             "secure entropy is NOT guaranteed.\n", stderr);
+      iz_os2_weak_warned = 1;
+    }
+  return 1;
+}
+# endif /* OW2 native OS/2 compatibility entropy */
+
 /* Never fall back silently to C rand(), time(), or seeded PRNG. */
 int
 iz_aes_entropy (unsigned char *out, size_t n)
@@ -680,6 +831,9 @@ iz_aes_entropy (unsigned char *out, size_t n)
   return iz_aes_dos_pit_salt (out, n);
 
 #  endif /* ifdef IZ_AES_DOS_REQUIRE_POOL */
+# elif defined(__OS2__) && defined(__WATCOMC__)
+  return iz_os2_weak_salt (out, n);
+
 # elif defined(_WIN32) || defined(WIN32)
   HMODULE lib;
   HCRYPTPROV h;

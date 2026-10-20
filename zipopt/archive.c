@@ -12,7 +12,7 @@
 # define _FILE_OFFSET_BITS 64
 #endif /* ifndef _FILE_OFFSET_BITS */
 
-#if !defined(_POSIX_C_SOURCE) && !defined(_WIN32) && !defined(__DJGPP__)
+#if !defined(_POSIX_C_SOURCE) && !defined(_WIN32) && !defined(__DJGPP__) && !defined(OS2)
 # define _POSIX_C_SOURCE 200809L
 #endif /* if !defined( _POSIX_C_SOURCE ) && !defined( _WIN32 ) */
 
@@ -24,7 +24,11 @@
 
 #ifndef _WIN32
 # include <sys/stat.h>
-# include <unistd.h>
+# if defined(OS2)
+#  include <io.h>
+# else
+#  include <unistd.h>
+# endif
 #endif /* ifndef _WIN32 */
 
 #define ZO_EOCD 0x06054b50UL
@@ -92,6 +96,8 @@ zo_seek (zo_archive *a, zo_u64 off)
 
 #ifdef _WIN32
   if (_fseeki64 (a->fp, (__int64)off, SEEK_SET) != 0)
+#elif defined(OS2)
+  if (off > (ZO_U64_MAX >> 1) || _fseeki64(a->fp, (__int64)off, SEEK_SET) != 0)
 #elif defined(__DJGPP__)
   if (off > (zo_u64)LONG_MAX || fseek (a->fp, (long)off, SEEK_SET) != 0)
 #else  /* ifdef _WIN32 */
@@ -1030,10 +1036,23 @@ zo_archive_hash (zo_archive *a, FILE *fp, zo_u64 *result)
 static int
 zo_archive_stat (zo_archive *a, int save)
 {
+# if defined(OS2)
+  struct _stati64 fdst, pathst;
+# else
   struct stat fdst, pathst;
+# endif
   zo_u64 mn = 0, cn = 0;
 
-# if defined(__DJGPP__)
+# if defined(OS2)
+  /* OS/2 requires the 64-bit Watcom stat variants for files >2 GiB.
+   * Verify both the descriptor and its pathname, then fingerprint bytes. */
+  if (_fstati64(fileno(a->fp), &fdst) || _stati64(a->path, &pathst) ||
+      fdst.st_size < 0 || pathst.st_size < 0 ||
+      (zo_u64)fdst.st_size != a->filesize ||
+      (zo_u64)pathst.st_size != a->filesize ||
+      fdst.st_mtime != pathst.st_mtime)
+    return zo_bad(a, "input replaced or changed during optimization");
+# elif defined(__DJGPP__)
   /* DJGPP can synthesize different inode numbers for stat() and fstat()
    * on the same file (notably on DOS emulators and redirected drives).
    * Compare pathname metadata with the same API at each checkpoint.
@@ -1074,7 +1093,7 @@ zo_archive_stat (zo_archive *a, int save)
       a->source_ctime_nsec = cn;
     }
   else if (
-# if !defined(__DJGPP__)
+# if !defined(__DJGPP__) && !defined(OS2)
            a->source_device != (zo_u64)fdst.st_dev
            || a->source_inode != (zo_u64)fdst.st_ino ||
 # endif /* if !defined(__DJGPP__) */
@@ -1102,7 +1121,7 @@ zo_archive_unchanged (zo_archive *a)
     }
 #endif /* ifndef _WIN32 */
 
-#if defined(__DJGPP__)
+#if defined(__DJGPP__) || defined(OS2)
   /* Reopen the pathname for each verification.  DOS may synthesize inode
    * numbers and a buffered read from the original handle can return cached
    * bytes after another handle changes the file.  A fresh handle also
@@ -1170,6 +1189,9 @@ zo_archive_open (zo_archive *a, const char *path)
 #ifdef _WIN32
   if (_fseeki64 (a->fp, 0, SEEK_END)
       || (a->filesize = (zo_u64)_ftelli64 (a->fp)) == ZO_U64_MAX)
+#elif defined(OS2)
+  if (_fseeki64(a->fp, 0, SEEK_END) != 0 ||
+      (a->filesize = (zo_u64)_ftelli64(a->fp)) == ZO_U64_MAX)
 #elif defined(__DJGPP__)
   /* DJGPP's long-based file positioning supports only 31-bit offsets. */
   if (fseek (a->fp, 0, SEEK_END) != 0

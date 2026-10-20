@@ -9,7 +9,7 @@
 # define _FILE_OFFSET_BITS 64
 #endif /* ifndef _FILE_OFFSET_BITS */
 
-#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(_POSIX_C_SOURCE)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(OS2) && !defined(_POSIX_C_SOURCE)
 # define _POSIX_C_SOURCE 200809L
 #endif /* if !defined( _POSIX_C_SOURCE ) */
 
@@ -30,6 +30,12 @@
 # define fdopen _fdopen
 # define mkstemp iz_win_mkstemp
 # define link(a,b) iz_win_publish_noreplace((a),(b))
+typedef int zo_sigmask_t;
+#elif defined(OS2)
+# include <io.h>
+# include "os2_port.h"
+# define mkstemp iz_os2_mkstemp
+# define link(a,b) iz_os2_publish_noreplace((a),(b))
 typedef int zo_sigmask_t;
 #elif defined(__DJGPP__)
 # include <unistd.h>
@@ -54,7 +60,7 @@ static const char *volatile zo_interrupt_path;
 static int
 zo_signal_mask (int block, zo_sigmask_t *previous)
 {
-#if defined(_WIN32) || defined(__DJGPP__)
+#if defined(_WIN32) || defined(__DJGPP__) || defined(OS2)
   /* No POSIX signal mask is available here. Normal and error cleanup
    * removes the temporary; publication avoids clobbering existing files. */
   (void)block;
@@ -76,7 +82,7 @@ zo_signal_mask (int block, zo_sigmask_t *previous)
 #endif
 }
 
-#if !defined(_WIN32) && !defined(__DJGPP__)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(OS2)
 static void
 zo_interrupt (int signo)
 {
@@ -94,7 +100,7 @@ zo_interrupt (int signo)
 int
 zo_writer_install_interrupts (void)
 {
-#if defined(_WIN32) || defined(__DJGPP__)
+#if defined(_WIN32) || defined(__DJGPP__) || defined(OS2)
   return 1;
 #else
   struct sigaction action, old;
@@ -202,7 +208,7 @@ zo_w64 (zo_writer *w, zo_u64 u)
 static int
 zo_tell (zo_writer *w, zo_u64 *v)
 {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(OS2)
   __int64 off = _ftelli64 (w->stream);
 #elif defined(__DJGPP__)
   long off = ftell (w->stream);
@@ -248,7 +254,7 @@ zo_seekin (FILE *f, zo_u64 off)
     {
       return 0;
     }
-#ifdef _WIN32
+#if defined(_WIN32) || defined(OS2)
   return _fseeki64 (f, (__int64)off, SEEK_SET) == 0;
 #elif defined(__DJGPP__)
   return off <= (zo_u64)LONG_MAX && fseek (f, (long)off, SEEK_SET) == 0;
@@ -402,6 +408,8 @@ zo_writer_begin (zo_writer *w, zo_archive *a, const char *dst)
 
 #ifdef _WIN32
   if (GetFileAttributesA (dst) != INVALID_FILE_ATTRIBUTES)
+#elif defined(OS2)
+  if (stat (dst, &st) == 0)
 #else
   if (lstat (dst, &st) == 0)
 #endif

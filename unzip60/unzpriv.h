@@ -2238,7 +2238,7 @@ typedef struct min_info {
     unsigned zip64: 1;       /* true if entry has Zip64 extra block */
     unsigned fwkcs_md5: 1;   /* central directory has FWKCS MD5 */
     unsigned fwkcs_bad: 1;   /* malformed/duplicate FWKCS MD5 field */
-#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
     unsigned char *xtr_central;
     char *xtr_source_name; /* original central directory name for dir-local preflight */
     unsigned xtr_central_len;

@@ -1292,7 +1292,7 @@ char *d, *s;            /* destination and source file names */
       return ZE_CREAT;
     }
 
-    r = fcopy(f, g, (ulg)-1L);
+    r = fcopy(f, g, (uzoff_t)-1L);
     fclose(f);
     if (fclose(g) || r != ZE_OK)
     {

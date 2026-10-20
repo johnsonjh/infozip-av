@@ -46,7 +46,7 @@ extern int iz_zip_aes_active;
 #include "crypt.h"
 #include "pkdcl.h"
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE) || defined(XTR_OS2_NATIVE)
 extern int xtr_zip_xattrs;
 extern int xtr_zip_streams;
 extern int xtr_zip_is_stage(const char *,const char *);
@@ -947,7 +947,7 @@ struct zlist far *z;    /* zip entry to compress */
      archive is being rewritten. Do not change the behavior of ordinary ZIP
      archives which happen to use the same pathname prefix. */
   if (z->iname && strncmp(z->iname,"__XTRO_ZIP__/",13)==0
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE) || defined(XTR_OS2_NATIVE)
       && !xtr_zip_is_stage(z->name,z->iname)
 #endif
      ) {
@@ -1070,6 +1070,10 @@ struct zlist far *z;    /* zip entry to compress */
     }
 #endif /* !(VMS && VMS_PK_EXTRA) */
     l = issymlnk(a);
+#if defined(OS2) && defined(OS2_KLIBC_SYMLINKS)
+    if(l && !extra_fields)
+      ZIPERR(ZE_PARMS,"native OS/2 symlinks require ZIP extra fields");
+#endif
     if (pkav_enabled && l) {
       sprintf(errbuf, "PKAV cannot store symbolic link '%s'", z->oname);
       ZIPERR(ZE_PARMS, errbuf);
@@ -1111,8 +1115,18 @@ struct zlist far *z;    /* zip entry to compress */
           return ZE_OPEN;
       }
 #else
+#if defined(OS2) && defined(OS2_KLIBC_SYMLINKS)
+      {
+        char resolved[1024];
+        if (iz_os2_link_resolve(z->name,resolved,sizeof(resolved),1))
+          return ZE_OPEN;
+        if ((ifile = zopen(resolved, fhow)) == fbad)
+          return ZE_OPEN;
+      }
+#else
       if ((ifile = zopen(z->name, fhow)) == fbad)
         return ZE_OPEN;
+#endif
 #endif
     }
 
@@ -1200,7 +1214,7 @@ struct zlist far *z;    /* zip entry to compress */
       free(tempcextra);
   }
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE) || defined(XTR_OS2_NATIVE)
   if ((xtr_zip_xattrs || xtr_zip_streams) && !xtr_zip_is_stage(z->name,z->iname)) {
     if (z->iname && !strncmp(z->iname,"__XTRO_ZIP__/",13))
       ZIPERR(ZE_PARMS,"Xtro reserved metadata member pathname");
@@ -1341,9 +1355,14 @@ struct zlist far *z;    /* zip entry to compress */
   if (!isdir && iz_aes_mode && key != NULL) {
       iz_aes_entry = 1;
       iz_aes_version = iz_aes_quantum ? 3 : (((q >= 0 && q < 20) || m == BZIP2) ? 2 : 1);
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE) || defined(XTR_OS2_NATIVE)
       if(xtr_zip_is_stage(z->name,z->iname)){
         unsigned version=xtr_zip_stage_aes_version();
+        /* An encrypted directory EA companion has no encrypted owner
+         * from which to inherit an AES extra field. The graph validator
+         * admits this case ONLY for a cleartext directory owner. */
+        if(version==0U && iz_aes_mode)
+          version=iz_aes_quantum?3U:2U;
         if(version<1U || version>3U ||
            (iz_aes_quantum ? version!=3U : version==3U))
           ZIPERR(ZE_PARMS,"Xtro companion AES version unavailable/mismatched");
@@ -1528,7 +1547,15 @@ struct zlist far *z;    /* zip entry to compress */
        return ZE_MEM;
 
     if (l) {
-      k = rdsymlnk(z->name, b, SBSZ);
+      /* extent is unsigned on Open Watcom.  Preserve signed readlink()
+       * failures until they are checked; otherwise -1 becomes a huge
+       * unsigned length and would read beyond b. */
+      int link_bytes = rdsymlnk(z->name, b, SBSZ);
+      if (link_bytes < 0 || (unsigned)link_bytes > SBSZ) {
+        free((zvoid *)b);
+        return ZE_OPEN;
+      }
+      k = (extent)link_bytes;
 /*
  * compute crc first because zfwrite will alter the buffer b points to !!
  */
@@ -1587,7 +1614,7 @@ struct zlist far *z;    /* zip entry to compress */
     s = isize;
   }
   if (ifile != fbad && zerr(ifile)) {
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE) || defined(XTR_OS2_NATIVE)
     /* Metadata capture was explicitly requested. A file read error means
        the owner contents and its metadata cannot be published as complete. */
     if ((xtr_zip_xattrs || xtr_zip_streams) && !xtr_zip_is_stage(z->name,z->iname))
@@ -1615,7 +1642,7 @@ struct zlist far *z;    /* zip entry to compress */
        * Re-evaluate the WinZip AE-1/AE-2 policy when that happens.  Such
        * method fallback is seekable, so the local extra field can be rewritten. */
       if (m != method && !iz_aes_quantum
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE) || defined(XTR_OS2_NATIVE)
           && !xtr_zip_is_stage(z->name,z->iname)
 #endif
          )
@@ -1637,7 +1664,7 @@ struct zlist far *z;    /* zip entry to compress */
   if (!translate_eol && q != -1L && isize != q)
   {
     Trace((mesg, " i=%lu, q=%lu ", isize, q));
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE) || defined(XTR_OS2_NATIVE)
     if ((xtr_zip_xattrs || xtr_zip_streams) && !xtr_zip_is_stage(z->name,z->iname))
       ZIPERR(ZE_READ,"Xtro owner size changed; archive not published");
 #endif
@@ -2009,7 +2036,7 @@ struct zlist far *z;    /* zip entry to compress */
 # endif
 #endif
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE) || defined(XTR_OS2_NATIVE)
   if((xtr_zip_xattrs || xtr_zip_streams) && !xtr_zip_is_stage(z->name,z->iname))
     xtr_zip_owner_complete(z);
 #endif

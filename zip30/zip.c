@@ -2985,7 +2985,7 @@ int set_filetype(out_path)
 
 int xtr_zip_xattrs = 0; /* explicit, optional, native-platform capture */
 int xtr_zip_streams = 0; /* independent Windows ADS capture */
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE) || defined(XTR_OS2_NATIVE)
 #ifdef XTR_WIN_NATIVE
 extern int xtr_zip_next_companion(char source[512],char member[52]);
 #else
@@ -6318,7 +6318,7 @@ char **argv;            /* command line tokens */
 #endif
   }
   if (xtr_zip_xattrs || xtr_zip_streams) {
-#if !defined(__linux__) && !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(XTR_BSD_TEST) && !defined(XTR_WIN_NATIVE)
+#if !defined(__linux__) && !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(XTR_BSD_TEST) && !defined(XTR_WIN_NATIVE) && !defined(XTR_OS2_NATIVE) && !defined(XTR_OS2_NATIVE)
     ZIPERR(ZE_PARMS, "--xattrs native writer not available on this platform");
 #else
     /* No nonseekable or partial archive outputs until transactional handling
@@ -7308,7 +7308,7 @@ char **argv;            /* command line tokens */
       zcount++;
     }
   }
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE) || defined(XTR_OS2_NATIVE)
   if (xtr_zip_xattrs || xtr_zip_streams) {
 #ifdef XTR_WIN_NATIVE
     char source[512], member[52];

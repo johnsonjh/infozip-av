@@ -1385,7 +1385,7 @@ static int setsignalhandler(__G__ p_savedhandler_chain, signal_type,
 /* Function uz_opts() */
 /**********************/
 
-#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
 int xtr_unzip_xattrs = 0;
 #if defined(XTR_WIN_NATIVE) && defined(WIN32)
 int xtr_unzip_streams = 0;
@@ -1409,7 +1409,7 @@ int uz_opts(__G__ pargc, pargv)
 #endif
     
     while (++argv, (--argc > 0 && *argv != NULL && **argv == '-')) {
-#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
         if (strcmp(*argv,"--xattrs") == 0) {
             xtr_unzip_xattrs = 1;
             continue;
@@ -2324,7 +2324,7 @@ static void help_extended(__G)
   "         information.  Also can be added to other list commands for more",
   "         verbose output.",
   "  -z   Display only archive comment.",
-#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32))) && !defined(SFX) && !defined(DLL)
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
   "  --xattrs           Restore supported native user extended attributes.",
   "  --no-xattrs        Disable optional native attribute restoration.",
 #if defined(XTR_WIN_NATIVE) && defined(WIN32)

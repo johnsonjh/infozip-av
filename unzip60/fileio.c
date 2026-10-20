@@ -247,7 +247,14 @@ void fwkcs_md5_final(__G__ digest)
    be valid for anything up to 64K (and probably beyond, assuming your
    buffers are that big).
 */
-#ifdef WINDLL
+#if defined(XTR_OS2_NATIVE) && !defined(SFX) && !defined(DLL)
+extern int xtr_unzip_xattrs;
+extern int xtr_os2_stage_write(const unsigned char *,size_t);
+#  define WriteError(buf,len,strm) \
+    ((xtr_unzip_xattrs && G.pInfo && G.pInfo->xtr_companion) ? \
+      xtr_os2_stage_write((const unsigned char *)(buf),(size_t)(len)) : \
+      ((extent)write(fileno(strm),(char *)(buf),(extent)(len)) != (extent)(len)))
+#elif defined(WINDLL)
 #  define WriteError(buf,len,strm) \
    (win_fprintf(pG, strm, (extent)len, (char far *)buf) != (int)(len))
 #else /* !WINDLL */

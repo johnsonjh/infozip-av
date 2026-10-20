@@ -113,6 +113,15 @@ int xtr1_check_archive_index (const xtr1_index_entry *entries, size_t count,
  * A companion encrypted with ZipCrypto is accepted without an extra warning.
  * A plaintext FWKCS digest on an encrypted companion is prohibited.
  * If fwkcs_all_required is set, the resulting conflict is UNSUPPORTED. */
+/* Explicit directory-owner exception: ZIP directory entry is cleartext,
+ * but its associated metadata companion is encrypted. The caller must have
+ * independently verified owner_is_directory from the ZIP entry. No other
+ * owner/companion encryption mismatch is permitted. */
+int xtr1_check_member_policy_dir (const xtr_extra *e, unsigned owner_crypto,
+                                  unsigned companion_crypto, int owner_is_directory,
+                                  int zip_ok, int authenticated,
+                                  int companion_has_fwkcs,
+                                  int fwkcs_all_required);
 int xtr1_check_member_policy (const xtr_extra *e, unsigned owner_crypto,
                               unsigned companion_crypto, int zip_ok,
                               int authenticated, int companion_has_fwkcs,

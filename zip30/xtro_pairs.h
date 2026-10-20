@@ -180,15 +180,19 @@ static int xtro_aes_extra(const struct zlist far *z,
 }
 
 static int xtro_pair_crypto_valid(const struct zlist far *owner,
-                                  const struct zlist far *side)
+                                  const struct zlist far *side,
+                                  int encrypted_dir_companion)
 {
   unsigned char a[7],b[7];
   int oa=xtro_aes_extra(owner,a), sa=xtro_aes_extra(side,b);
   if (oa<0 || sa<0) return 0;
-  if ((owner->how==99U)!=(side->how==99U)) return 0;
+  if (!encrypted_dir_companion &&
+      (owner->how==99U)!=(side->how==99U)) return 0;
   if ((owner->how==99U)!=(oa!=0) || (side->how==99U)!=(sa!=0))
     return 0;
-  if (oa && memcmp(a,b,7U)) return 0;
+  if (encrypted_dir_companion) {
+    if (owner->how!=0U || oa || !(side->flg&1U)) return 0;
+  } else if (oa && memcmp(a,b,7U)) return 0;
   /* Metadata sidecar is always STORE or Deflate internally. */
   if (side->how==99U) {
     const unsigned char *p=(const unsigned char *)side->cextra;
@@ -270,9 +274,16 @@ static int xtro_prepare_pairs(struct zlist far *head, int operation)
         int owner_crypto=(owner->flg & 1U)!=0U;
         int side_crypto=(side->flg & 1U)!=0U;
         int metadata_encrypted=xtro_field_flags(owner);
-        if (owner_crypto!=side_crypto ||
-            !xtro_pair_crypto_valid(owner,side) ||
-            metadata_encrypted != owner_crypto ||
+        size_t name_len=owner->iname?strlen(owner->iname):0U;
+        int encrypted_dir_companion=0;
+        if (name_len && owner->iname[name_len-1U]=='/' &&
+            !owner_crypto && side_crypto && metadata_encrypted==1)
+          encrypted_dir_companion=1;
+        if ((name_len && owner->iname[name_len-1U]=='/' &&
+             (owner_crypto || owner->len!=0)) ||
+            (owner_crypto!=side_crypto && !encrypted_dir_companion) ||
+            !xtro_pair_crypto_valid(owner,side,encrypted_dir_companion) ||
+            metadata_encrypted != side_crypto ||
             (side_crypto && xtro_has_fwkcs(side))) bad=1;
       }
       if (!bad && operation==4 && side && side->mark) {

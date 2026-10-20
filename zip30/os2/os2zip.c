@@ -360,7 +360,11 @@ ulg GetFileTime(char *name)
 
 void SetFileTime(char *path, ulg stamp)
 {
+#ifdef __32BIT__
+  FILESTATUS3 fs;
+#else
   FILESTATUS fs;
+#endif
   USHORT fd, ft;
 
   if (DosQueryPathInfo(path, FIL_STANDARD, (PBYTE) &fs, sizeof(fs)))
@@ -621,43 +625,51 @@ EFHEADER, *PEFHEADER;
 #define unalloc(x) free(x)
 #endif
 
-void GetEAs(char *path, char **bufptr, size_t *size,
+int GetEAs(char *path, char **bufptr, size_t *size,
                         char **cbufptr, size_t *csize)
 {
   FILESTATUS4 fs;
   PDENA2 pDENA, pFound;
   EAOP2 eaop;
-  PGEA2 pGEA;
+  PGEA2 pGEA, pPrevious = NULL;
   PGEA2LIST pGEAlist;
   PFEA2LIST pFEAlist;
   PEFHEADER pEAblock;
   ULONG ulAttributes, ulMemoryBlock;
   ULONG nLength;
   ULONG nBlock;
+  APIRET api_rc;
+  PEFHEADER central_block;
   char szName[CCHMAXPATH];
 
   *size = *csize = 0;
 
+  if(!path || !*path || strlen(path)>=sizeof(szName))return -1;
   strcpy(szName, path);
   nLength = strlen(szName);
   if (szName[nLength - 1] == '/')
     szName[nLength - 1] = 0;
 
-  if (DosQueryPathInfo(szName, FIL_QUERYEASIZE, (PBYTE) &fs, sizeof(fs)))
-    return;
+  api_rc=DosQueryPathInfo(szName,FIL_QUERYEASIZE,(PBYTE)&fs,sizeof(fs));
+  if(api_rc==ERROR_EAS_NOT_SUPPORTED)return 0;
+  if(api_rc!=NO_ERROR)return -1;
+  if(fs.cbList>16UL*1024UL*1024UL)return -1;
   nBlock = max(fs.cbList, 65535);
   if ((pDENA = alloc((size_t) nBlock)) == NULL)
-    return;
+    return -1;
 
   ulAttributes = -1;
 
-  if (DosEnumAttribute(ENUMEA_REFTYPE_PATH, szName, 1, pDENA, nBlock,
-                       &ulAttributes, ENUMEA_LEVEL_NO_VALUE)
-    || ulAttributes == 0
-    || (pGEAlist = alloc((size_t) nBlock)) == NULL)
-  {
+  api_rc=DosEnumAttribute(ENUMEA_REFTYPE_PATH,szName,1,pDENA,nBlock,
+                           &ulAttributes,ENUMEA_LEVEL_NO_VALUE);
+  if(api_rc==ERROR_EAS_NOT_SUPPORTED ||
+     (api_rc==NO_ERROR && ulAttributes==0)){
     unalloc(pDENA);
-    return;
+    return 0;
+  }
+  if(api_rc!=NO_ERROR){unalloc(pDENA);return -1;}
+  if((pGEAlist=alloc((size_t)nBlock))==NULL){
+    unalloc(pDENA);return -1;
   }
 
   pGEA = pGEAlist -> list;
@@ -674,7 +686,13 @@ void GetEAs(char *path, char **bufptr, size_t *size,
       nLength = sizeof(GEA2) + strlen(pGEA -> szName);
       nLength = ((nLength - 1) / sizeof(ULONG) + 1) * sizeof(ULONG);
 
-      pGEA -> oNextEntryOffset = ulAttributes ? nLength : 0;
+      /* oNextEntryOffset must link the *included* GEA records.  When
+       * .LONGNAME is intentionally omitted it may be the last enumerated
+       * EA; the old ulAttributes-based test left a dangling next offset. */
+      if (pPrevious != NULL)
+        pPrevious -> oNextEntryOffset = (ULONG)((PCH)pGEA-(PCH)pPrevious);
+      pGEA -> oNextEntryOffset = 0;
+      pPrevious = pGEA;
       pGEA   = (PGEA2)  ((PCH) pGEA + nLength);
     }
 
@@ -685,7 +703,7 @@ void GetEAs(char *path, char **bufptr, size_t *size,
   {
     unalloc(pDENA);
     unalloc(pGEAlist);
-    return;
+    return 0;
   }
 
   pGEAlist -> cbList = (PCH) pGEA - (PCH) pGEAlist;
@@ -702,7 +720,7 @@ void GetEAs(char *path, char **bufptr, size_t *size,
   {
     unalloc(pDENA);
     unalloc(pGEAlist);
-    return;
+    return -1;
   }
 
   /* The maximum compressed size is (in case of STORE type) the
@@ -712,6 +730,9 @@ void GetEAs(char *path, char **bufptr, size_t *size,
      (5 bytes per 32Kb block, max compressed size = 2 blocks) */
 
   ulAttributes = pFEAlist -> cbList;
+  if(ulAttributes<4U || ulAttributes>16UL*1024UL*1024UL){
+    unalloc(pDENA);unalloc(pGEAlist);return -1;
+  }
   ulMemoryBlock = ulAttributes +
                   sizeof(USHORT) + sizeof(ULONG) + EB_DEFLAT_EXTRA;
   pEAblock = (PEFHEADER) malloc(sizeof(EFHEADER) + ulMemoryBlock);
@@ -720,7 +741,7 @@ void GetEAs(char *path, char **bufptr, size_t *size,
   {
     unalloc(pDENA);
     unalloc(pGEAlist);
-    return;
+    return -1;
   }
 
   *bufptr = (char *) pEAblock;
@@ -732,28 +753,33 @@ void GetEAs(char *path, char **bufptr, size_t *size,
 
   nLength = memcompress((char *) (pEAblock + 1), ulMemoryBlock,
                         (char *) pFEAlist, ulAttributes);
+  if(nLength==0 || nLength>65535UL-sizeof(ULONG)){
+    free(pEAblock);*bufptr=NULL;*size=0;
+    unalloc(pDENA);unalloc(pGEAlist);
+    /* Distinguish format capacity from native EA read/compression errors.
+     * Xtro can retain the complete set when legacy 0x0009 will not fit. */
+    return nLength? -2 : -1;
+  }
   *size += nLength;
   pEAblock -> nSize += nLength;
 
-  if ((pEAblock = (PEFHEADER) malloc(sizeof(EFHEADER))) == NULL)
-  {
-    unalloc(pDENA);
-    unalloc(pGEAlist);
-    return;
+  central_block=(PEFHEADER)malloc(sizeof(EFHEADER));
+  if(central_block==NULL){
+    free(pEAblock);*bufptr=NULL;*size=0;
+    unalloc(pDENA);unalloc(pGEAlist);return -1;
   }
-
-  *cbufptr = (char *) pEAblock;
+  *cbufptr = (char *) central_block;
   *csize = sizeof(EFHEADER);
-
-  pEAblock -> nID = EF_OS2EA;
-  pEAblock -> nSize = sizeof(pEAblock -> lSize);
-  pEAblock -> lSize = ulAttributes;
+  central_block -> nID = EF_OS2EA;
+  central_block -> nSize = sizeof(central_block -> lSize);
+  central_block -> lSize = ulAttributes;
 
   if (noisy)
     printf(" (%ld bytes EA's)", ulAttributes);
 
   unalloc(pDENA);
   unalloc(pGEAlist);
+  return 0;
 }
 
 #else /* !__32BIT__ */
@@ -916,56 +942,64 @@ void GetEAs(char *path, char **bufptr, size_t *size,
 
 #endif /* __32BIT__ */
 
-void GetACL(char *path, char **bufptr, size_t *size,
-                        char **cbufptr, size_t *csize)
+/* Preserve ACLs without modifying either extra field until both new
+ * buffers, the compressed payload, and the resulting ZIP lengths are valid.
+ * The original void helper silently lost ACLs on allocation/size failures. */
+int GetACL(char *path, char **bufptr, size_t *size,
+           char **cbufptr, size_t *csize)
 {
   static char *buffer;
-  char *cbuffer;
+  char *localnew, *centralnew, *nul;
   long bytes, cbytes;
-  PEFHEADER pACLblock;
+  size_t capacity, local_total, central_total;
+  PEFHEADER block;
 
-  if (buffer == NULL) /* avoid frequent allocation (for every file) */
-    if ((buffer = malloc(ACL_BUFFERSIZE)) == NULL)
-      return;
-
-  if (acl_get(NULL, path, buffer))
-    return; /* this will be the most likely case */
-
-  bytes = strlen(buffer);
-
-  /* The maximum compressed size is (in case of STORE type) the
-     uncompressed size plus the size of the compression type field
-     plus the size of the CRC field + 2*5 deflate overhead bytes
-     for uncompressable data.
-     (5 bytes per 32Kb block, max compressed size = 2 blocks) */
-
-  cbytes = bytes + sizeof(USHORT) + sizeof(ULONG) + EB_DEFLAT_EXTRA;
-  if ((*bufptr = realloc(*bufptr, *size + sizeof(EFHEADER) + cbytes)) == NULL)
-    return;
-
-  pACLblock = (PEFHEADER) (*bufptr + *size);
-
-  cbuffer = (char *) (pACLblock + 1);
-  cbytes = memcompress(cbuffer, cbytes, buffer, bytes);
-
-  *size += sizeof(EFHEADER) + cbytes;
-
-  pACLblock -> nID = EF_ACL;
-  pACLblock -> nSize = sizeof(pACLblock -> lSize) + cbytes;
-  pACLblock -> lSize = bytes; /* uncompressed size */
-
-  if ((*cbufptr = realloc(*cbufptr, *csize + sizeof(EFHEADER))) == NULL)
-    return;
-
-  pACLblock = (PEFHEADER) (*cbufptr + *csize);
-  *csize += sizeof(EFHEADER);
-
-  pACLblock -> nID = EF_ACL;
-  pACLblock -> nSize = sizeof(pACLblock -> lSize);
-  pACLblock -> lSize = bytes;
-
-  if (noisy)
-    printf(" (%ld bytes ACL)", bytes);
+  if (buffer == NULL) {
+    buffer = malloc(ACL_BUFFERSIZE);
+    if (buffer == NULL) return -1;
+  }
+  if (acl_get(NULL, path, buffer)) return 0; /* no LAN ACL available */
+  nul = memchr(buffer, '\0', ACL_BUFFERSIZE);
+  if (nul == NULL) return -1;
+  bytes = (long)(nul - buffer);
+  /* Empty ACLs carry no useful data.  Preserve nonempty ACLs completely. */
+  if (bytes == 0) return 0;
+  if (bytes > 65535L - (long)sizeof(EFHEADER) -
+                       (long)sizeof(ULONG) - (long)EB_DEFLAT_EXTRA -
+                       (long)sizeof(USHORT)) return -1;
+  capacity = (size_t)bytes + sizeof(USHORT) + sizeof(ULONG) + EB_DEFLAT_EXTRA;
+  if (*size > 65535U - sizeof(EFHEADER) - capacity ||
+      *csize > 65535U - sizeof(EFHEADER)) return -1;
+  local_total = *size + sizeof(EFHEADER) + capacity;
+  central_total = *csize + sizeof(EFHEADER);
+  localnew = malloc(local_total);
+  if (!localnew) return -1;
+  centralnew = malloc(central_total);
+  if (!centralnew) { free(localnew); return -1; }
+  if (*size && *bufptr) memcpy(localnew, *bufptr, *size);
+  if (*csize && *cbufptr) memcpy(centralnew, *cbufptr, *csize);
+  block = (PEFHEADER)(localnew + *size);
+  cbytes = memcompress((char *)(block + 1), (ulg)capacity, buffer, (ulg)bytes);
+  if (cbytes <= 0 || (size_t)cbytes > capacity ||
+      *size + sizeof(EFHEADER) + (size_t)cbytes > 65535U ||
+      sizeof(ULONG) + (size_t)cbytes > 65535U) {
+    free(localnew); free(centralnew); return -1;
+  }
+  block->nID = EF_ACL;
+  block->nSize = (USHORT)(sizeof(ULONG) + (size_t)cbytes);
+  block->lSize = (ULONG)bytes;
+  block = (PEFHEADER)(centralnew + *csize);
+  block->nID = EF_ACL;
+  block->nSize = sizeof(ULONG);
+  block->lSize = (ULONG)bytes;
+  free(*bufptr);
+  free(*cbufptr);
+  *bufptr = localnew;
+  *cbufptr = centralnew;
+  *size += sizeof(EFHEADER) + (size_t)cbytes;
+  *csize = central_total;
+  if (noisy) printf(" (%ld bytes ACL)", bytes);
+  return 0;
 }
 
 #ifdef USE_EF_UT_TIME
@@ -981,6 +1015,14 @@ int GetExtraTime(struct zlist far *z, iztimes *z_utim)
 #ifdef IZ_CHECK_TZ
   if (!zp_tz_is_valid) return ZE_OK;    /* skip silently no correct tz info */
 #endif
+
+  /* ZIP extra-field lengths are 16-bit even in the 32-bit OS/2 port.
+   * Validate BOTH totals before modifying either buffer. */
+  if (z_utim->mtime != z_utim->atime || z_utim->mtime != z_utim->ctime)
+    eb_l_size = EB_HEADSIZE + EB_UT_LEN(3);
+  if ((size_t)z->cext + (size_t)eb_c_size > 65535U ||
+      (size_t)z->ext + (size_t)eb_l_size > 65535U)
+    return ZE_BIG;
 
   eb_c_ptr = realloc(z->cextra, (z->cext + eb_c_size));
   if (eb_c_ptr == NULL)
@@ -1039,10 +1081,72 @@ int GetExtraTime(struct zlist far *z, iztimes *z_utim)
 int set_extra_field(struct zlist far *z, iztimes *z_utim)
 {
   /* store EA data in local header, and size only in central headers */
-  GetEAs(z->name, &z->extra, &z->ext, &z->cextra, &z->cext);
+  size_t ext_len = 0, cext_len = 0;
+  const char *metadata_name=z->name;
+#ifdef XTR_OS2_NATIVE
+  extern int xtr_zip_is_stage(const char *,const char *);
+  extern int xtr_zip_xattrs;
+#endif
+#ifdef OS2_KLIBC_SYMLINKS
+  char resolved[1024];
+#endif
+#ifdef XTR_OS2_NATIVE
+  if(xtr_zip_is_stage(z->name,z->iname))return ZE_OK;
+#endif
+#ifdef OS2_KLIBC_SYMLINKS
+  if (!linkput) {
+    if (iz_os2_link_resolve(z->name,resolved,sizeof(resolved),1))return ZE_OPEN;
+    metadata_name=resolved;
+  }
+#endif
+#ifdef XTR_OS2_NATIVE
+  /* ZIP extra fields are plaintext even when the member itself is AES-
+   * encrypted. Confidential Xtro metadata MUST NOT be copied into 0x0009.
+   * Native capture in zipup() still collects the full EA set in memory. */
+  if(!(xtr_zip_xattrs && key!=NULL))
+#endif
+  {
+    int ea_rc=GetEAs((char *)metadata_name, &z->extra, &ext_len, &z->cextra,
+                     &cext_len);
+    if(ea_rc!=0){
+#ifdef XTR_OS2_NATIVE
+      if(ea_rc==-2 && xtr_zip_xattrs){
+        fprintf(stderr,"zip warning: OS/2 legacy EA field too large; "
+                       "complete EAs retained in Xtro V1 only\n");
+      }else
+#endif
+        return ZE_OPEN;
+    }
+  }
+#ifdef OS2_KLIBC_SYMLINKS
+  if (linkput) {
+    char target[1024];
+    int is_link=iz_os2_link_target(z->name,target,sizeof(target));
+    if(is_link<0)return ZE_OPEN;
+    /* The native link cannot be reconstructed without its SYMLINK EA.
+     * The EA writer is historically void-returning, so explicitly require
+     * that it produced the legacy OS/2 field for a recognized link. */
+    if(is_link==1
+#ifdef XTR_OS2_NATIVE
+       && !(xtr_zip_xattrs && key!=NULL)
+#endif
+       && (ext_len<8U || !z->extra ||
+        (unsigned char)z->extra[0]!=0x09U ||
+        (unsigned char)z->extra[1]!=0x00U))return ZE_OPEN;
+  }
+#endif
+  if (ext_len > 65535U || cext_len > 65535U)
+    return ZE_BIG;
+  z->ext = (ush) ext_len;
+  z->cext = (ush) cext_len;
 
   /* store ACL data in local header, and size only in central headers */
-  GetACL(z->name, &z->extra, &z->ext, &z->cextra, &z->cext);
+  if (GetACL((char *)metadata_name, &z->extra, &ext_len, &z->cextra,
+             &cext_len) != 0) return ZE_OPEN;
+  if (ext_len > 65535U || cext_len > 65535U)
+    return ZE_BIG;
+  z->ext = (ush) ext_len;
+  z->cext = (ush) cext_len;
 
 #ifdef USE_EF_UT_TIME
   /* store extended time stamps in both headers */
