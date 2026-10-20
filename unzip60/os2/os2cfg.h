@@ -35,7 +35,9 @@
 #    ifndef WATCOMC_386
 #      define WATCOMC_386
 #    endif
-#    define __32BIT__
+#    ifndef __32BIT__
+#      define __32BIT__
+#    endif
 #    undef far
 #    define far
 #    undef near
@@ -129,6 +131,9 @@
 #ifndef OS2_EAS
 #  define OS2_EAS    /* for -l and -v listings (list.c) */
 #endif
+
+/* Watcom ctype prototypes must precede the OS/2 NLS macro wrappers. */
+#include <ctype.h>
 
 #ifdef isupper
 #  undef isupper

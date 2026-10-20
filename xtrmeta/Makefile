@@ -8,10 +8,10 @@ TESTS = test_xtrm test_large test_v1 test_platform test_policy test_long_limit f
 all: $(TESTS)
 $(TESTS): %: %.c $(CORE) xtrm.h xtrsha.h xtrv1.h
 	$(CC) $(CFLAGS) -o $@ $(CORE) $<
-check: all check-reframe check-extra-rewrite
+check: all check-reframe check-extra-rewrite check-os2-ea
 	sh ./run_m1.sh
 clean:
-	rm -f $(TESTS) test_linux test_reframe test_extra_rewrite test_win_txn test_win_nt_mock test_win_unzip_mock test_win_nt_native.exe *.san fuzzer_m1
+	rm -f $(TESTS) test_os2_ea test_os2_v1 test_os2_ea_mutation test_os2_v1_decode test_linux test_reframe test_extra_rewrite test_win_txn test_win_nt_mock test_win_unzip_mock test_win_nt_native.exe *.san fuzzer_m1
 
 # Optional native Linux adapter tests. Never included in DOS/Windows builds.
 .PHONY: check-linux
@@ -32,6 +32,10 @@ test_pair_graph: test_pair_graph.c ../zip30/xtro_pairs.h
 	$(CC) $(CFLAGS) -o $@ test_pair_graph.c
 check-pairs: test_pair_graph
 	./test_pair_graph
+
+.PHONY: check-directory-crypto
+check-directory-crypto:
+	python3 ./test_encrypted_directory.py
 
 .PHONY: check-zip-capture
 check-zip-capture: verify_fixture
@@ -291,3 +295,21 @@ check-win-overwrite-policy:
 .PHONY: check-win-zip-seek
 check-win-zip-seek:
 	python3 ./test_win_zip_seek_contract.py --cc $(CC)
+
+# OS/2 typed native EA parser and V1 manifest serializer. These use only C89
+# and can be run on Linux; NLS system-call compatibility needs native testing.
+.PHONY: check-os2-ea
+OS2_EA_CORE = $(CORE) xtros2_ea.c
+test_os2_ea: test_os2_ea.c xtros2_ea.c xtros2_ea.h $(CORE)
+	$(CC) $(CFLAGS) -o $@ $(OS2_EA_CORE) test_os2_ea.c
+test_os2_v1: test_os2_v1.c xtros2_ea.c xtros2_ea.h $(CORE)
+	$(CC) $(CFLAGS) -o $@ $(OS2_EA_CORE) test_os2_v1.c
+test_os2_ea_mutation: test_os2_ea_mutation.c xtros2_ea.c xtros2_ea.h $(CORE)
+	$(CC) $(CFLAGS) -o $@ $(OS2_EA_CORE) test_os2_ea_mutation.c
+test_os2_v1_decode: test_os2_v1_decode.c xtros2_decode.c xtros2_memory.c xtros2_ea.c $(CORE)
+	$(CC) $(CFLAGS) -o $@ xtros2_decode.c xtros2_memory.c xtros2_ea.c $(CORE) test_os2_v1_decode.c
+check-os2-ea: test_os2_ea test_os2_v1 test_os2_ea_mutation test_os2_v1_decode
+	./test_os2_ea
+	./test_os2_v1
+	./test_os2_ea_mutation
+	./test_os2_v1_decode

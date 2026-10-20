@@ -1416,10 +1416,10 @@ xtr1_check_archive_index (const xtr1_index_entry *v, size_t count,
 /* Metadata policy is a separate step after the ZIP implementation has
  * decrypted, decompressed and validated the exact companion payload. */
 int
-xtr1_check_member_policy (const xtr_extra *e, unsigned owner_crypto,
-                          unsigned companion_crypto, int zip_ok,
-                          int authenticated, int companion_has_fwkcs,
-                          int fwkcs_all_required)
+xtr1_check_member_policy_dir (const xtr_extra *e, unsigned owner_crypto,
+                              unsigned companion_crypto, int owner_is_directory,
+                              int zip_ok, int authenticated,
+                              int companion_has_fwkcs, int fwkcs_all_required)
 {
   if (!e || owner_crypto > 4U || companion_crypto > 4U
       || (e->mode != XTR_V1_INLINE && e->mode != XTR_V1_COMPANION)
@@ -1439,6 +1439,22 @@ xtr1_check_member_policy (const xtr_extra *e, unsigned owner_crypto,
       return zip_ok ? XTR_OK : XTR_IO;
     }
 
+  if (owner_is_directory && owner_crypto != 0U)
+    return XTR_CORRUPT;
+
+  /* Directory owners are deliberately unencrypted ZIP entries. V1 permits
+   * their metadata ONLY in an encrypted companion (never inline). No other
+   * unencrypted-owner/encrypted-companion relationship is valid. */
+  if (owner_is_directory && owner_crypto == 0U
+      && companion_crypto != 0U && (e->flags & XTR_V1_ENCRYPTED))
+    {
+      if (companion_has_fwkcs)
+        return XTR_CORRUPT;
+      if (fwkcs_all_required)
+        return XTR_UNSUPPORTED;
+      return xtr1_crypto_check (companion_crypto, companion_crypto,
+                                zip_ok, authenticated);
+    }
   if (owner_crypto != companion_crypto
       || (!!(e->flags & XTR_V1_ENCRYPTED)) != (owner_crypto != 0U))
     {
@@ -1460,6 +1476,19 @@ xtr1_check_member_policy (const xtr_extra *e, unsigned owner_crypto,
 
   return xtr1_crypto_check (owner_crypto, companion_crypto, zip_ok,
                             authenticated);
+}
+/* Preserve the original strict API for callers which cannot independently
+ * establish the owner's directory status from verified ZIP structures. */
+int
+xtr1_check_member_policy (const xtr_extra *e, unsigned owner_crypto,
+                          unsigned companion_crypto, int zip_ok,
+                          int authenticated, int companion_has_fwkcs,
+                          int fwkcs_all_required)
+{
+  return xtr1_check_member_policy_dir (e, owner_crypto, companion_crypto, 0,
+                                       zip_ok, authenticated,
+                                       companion_has_fwkcs,
+                                       fwkcs_all_required);
 }
 static int
 sameowner (const unsigned char *a, const unsigned char *b)

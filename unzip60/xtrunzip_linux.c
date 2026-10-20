@@ -526,10 +526,15 @@ static int xtr_apply_pending(int selective){
         if(!p->has_owner||!p->has_companion||!p->companion_verified){
             fprintf(stderr,"unzip: incomplete Xtro owner/companion association\n");return 1;
         }
-        if(p->owner_crypto>4U || p->owner_crypto!=p->companion_crypto ||
-           p->owner_strength!=p->companion_strength ||
-           p->owner_iterations!=p->companion_iterations ||
-           ((p->outer.flags&XTR_V1_ENCRYPTED)!=0)!=(p->owner_crypto!=0) ||
+        if(p->owner_crypto>4U || p->companion_crypto>4U ||
+           (p->is_dir && p->owner_crypto!=0U) ||
+           !((p->owner_crypto==p->companion_crypto &&
+              p->owner_strength==p->companion_strength &&
+              p->owner_iterations==p->companion_iterations) ||
+             (p->is_dir && p->owner_crypto==0U &&
+              p->companion_crypto!=0U &&
+              (p->outer.flags&XTR_V1_ENCRYPTED)!=0)) ||
+           ((p->outer.flags&XTR_V1_ENCRYPTED)!=0)!=(p->companion_crypto!=0) ||
            (p->companion_crypto!=0 && p->companion_fwkcs)){
             fprintf(stderr,"unzip: Xtro encryption/FWKCS mismatch\n");return 1;
         }

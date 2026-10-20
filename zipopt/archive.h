@@ -14,7 +14,7 @@
 typedef unsigned long zo_u64;
 # elif defined(__GNUC__) || defined(__clang__)
 __extension__ typedef unsigned long long zo_u64;
-# elif defined(_MSC_VER)
+# elif defined(_MSC_VER) || defined(__WATCOMC__)
 typedef unsigned __int64 zo_u64;
 # else /* if ULONG_MAX > 0xffffffffUL */
 #  error zipopt needs a compiler-supported 64-bit integer type

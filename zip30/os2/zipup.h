@@ -9,8 +9,17 @@
 #define fhow (O_RDONLY|O_BINARY)
 #define fbad (-1)
 typedef int ftype;
+#ifdef XTR_OS2_NATIVE
+int xtr_os2_stage_open(const char *,int);
+int xtr_os2_stage_read(int,void *,unsigned);
+int xtr_os2_stage_close(int);
+#define zopen(n,p) xtr_os2_stage_open(n,p)
+#define zread(f,b,n) xtr_os2_stage_read(f,b,n)
+#define zclose(f) xtr_os2_stage_close(f)
+#else
 #define zopen(n,p) open(n,p)
 #define zread(f,b,n) read(f,b,n)
 #define zclose(f) close(f)
+#endif
 #define zerr(f) (k == (extent)(-1L))
 #define zstdin 0

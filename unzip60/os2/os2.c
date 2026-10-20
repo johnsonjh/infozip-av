@@ -71,6 +71,350 @@
 
 extern ZCONST char Far TruncEAs[];
 
+/* The native OW2 runtime does not interpret kLIBC link EAs. The queue
+ * deliberately writes them only after all selected archive contents and
+ * ordinary EAs have been checked. Ordinary EAs are written first. */
+#if defined(__32BIT__) && !defined(DLL)
+#include "../../xtrmeta/xtros2_ea.h"
+#include "../../xtrmeta/xtros2_nls.h"
+#include "../../zip30/os2/os2link.h"
+
+typedef struct iz_os2_link_pending {
+    struct iz_os2_link_pending *next;
+    char *path;
+    unsigned char *ea;
+    size_t length;
+} iz_os2_link_pending;
+static iz_os2_link_pending *iz_os2_links_first;
+static iz_os2_link_pending *iz_os2_links_last;
+static size_t iz_os2_links_count;
+static int iz_os2_links_exit_registered;
+
+static void iz_os2_links_clear(void) {
+    iz_os2_link_pending *p=iz_os2_links_first,*next;
+    while(p){next=p->next;free(p->path);free(p->ea);free(p);p=next;}
+    iz_os2_links_first=iz_os2_links_last=NULL;
+    iz_os2_links_count=0U;
+}
+static int iz_os2_links_enqueue(const char *name,unsigned char **bytes,
+                                size_t length) {
+    iz_os2_link_pending *p,*cur;
+    size_t n;
+    xtr_os2_ea_item marker;
+    size_t count=0U,link_bytes;
+    const unsigned char *value;
+    if(!name || !*name || !bytes || !*bytes || !length ||
+       iz_os2_links_count>=65536U)return PK_ERR;
+    /* Reject malformed kLIBC link metadata before it can be activated.
+     * A complete FEA2LIST is not sufficient: the value must also have
+     * a typed EAT_ASCII length and an embedded-NUL-free target. */
+    if(xtr_os2_ea_parse_ex(*bytes,length,&marker,1,&count,
+                     xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK ||
+       count!=1U || marker.name_len!=7U ||
+       xtr_os2_ea_native_equal(marker.name,marker.name_len,
+            (const unsigned char *)"SYMLINK",7U,NULL)!=1 ||
+       marker.value_len<5U || marker.value_len>1028U)return PK_ERR;
+    value=marker.value;
+    link_bytes=(size_t)value[2]+((size_t)value[3]<<8);
+    if(value[0]!=0xfdU || value[1]!=0xffU || !link_bytes ||
+       link_bytes!=marker.value_len-4U ||
+       memchr(value+4U,0,link_bytes)!=NULL)return PK_ERR;
+    n=strlen(name);
+    if(n>=CCHMAXPATH)return PK_ERR;
+    for(cur=iz_os2_links_first;cur;cur=cur->next){
+        int equal=xtr_os2_ea_native_equal((const unsigned char *)name,n,
+                              (const unsigned char *)cur->path,
+                              strlen(cur->path),NULL);
+        if(equal!=0)return PK_ERR; /* error or same path: fail closed */
+    }
+    p=(iz_os2_link_pending *)calloc(1,sizeof(*p));
+    if(!p)return PK_MEM4;
+    p->path=(char *)malloc(n+1U);
+    if(!p->path){free(p);return PK_MEM4;}
+    memcpy(p->path,name,n+1U);
+    p->ea=*bytes;p->length=length;*bytes=NULL;
+    if(!iz_os2_links_exit_registered){
+        if(atexit(iz_os2_links_clear)!=0){
+            free(p->ea);free(p->path);free(p);return PK_ERR;
+        }
+        iz_os2_links_exit_registered=1;
+    }
+    if(iz_os2_links_last)iz_os2_links_last->next=p;
+    else iz_os2_links_first=p;
+    iz_os2_links_last=p;
+    iz_os2_links_count++;
+    return PK_OK;
+}
+int iz_os2_link_safe_path(const char *name) {
+    char prefix[CCHMAXPATH],target[1024];
+    size_t i,n;
+    int rc;
+    if(!name || !*name)return 0;
+    n=strlen(name);
+    if(n>=sizeof(prefix))return 0;
+    /* Drive-relative paths can depend on a mutable process drive CWD. */
+    if(n>=2U && name[1]==':' &&
+       (n==2U || (name[2]!='\\' && name[2]!='/')))return 0;
+    for(i=0;i<=n;i++){
+        int separator=(i==n || name[i]=='\\' || name[i]=='/');
+        if(!separator)continue;
+        /* The complete pathname must not contain a dot-dot component. */
+        {size_t j=i;
+         while(j>0 && name[j-1]!='\\' && name[j-1]!='/')j--;
+         if(i-j==2 && name[j]=='.' && name[j+1]=='.')return 0;}
+        if(i==0 || (i==2 && name[1]==':'))continue;
+        if(i==n){
+            rc=iz_os2_link_target(name,target,sizeof(target));
+            if(rc!=0)return 0; /* preexisting symlink or query failure */
+        }else{
+            memcpy(prefix,name,i);prefix[i]=0;
+            /* Drive roots are structural, not traversable components. */
+            if(i==3 && prefix[1]==':' && (prefix[2]=='\\'||prefix[2]=='/'))continue;
+            rc=iz_os2_link_target(prefix,target,sizeof(target));
+            if(rc!=0)return 0;
+        }
+    }
+    return 1;
+}
+
+/* Native Xtro restoration transaction plan. Both legacy 0x0009 lists and
+ * XTRO interface-10 lists are staged and reconciled BEFORE any native EA
+ * mutator runs. Native writes are only performed after archive completion.
+ * This is not an archive-wide filesystem rollback transaction. */
+typedef struct iz_os2_ea_pending {
+    struct iz_os2_ea_pending *next;
+    char *path;
+    unsigned char *legacy,*xtro;
+    size_t legacy_size,xtro_size;
+} iz_os2_ea_pending;
+static iz_os2_ea_pending *iz_os2_ea_head,*iz_os2_ea_tail;
+static int iz_os2_ea_exit_registered;
+static void iz_os2_ea_clear(void){
+    iz_os2_ea_pending *p=iz_os2_ea_head,*next;
+    while(p){
+        next=p->next;
+        free(p->path);
+        if(p->legacy){
+            xtr_os2_memory_wipe(p->legacy,p->legacy_size);free(p->legacy);
+        }
+        if(p->xtro){
+            xtr_os2_memory_wipe(p->xtro,p->xtro_size);free(p->xtro);
+        }
+        free(p);p=next;
+    }
+    iz_os2_ea_head=iz_os2_ea_tail=NULL;
+}
+static iz_os2_ea_pending *iz_os2_ea_lookup(const char *path){
+    iz_os2_ea_pending *p;
+    size_t n;
+    if(!path || !*path)return NULL;
+    n=strlen(path);
+    if(n>=CCHMAXPATH)return NULL;
+    /* ZIP directory paths may have a trailing slash; native legacy EA
+     * restoration strips it. Their identities must compare identically. */
+    while(n>1U && (path[n-1U]=='/' || path[n-1U]=='\\') &&
+          !(n==3U && path[1]==':'))n--;
+    if(!n)return NULL;
+    for(p=iz_os2_ea_head;p;p=p->next){
+        int eq=xtr_os2_ea_native_equal((const unsigned char *)path,n,
+            (const unsigned char *)p->path,strlen(p->path),NULL);
+        if(eq<0)return NULL;
+        if(eq)return p;
+    }
+    p=(iz_os2_ea_pending *)calloc(1,sizeof(*p));
+    if(!p)return NULL;
+    p->path=(char *)malloc(n+1U);
+    if(!p->path){free(p);return NULL;}
+    memcpy(p->path,path,n);p->path[n]=0;
+    if(!iz_os2_ea_exit_registered){
+        if(atexit(iz_os2_ea_clear)!=0){free(p->path);free(p);return NULL;}
+        iz_os2_ea_exit_registered=1;
+    }
+    if(iz_os2_ea_tail)iz_os2_ea_tail->next=p;
+    else iz_os2_ea_head=p;
+    iz_os2_ea_tail=p;
+    return p;
+}
+static int iz_os2_stage_ea(const char *path,const unsigned char *raw,
+                           size_t length,int legacy){
+    iz_os2_ea_pending *p;
+    unsigned char *copy;
+    size_t n=0;
+    if(!raw || length<4U || length>16UL*1024UL*1024UL ||
+       xtr_os2_ea_parse_ex(raw,length,NULL,0,&n,
+                xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK)return PK_ERR;
+    p=iz_os2_ea_lookup(path);
+    if(!p)return PK_ERR;
+    if(legacy?p->legacy:p->xtro)return PK_ERR;
+    copy=(unsigned char *)malloc(length);
+    if(!copy)return PK_MEM4;
+    memcpy(copy,raw,length);
+    if(legacy){p->legacy=copy;p->legacy_size=length;}
+    else{p->xtro=copy;p->xtro_size=length;}
+    return PK_OK;
+}
+int iz_os2_xtr_stage_legacy(const char *path,const unsigned char *raw,
+                            size_t length){
+    return iz_os2_stage_ea(path,raw,length,1);
+}
+int iz_os2_xtr_stage_native(const char *path,const unsigned char *raw,
+                            size_t length){
+    return iz_os2_stage_ea(path,raw,length,0);
+}
+static int iz_os2_ea_merge(iz_os2_ea_pending *p,
+                           unsigned char **output,size_t *length){
+    xtr_os2_ea_item *a=NULL,*b=NULL,*joined=NULL;
+    size_t na=0,nb=0,ka=0,kb=0,i,j,n=0;
+    int rc=PK_ERR;
+    *output=NULL;*length=0U;
+    if(p->legacy && xtr_os2_ea_parse_ex(p->legacy,p->legacy_size,NULL,0,&na,
+                   xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK)goto finish;
+    if(p->xtro && xtr_os2_ea_parse_ex(p->xtro,p->xtro_size,NULL,0,&nb,
+                   xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK)goto finish;
+    if(na>(size_t)-1/sizeof(*a) || nb>(size_t)-1/sizeof(*b) ||
+       na>(size_t)-1-nb)goto finish;
+    if(na){
+        a=(xtr_os2_ea_item *)malloc(na*sizeof(*a));if(!a)goto finish;
+        if(xtr_os2_ea_parse_ex(p->legacy,p->legacy_size,a,na,&ka,
+                    xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK || ka!=na)
+            goto finish;
+    }
+    if(nb){
+        b=(xtr_os2_ea_item *)malloc(nb*sizeof(*b));if(!b)goto finish;
+        if(xtr_os2_ea_parse_ex(p->xtro,p->xtro_size,b,nb,&kb,
+                    xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK || kb!=nb)
+            goto finish;
+    }
+    if(xtr_os2_ea_reconcile_ex(a,na,b,nb,xtr_os2_ea_native_equal,NULL)
+                                      !=XTR_OS2_EA_OK)goto finish;
+    joined=(xtr_os2_ea_item *)malloc((na+nb?na+nb:1U)*sizeof(*joined));
+    if(!joined)goto finish;
+    if(na)memcpy(joined,a,na*sizeof(*a));n=na;
+    for(j=0;j<nb;j++){
+        for(i=0;i<na;i++){
+            int equal=xtr_os2_ea_native_equal(a[i].name,a[i].name_len,
+                                             b[j].name,b[j].name_len,NULL);
+            if(equal<0)goto finish;
+            if(equal)break;
+        }
+        if(i==na)joined[n++]=b[j];
+    }
+    if(xtr_os2_ea_pack_list(joined,n,output,length,
+                     xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK)goto finish;
+    rc=PK_OK;
+finish:
+    free(a);free(b);free(joined);
+    if(rc!=PK_OK){free(*output);*output=NULL;*length=0;}
+    return rc;
+}
+/* OS/2 does not provide openat2-style descendant locking. For ordinary
+ * files use a pinned HFILE; for directories, native DosSetPathInfo is
+ * preceded by parent-component checks immediately before mutation. */
+static int iz_os2_ea_apply(const char *path,unsigned char *list,size_t len){
+    xtr_os2_ea_partition parts;
+    int err=PK_OK;
+    APIRET rc;
+    FILESTATUS3 st;
+    EAOP2 ea;
+    if(!list || !len)return PK_OK;
+    if(!iz_os2_link_safe_path(path))return PK_ERR;
+    if(xtr_os2_ea_partition_list(list,len,&parts,
+        xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK)return PK_ERR;
+    rc=DosQueryPathInfo((PSZ)path,FIL_STANDARD,&st,sizeof(st));
+    if(rc!=NO_ERROR){err=PK_ERR;goto cleanup;}
+    if(parts.ordinary){
+        ea.fpGEA2List=NULL;ea.fpFEA2List=(PFEA2LIST)parts.ordinary;
+        ea.oError=0;
+        if(st.attrFile&FILE_DIRECTORY){
+            if(!iz_os2_link_safe_path(path))err=PK_ERR;
+            else if(DosSetPathInfo((PSZ)path,FIL_QUERYEASIZE,
+                             &ea,sizeof(ea),0)!=NO_ERROR)err=PK_ERR;
+        }else{
+            HFILE h;
+            ULONG action=0;
+            rc=DosOpen((PSZ)path,&h,&action,0,FILE_NORMAL,
+                OPEN_ACTION_OPEN_IF_EXISTS|OPEN_ACTION_FAIL_IF_NEW,
+                OPEN_ACCESS_READWRITE|OPEN_SHARE_DENYWRITE,NULL);
+            if(rc!=NO_ERROR)err=PK_ERR;
+            else{
+                rc=DosSetFileInfo(h,FIL_QUERYEASIZE,&ea,sizeof(ea));
+                if(DosClose(h)!=NO_ERROR)err=PK_ERR;
+                if(rc!=NO_ERROR)err=PK_ERR;
+            }
+        }
+    }
+    if(err==PK_OK && parts.symlink){
+        err=iz_os2_links_enqueue(path,&parts.symlink,parts.symlink_len);
+    }
+cleanup:
+    xtr_os2_ea_partition_free(&parts);
+    return err;
+}
+int iz_os2_xtr_ea_complete(int success){
+    iz_os2_ea_pending *p;
+    int rc=PK_OK;
+    if(!success){iz_os2_ea_clear();return PK_OK;}
+    /* Pass 1: validate full source union, conflicts, and destination paths
+     * before changing even one native attribute. */
+    for(p=iz_os2_ea_head;p;p=p->next){
+        unsigned char *list=NULL;size_t length=0;
+        if(iz_os2_ea_merge(p,&list,&length)!=PK_OK ||
+           !iz_os2_link_safe_path(p->path))rc=PK_ERR;
+        if(list){xtr_os2_memory_wipe(list,length);free(list);}
+        if(rc!=PK_OK)break;
+    }
+    if(rc==PK_OK){
+        for(p=iz_os2_ea_head;p;p=p->next){
+            unsigned char *list=NULL;size_t length=0;
+            if(iz_os2_ea_merge(p,&list,&length)!=PK_OK){rc=PK_ERR;break;}
+            rc=iz_os2_ea_apply(p->path,list,length);
+            if(list){xtr_os2_memory_wipe(list,length);free(list);}
+            if(rc!=PK_OK)break;
+        }
+    }
+    if(rc!=PK_OK)fprintf(stderr,
+       "unzip: OS/2 Xtro native EA restoration incomplete; no filesystem rollback\n");
+    iz_os2_ea_clear();
+    return rc;
+}
+
+int iz_os2_deferred_links_complete(int success) {
+    iz_os2_link_pending *p;
+    int result=PK_OK;
+    if(!success){iz_os2_links_clear();return PK_OK;}
+    /* Preflight the entire destination list before activating any links. */
+    for(p=iz_os2_links_first;p;p=p->next)
+        if(!iz_os2_link_safe_path(p->path)){
+            fprintf(stderr,"unzip: unsafe deferred OS/2 symlink destination: %s\n",p->path);
+            iz_os2_links_clear();return PK_ERR;
+        }
+    for(p=iz_os2_links_first;p;p=p->next){
+        HFILE h;
+        ULONG action=0;
+        APIRET rc;
+        EAOP2 op;
+        if(!iz_os2_link_safe_path(p->path)){result=PK_ERR;break;}
+        rc=DosOpen((PSZ)p->path,&h,&action,0,FILE_NORMAL,
+                   OPEN_ACTION_OPEN_IF_EXISTS|OPEN_ACTION_FAIL_IF_NEW,
+                   OPEN_ACCESS_READWRITE|OPEN_SHARE_DENYWRITE,NULL);
+        if(rc!=NO_ERROR){result=PK_ERR;break;}
+        op.fpGEA2List=NULL;op.fpFEA2List=(PFEA2LIST)p->ea;op.oError=0;
+        rc=DosSetFileInfo(h,FIL_QUERYEASIZE,&op,sizeof(op));
+        if(DosClose(h)!=NO_ERROR)result=PK_ERR;
+        if(rc!=NO_ERROR){
+            fprintf(stderr,"unzip: DosSetFileInfo failed for %s (rc=%lu)\n",
+                    p->path,(unsigned long)rc);
+            result=PK_ERR;break;
+        }
+    }
+    if(result!=PK_OK)fprintf(stderr,
+       "unzip: deferred OS/2 SYMLINK EA restoration incomplete (no archive-wide rollback)\n");
+    iz_os2_links_clear();
+    return result;
+}
+#endif /* __32BIT__ && !DLL */
+
+
 /* local prototypes */
 
 #ifdef TIMESTAMP
@@ -323,7 +667,11 @@ long GetFileTime(ZCONST char *name)
 
 static int SetFileTime(ZCONST char *name, ulg stamp)   /* swiped from Zip */
 {
+#ifdef __32BIT__
+  FILESTATUS3 fs;
+#else
   FILESTATUS fs;
+#endif
   USHORT fd, ft;
 
   if (DosQueryPathInfo((PSZ) name, FIL_STANDARD, (PBYTE) &fs, sizeof(fs)))
@@ -464,7 +812,11 @@ static void SetPathAttrTimes(__GPRO__ int flags, int dir)
 #else
   USHORT nAction;
 #endif
+#ifdef __32BIT__
+  FILESTATUS3 fs;
+#else
   FILESTATUS fs;
+#endif
   USHORT nLength;
   char szName[CCHMAXPATH];
   ulg Mod_dt, Acc_dt, Cre_dt;
@@ -486,7 +838,7 @@ static void SetPathAttrTimes(__GPRO__ int flags, int dir)
        work around certain network operating system bugs ... */
 
     if ( DosOpen(szName, &hFile, &nAction, 0, 0,
-                 OPEN_ACTION_OPEN_IF_EXISTS | OPEN_ACTION_CREATE_IF_NEW,
+                 OPEN_ACTION_OPEN_IF_EXISTS | OPEN_ACTION_FAIL_IF_NEW,
                  OPEN_SHARE_DENYREADWRITE | OPEN_ACCESS_READWRITE, 0) )
       return;
 
@@ -543,12 +895,86 @@ typedef struct
 FEALST;
 
 
+/* Validate the entire untrusted FEA2LIST before calling DosSetPathInfo.
+ * Native OS/2 writes may otherwise accept a partial or malformed set.
+ * In particular, a malformed SYMLINK value must never activate a link. */
+#ifdef __32BIT__
+static int iz_os2_ea_nameeq(const unsigned char *p,const char *s,unsigned n)
+{
+  unsigned i;
+  for(i=0;i<n;i++)
+    if(toupper((unsigned char)p[i])!=toupper((unsigned char)s[i]))return 0;
+  return s[n]=='\0';
+}
+static int iz_os2_validate_eas(const unsigned char *bytes,unsigned long length)
+{
+  unsigned long at=4,prev,offset,need,j,next;
+  unsigned name_len,value_len;
+  const unsigned char *name,*value;
+  if(length<4 || length>1024UL*1024UL ||
+     (unsigned long)bytes[0]+((unsigned long)bytes[1]<<8)+
+     ((unsigned long)bytes[2]<<16)+((unsigned long)bytes[3]<<24)!=length)
+    return 0;
+  while(at<length){
+    if(length-at<9)return 0;
+    offset=(unsigned long)bytes[at] |
+           ((unsigned long)bytes[at+1]<<8) |
+           ((unsigned long)bytes[at+2]<<16) |
+           ((unsigned long)bytes[at+3]<<24);
+    name_len=(unsigned)bytes[at+5];
+    value_len=(unsigned)bytes[at+6] | ((unsigned)bytes[at+7]<<8);
+    need=8UL+(unsigned long)name_len+1UL+(unsigned long)value_len;
+    if(!name_len || need>length-at || bytes[at+8+name_len]!=0 ||
+       memchr(bytes+at+8,0,name_len)!=NULL ||
+       (bytes[at+4] & ~0x80U))return 0;
+    name=bytes+at+8;
+    value=name+name_len+1;
+    /* OS/2 EA names are case insensitive. Reject ambiguous duplicates. */
+    for(prev=4;prev<at;){
+      unsigned pn=(unsigned)bytes[prev+5];
+      unsigned k;
+      if(pn==name_len){
+        for(k=0;k<name_len;k++)
+          if(toupper((unsigned char)bytes[prev+8+k])!=
+             toupper((unsigned char)name[k]))break;
+        if(k==name_len)return 0;
+      }
+      next=(unsigned long)bytes[prev] |
+           ((unsigned long)bytes[prev+1]<<8) |
+           ((unsigned long)bytes[prev+2]<<16) |
+           ((unsigned long)bytes[prev+3]<<24);
+      if(next==0 || next>at-prev)return 0;
+      prev+=next;
+    }
+    if(name_len==7 && iz_os2_ea_nameeq(name,"SYMLINK",7)){
+      if(value_len<5 || value[0]!=0xfdU || value[1]!=0xffU)return 0;
+      j=(unsigned)value[2]+((unsigned)value[3]<<8);
+      if(j==0 || j!=value_len-4U || !value[4] ||
+         memchr(value+4,0,(size_t)j)!=NULL)return 0;
+    }
+    if(offset==0){
+      /* Last FEA2 record may end before up to 3 padding bytes. */
+      if(length-at-need>3U)return 0;
+      for(j=(unsigned)(at+need);j<length;j++)if(bytes[j]!=0)return 0;
+      return 1;
+    }
+    if(offset<need || (offset&3U) || offset>length-at)return 0;
+    at+=offset;
+  }
+  return 0;
+}
+#endif
+
 static int SetEAs(__GPRO__ const char *path, void *ef_block)
 {                                               /* returns almost-PK errors */
   EFHEADER *pEAblock = (PEFHEADER) ef_block;
 #ifdef __32BIT__
   EAOP2 eaop;
   PFEA2LIST pFEA2list;
+#ifndef DLL
+  xtr_os2_ea_partition parts;
+  int parts_rc;
+#endif
 #else
   EAOP eaop;
   PFEALIST pFEAlist;
@@ -567,11 +993,14 @@ static int SetEAs(__GPRO__ const char *path, void *ef_block)
   if ( pEAblock->nSize < 4 || (pEAblock->lSize > 0L && pEAblock->nSize <= 10) )
     return IZ_EF_TRUNC;  /* no compressed data! */
 
+  if (!path || strlen(path)>=sizeof(szName) || !*path)return PK_ERR;
   strcpy(szName, path);
   nLength = strlen(szName);
   if (szName[nLength - 1] == '/')
     szName[nLength - 1] = 0;
 
+  if (pEAblock->lSize < 4UL || pEAblock->lSize > 1024UL*1024UL)
+    return PK_ERR;
   if ( (pFEA2list = (PFEA2LIST) malloc((size_t) pEAblock -> lSize)) == NULL )
     return PK_MEM4;
 
@@ -583,8 +1012,52 @@ static int SetEAs(__GPRO__ const char *path, void *ef_block)
   }
 
 #ifdef __32BIT__
+  if(!iz_os2_validate_eas((const unsigned char *)pFEA2list,
+                           pEAblock->lSize)){
+    free(pFEA2list);
+    return PK_ERR;
+  }
+#ifndef DLL
+#ifdef XTR_OS2_NATIVE
+  /* Under --xattrs the legacy OS/2 EA data must not be applied before
+   * the archive-wide Xtro graph, digests and conflict checks finish. */
+  {
+    extern int xtr_unzip_xattrs;
+    if(xtr_unzip_xattrs){
+      int deferred=iz_os2_xtr_stage_legacy(szName,
+                   (const unsigned char *)pFEA2list,
+                   (size_t)pEAblock->lSize);
+      free(pFEA2list);
+      return deferred;
+    }
+  }
+#endif
+  /* Validate/split before mutation; malformed link metadata fails closed.
+   * Only the SYMLINK marker is deferred. Ordinary EAs apply now. */
+  parts_rc=xtr_os2_ea_partition_list((const unsigned char *)pFEA2list,
+                 (size_t)pEAblock->lSize,&parts,
+                 xtr_os2_ea_native_equal,NULL);
+  if(parts_rc!=XTR_OS2_EA_OK){free(pFEA2list);return PK_ERR;}
+  if(parts.ordinary){
+    eaop.fpGEA2List=NULL;eaop.fpFEA2List=(PFEA2LIST)parts.ordinary;
+    eaop.oError=0;
+    if(DosSetPathInfo(szName,FIL_QUERYEASIZE,(PBYTE)&eaop,sizeof(eaop),0)!=NO_ERROR){
+      xtr_os2_ea_partition_free(&parts);free(pFEA2list);return PK_ERR;
+    }
+  }
+  if(parts.symlink){
+    int q=iz_os2_links_enqueue(szName,&parts.symlink,parts.symlink_len);
+    if(q!=PK_OK){xtr_os2_ea_partition_free(&parts);free(pFEA2list);return q;}
+  }
+  xtr_os2_ea_partition_free(&parts);
+  if(!uO.tflag && QCOND2)
+    Info(slide,0,((char *)slide," (%ld bytes EAs)",pFEA2list->cbList));
+  free(pFEA2list);
+  return PK_COOL;
+#else
   eaop.fpGEA2List = NULL;
   eaop.fpFEA2List = pFEA2list;
+#endif
 #else
   pFEAlist  = (PVOID) pFEA2list;
   pFEA2 = pFEA2list -> list;
@@ -609,7 +1082,16 @@ static int SetEAs(__GPRO__ const char *path, void *ef_block)
 #endif
 
   eaop.oError = 0;
-  DosSetPathInfo(szName, FIL_QUERYEASIZE, (PBYTE) &eaop, sizeof(eaop), 0);
+  {
+    APIRET api_rc=DosSetPathInfo(szName,FIL_QUERYEASIZE,
+                                 (PBYTE)&eaop,sizeof(eaop),0);
+    if(api_rc!=NO_ERROR){
+      fprintf(stderr,"unzip: OS/2 EA restore failed for %s (DosSetPathInfo rc=%lu)\n",
+              szName,(unsigned long)api_rc);
+      free(pFEA2list);
+      return PK_ERR;
+    }
+  }
 
   if (!uO.tflag && QCOND2)
     Info(slide, 0, ((char *)slide, " (%ld bytes EAs)", pFEA2list -> cbList));
@@ -631,6 +1113,9 @@ static int SetACL(__GPRO__ const char *path, void *ef_block)
   if (pACLblock->nSize < 4 || (pACLblock->lSize > 0L && pACLblock->nSize <= 10))
     return IZ_EF_TRUNC;  /* no compressed data! */
 
+  /* An untrusted archive must not request an unbounded ACL allocation. */
+  if(pACLblock->lSize == 0 || pACLblock->lSize > 1024UL*1024UL)
+    return PK_ERR;
   if ( (szACL = malloc((size_t) pACLblock -> lSize)) == NULL )
     return PK_MEM4;
 
@@ -641,9 +1126,17 @@ static int SetACL(__GPRO__ const char *path, void *ef_block)
     return error;
   }
 
-  if (acl_set(NULL, path, szACL) == 0)
-    if (!uO.tflag && QCOND2)
-      Info(slide, 0, ((char *)slide, " (%ld bytes ACL)", strlen(szACL)));
+  if(pACLblock->lSize==0 ||
+     memchr(szACL,0,(size_t)pACLblock->lSize)==NULL){
+    free(szACL);return PK_ERR;
+  }
+  if (acl_set(NULL, path, szACL) != 0) {
+    fprintf(stderr, "unzip: cannot restore OS/2 LAN ACL for %s\n", path);
+    free(szACL);
+    return PK_ERR;
+  }
+  if (!uO.tflag && QCOND2)
+    Info(slide, 0, ((char *)slide, " (%ld bytes ACL)", strlen(szACL)));
 
   free(szACL);
   return PK_COOL;
@@ -2063,6 +2556,13 @@ int close_outfile(__G)   /* only for extracted files, not directories */
         int err = EvalExtraFields(__G__ G.filename, G.extra_field,
                                   G.lrec.extra_field_length);
 
+        if (err != PK_OK && close_status == PK_OK)
+            close_status = PK_ERR;
+        if (err != PK_OK && err != IZ_EF_TRUNC) {
+            Info(slide, 0x401, ((char *)slide,
+              "error:  OS/2 extended attribute/ACL restoration failed for %s\n",
+              FnFilter1(G.filename)));
+        }
         if (err == IZ_EF_TRUNC) {
             if (uO.qflag)
                 Info(slide, 1, ((char *)slide, "%-22s ",
@@ -2274,6 +2774,83 @@ void version(__G)
 } /* end function version() */
 
 #endif /* !SFX */
+
+
+#if defined(SET_DIR_ATTRIB) && defined(__32BIT__)
+/* Restore directory write times after extracting children.  The old OS/2
+ * mapname sets them too early, and later file creations modify them again.
+ * Capture the native DOS time rather than relying on kLIBC/utime. */
+typedef struct iz_os2_dirattr {
+    struct iz_os2_dirattr *next;
+    char *fn;
+    ulg modify;
+    ulg access;
+    ulg create;
+    unsigned mask;
+    char name[1];
+} iz_os2_dirattr;
+
+int defer_dir_attribs(__G__ pd)
+    __GDEF
+    direntry **pd;
+{
+    size_t n;
+    iz_os2_dirattr *p;
+    unsigned flags;
+    ulg mod=0,acc=0,cre=0;
+    *pd=NULL;
+    n=strlen(G.filename);
+    if(n>=CCHMAXPATH)return PK_ERR;
+    p=(iz_os2_dirattr *)malloc(sizeof(*p)+n);
+    if(!p)return PK_MEM;
+    memset(p,0,sizeof(*p)+n);
+    p->fn=p->name;
+    memcpy(p->fn,G.filename,n+1);
+    flags=(unsigned)getOS2filetimes(__G__ &mod,&acc,&cre);
+    p->modify=mod;
+    p->access=acc;
+    p->create=cre;
+    p->mask=flags;
+    if(!(flags&EB_UT_FL_MTIME))p->modify=G.lrec.last_mod_dos_datetime;
+    *pd=(direntry *)p;
+    return PK_OK;
+}
+
+int set_direc_attribs(__G__ d)
+    __GDEF
+    direntry *d;
+{
+    iz_os2_dirattr *p=(iz_os2_dirattr *)d;
+    FILESTATUS3 fs;
+    char name[CCHMAXPATH];
+    size_t n;
+    ULONG rc;
+    if(uO.D_flag>0)return PK_OK;
+    n=strlen(p->fn);
+    if(n==0 || n>=sizeof(name))return PK_WARN;
+    memcpy(name,p->fn,n+1);
+    if(name[n-1]=='/' && (n<2 || name[n-2]!=':'))name[n-1]=0;
+    rc=DosQueryPathInfo(name,FIL_STANDARD,&fs,sizeof(fs));
+    if(rc!=NO_ERROR)return PK_WARN;
+    fs.fdateLastWrite=((F_DATE_TIME *)&p->modify)->_fdt.fd;
+    fs.ftimeLastWrite=((F_DATE_TIME *)&p->modify)->_fdt.ft;
+    if(p->mask&EB_UT_FL_ATIME){
+        fs.fdateLastAccess=((F_DATE_TIME *)&p->access)->_fdt.fd;
+        fs.ftimeLastAccess=((F_DATE_TIME *)&p->access)->_fdt.ft;
+    }
+    if(p->mask&EB_UT_FL_CTIME){
+        fs.fdateCreation=((F_DATE_TIME *)&p->create)->_fdt.fd;
+        fs.ftimeCreation=((F_DATE_TIME *)&p->create)->_fdt.ft;
+    }
+    rc=DosSetPathInfo(name,FIL_STANDARD,&fs,sizeof(fs),0);
+    if(rc!=NO_ERROR){
+        fprintf(stderr,"unzip: cannot restore OS/2 directory time for %s (rc=%lu)\n",
+                name,(unsigned long)rc);
+        return PK_WARN;
+    }
+    return PK_OK;
+}
+#endif /* SET_DIR_ATTRIB && __32BIT__ */
 
 #endif /* !FUNZIP */
 

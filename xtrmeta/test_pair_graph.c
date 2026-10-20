@@ -12,6 +12,7 @@ struct zlist
   unsigned cext;
   unsigned flg;
   unsigned how;
+  unsigned long len;
   int mark;
 };
 #include "../zip30/xtro_pairs.h"
@@ -131,6 +132,26 @@ main (void)
   CHECK (xtro_prepare_pairs (&o, 0) == 1);
   setup (&o, &c, ef);
   c.how = 93;
+  CHECK (xtro_prepare_pairs (&o, 0) == 1);
+  /* B: unencrypted directory entry with encrypted sidecar is legitimate.
+   * A regular file, plaintext flag, or absent encrypted companion is not. */
+  setup (&o, &c, ef);
+  o.iname = "directory/";
+  o.flg = 0;
+  c.flg = 1;
+  o.how = 0;
+  c.how = 8;
+  CHECK (xtro_prepare_pairs (&o, 0) == 0);
+  o.len = 1;
+  CHECK (xtro_prepare_pairs (&o, 0) == 1);
+  o.len = 0;
+  o.iname = "directory";
+  CHECK (xtro_prepare_pairs (&o, 0) == 1);
+  o.iname = "directory/";
+  ef[11] = 0;
+  CHECK (xtro_prepare_pairs (&o, 0) == 1);
+  ef[11] = 1;
+  c.flg = 0;
   CHECK (xtro_prepare_pairs (&o, 0) == 1);
   setup (&o, &c, ef);
   c.flg = 0;

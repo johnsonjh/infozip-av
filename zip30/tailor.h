@@ -388,6 +388,14 @@ typedef struct ztimbuf {
 #  define ROUNDED_TIME(time)   (time)
 #endif
 
+/* Watcom defines S_IFLNK as zero. Native OS/2 EA links need an
+ * independent, nonzero archive-mode tag. Never call kLIBC functions. */
+#if defined(OS2) && defined(OS2_KLIBC_SYMLINKS)
+#  undef S_IFLNK
+#  define S_IFLNK 0xa000
+#  include "os2/os2link.h"
+#endif
+
 /* Some systems define S_IFLNK but do not support symbolic links */
 #if defined (S_IFLNK) && defined(NO_SYMLINKS)
 #  undef S_IFLNK
@@ -751,7 +759,10 @@ typedef struct ztimbuf {
 # ifndef SSTAT
 #  define SSTAT      stat
 # endif
-# ifdef S_IFLNK
+# if defined(OS2) && defined(OS2_KLIBC_SYMLINKS)
+#  define LSTAT iz_os2_link_lstat
+#  define LSSTAT(n, s) (linkput ? iz_os2_link_lstat((n),(s)) : iz_os2_link_stat((n),(s)))
+# elif defined(S_IFLNK)
 #  define LSTAT      lstat
 #  define LSSTAT(n, s)  (linkput ? lstat((n), (s)) : SSTAT((n), (s)))
 # else

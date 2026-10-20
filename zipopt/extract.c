@@ -5,7 +5,7 @@
 
 /* private zipopt embedded UnZip adapter */
 
-#if !defined(_WIN32) && !defined(__DJGPP__)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(OS2)
 #define UNIX 1
 #endif
 #define DLL 1
@@ -26,6 +26,9 @@
 # include <zlib.h>
 #else
 extern ulg crc32 (ulg crc, const uch *buf, size_t len);
+#if defined(OS2) && defined(__WATCOMC__)
+#pragma aux crc32 "_*" parm caller [] value [eax] modify [eax]
+#endif
 #endif
 
 struct zo_sink
@@ -65,7 +68,7 @@ zo_crc (unsigned long crc, const unsigned char *p, ulg n)
 }
 
 static int
-zo_unzip_msg (zvoid *g, uch *p, ulg n, int flag)
+UZ_EXP zo_unzip_msg (zvoid *g, uch *p, ulg n, int flag)
 {
   struct zo_sink *s = zo_active_sink;
 

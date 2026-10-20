@@ -303,21 +303,41 @@ def main():
                 record[6] == 1 and record[8:24] == record[48:64],
                 "directory owner inline reference",
             )
-        # Directory entries themselves aren't encrypted by conventional ZIP.
-        # Never silently downgrade encrypted directory metadata to plaintext.
-        run = call(
-            ZIP,
-            "--xattrs",
-            "-P",
-            "sample-password",
-            "reject-dir-encrypted.zip",
-            "directory/",
-            cwd=root,
-        )
-        check(
-            run.returncode != 0 and not (root / "reject-dir-encrypted.zip").exists(),
-            "encrypted directory metadata rejected until secure format",
-        )
+        # B: the directory owner remains clear, its EA companion is encrypted.
+        for encryption, filename in (
+            ("-P", "dir-zipcrypto.zip"),
+            ("-eP", "dir-aes.zip"),
+        ):
+            run = call(
+                ZIP,
+                "--xattrs",
+                encryption,
+                "sample-password",
+                filename,
+                "directory/",
+                cwd=root,
+            )
+            check(run.returncode == 0, "encrypted directory EA capture")
+            with zipfile.ZipFile(root / filename) as z:
+                items = z.infolist()
+                check(len(items) == 2, "directory and encrypted companion")
+                check(
+                    items[0].filename == "directory/" and not (items[0].flag_bits & 1),
+                    "clear directory owner",
+                )
+                check(
+                    items[1].filename.startswith("__XTRO_ZIP__/x/")
+                    and items[1].flag_bits & 1,
+                    "encrypted directory companion",
+                )
+                check(
+                    dict(extra(items[0].extra))[0x5854][7] & 1,
+                    "owner declares encrypted metadata",
+                )
+            check(
+                b"user.dirlabel" not in (root / filename).read_bytes(),
+                "directory EA name not exposed as plaintext",
+            )
         # Explicitly exercise existing ZIP64 creation and old extractor paths.
         run = call(ZIP, "--xattrs", "-fz", "forced-zip64.zip", "sample.dat", cwd=root)
         check(run.returncode == 0, "forced ZIP64 metadata archive")

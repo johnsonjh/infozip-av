@@ -158,10 +158,9 @@ int xtr_zip_capture(struct zlist far *z,int isdir,int issym,int encrypted,int or
     r=xtr_linux_capture_fd(fd,id,stage,encrypted,&dig);
     if(r!=XTR_OK){r=ZE_TEMP;goto done;}
     if(dig.count==0){r=ZE_OK;goto done;}
-    /* ZIP intentionally does not encrypt directory entries, so a directory
-       owner could not satisfy the encrypted owner/companion graph contract.
-       Never quietly publish its metadata as plaintext in an encrypted job. */
-    if(isdir && encrypted){r=ZE_PARMS;goto done;}
+    /* V1 directory metadata is encrypted only in its companion. The ZIP
+       directory owner itself stays cleartext; its outer record advertises
+       encrypted companion metadata without exposing the EA values. */
     memset(&outer,0,sizeof(outer));
     memcpy(outer.owner,id,16);
     outer.mode=XTR_V1_COMPANION;

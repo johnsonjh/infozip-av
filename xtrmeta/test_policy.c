@@ -48,6 +48,21 @@ test_crypto (void)
         }
     }
 
+  /* Cleartext directory owner, encrypted metadata companion only. */
+  e.mode = 2;
+  e.flags = 1;
+  C (xtr1_check_member_policy_dir (&e, 0, 3, 1, 1, 1, 0, 0) == XTR_OK);
+  C (xtr1_check_member_policy_dir (&e, 0, 3, 0, 1, 1, 0, 0) == XTR_CORRUPT);
+  C (xtr1_check_member_policy_dir (&e, 0, 3, 1, 1, 0, 0, 0) == XTR_IO);
+  C (xtr1_check_member_policy_dir (&e, 0, 3, 1, 0, 1, 0, 0) == XTR_IO);
+  C (xtr1_check_member_policy_dir (&e, 0, 3, 1, 1, 1, 1, 0) == XTR_CORRUPT);
+  C (xtr1_check_member_policy_dir (&e, 0, 3, 1, 1, 1, 0, 1) == XTR_UNSUPPORTED);
+  C (xtr1_check_member_policy_dir (&e, 1, 3, 1, 1, 1, 0, 0) == XTR_CORRUPT);
+  C (xtr1_check_member_policy_dir (&e, 3, 3, 1, 1, 1, 0, 0) == XTR_CORRUPT);
+  e.flags = 0;
+  C (xtr1_check_member_policy_dir (&e, 0, 3, 1, 1, 1, 0, 0) == XTR_CORRUPT);
+  e.flags = 1;
+  C (xtr1_check_member_policy (&e, 0, 3, 1, 1, 0, 0) == XTR_CORRUPT);
   e.mode = 1;
   e.flags = 0;
   C (xtr1_check_member_policy (&e, 0, 0, 1, 0, 0, 1) == XTR_OK);

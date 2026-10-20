@@ -9,15 +9,15 @@
 #undef ZD_DATE
 #define ZD_DATE "2026-10-18"
 
-#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(ZD_DOS16) && !defined(_FILE_OFFSET_BITS)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(ZD_DOS16) && !defined(OS2) && !defined(_FILE_OFFSET_BITS)
 # define _FILE_OFFSET_BITS 64
 #endif /* _FILE_OFFSET_BITS */
 
-#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(ZD_DOS16) && !defined(_POSIX_C_SOURCE)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(ZD_DOS16) && !defined(OS2) && !defined(_POSIX_C_SOURCE)
 # define _POSIX_C_SOURCE 200809L
 #endif /* ifndef _POSIX_C_SOURCE */
 
-#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(ZD_DOS16)
+#if !defined(_WIN32) && !defined(__DJGPP__) && !defined(ZD_DOS16) && !defined(OS2)
 #define UNIX 1
 #endif
 #define DLL 1
@@ -36,6 +36,9 @@
 extern unsigned long __cdecl crc32 (unsigned long, const unsigned char *, size_t);
 #else
 extern unsigned long crc32 (unsigned long, const unsigned char *, size_t);
+#if defined(OS2) && defined(__WATCOMC__)
+#pragma aux crc32 "_*" parm caller [] value [eax] modify [eax]
+#endif
 #endif
 #endif
 
@@ -62,6 +65,12 @@ extern unsigned long crc32 (unsigned long, const unsigned char *, size_t);
 #elif defined(ZD_DOS16)
 # include "dos16_port.h"
 # include <io.h>
+#elif defined(OS2)
+# include <io.h>
+# include <fcntl.h>
+# include "../zipopt/os2_port.h"
+# define mkstemp iz_os2_mkstemp
+# define link(a,b) iz_os2_publish_noreplace((a),(b))
 #elif defined(__DJGPP__)
 # include <unistd.h>
 # include "../zipopt/dos386_port.h"
@@ -261,7 +270,7 @@ zd_write (FILE *f, const void *p, size_t n)
 static int
 zd_input_representable (FILE *in)
 {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(OS2)
   __int64 size = _filelengthi64 (_fileno (in));
   if (size < 0)
 #else
@@ -273,7 +282,7 @@ zd_input_representable (FILE *in)
       return 0;
     }
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(OS2)
   if ((unsigned __int64)size > (unsigned long)ZD_POS_MAX)
 #else
   if (sb.st_size > (off_t)ZD_POS_MAX)
@@ -905,7 +914,7 @@ zd_crc32_step (unsigned long crc, const unsigned char *p, unsigned long n)
 }
 
 static int
-zd_unzip_cb (zvoid *g, uch *p, ulg len, int flag)
+UZ_EXP zd_unzip_cb (zvoid *g, uch *p, ulg len, int flag)
 {
   (void)g;
   if (flag != 0)
@@ -944,7 +953,7 @@ static unsigned long zd_md5_bytes, zd_md5_crc;
 static int zd_md5_failed;
 
 static int
-zd_md5_cb (zvoid *g, uch *p, ulg len, int flag)
+UZ_EXP zd_md5_cb (zvoid *g, uch *p, ulg len, int flag)
 {
   (void)g;
   if (flag != 0)
@@ -1161,7 +1170,7 @@ static FILE *zd_xtr_stage;
 static unsigned long zd_xtr_bytes;
 static int zd_xtr_failed;
 static int
-zd_xtr_cb(zvoid *g,uch *p,ulg len,int flag)
+UZ_EXP zd_xtr_cb(zvoid *g,uch *p,ulg len,int flag)
 {
   (void)g;
   if (flag!=0) return 0;
@@ -2417,11 +2426,16 @@ main (int argc, char **argv)
       goto done;
     }
 
+#ifndef OS2
+  /* POSIX/Win32/DOS publication copies or hardlinks and leaves the
+   * temporary name behind. The native OS/2 backend uses DosMove(),
+   * which consumes the temporary pathname on success. */
   if (unlink (tmp) != 0)
     {
       zd_fail ("published output but could not remove temporary");
       goto done;
     }
+#endif
 
   ok = 1;
 done:

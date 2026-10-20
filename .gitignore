@@ -6,6 +6,7 @@ a.out
 /build/
 /build-dos16/
 /build-dos386/
+/build-os2/
 /build-win32/
 /CMPSC-work/
 *.core
@@ -17,6 +18,7 @@ core-*
 *.err
 log.pvs
 *.orig
+/os2/
 /*.patch
 pvsreport/
 *.rej

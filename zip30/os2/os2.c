@@ -84,7 +84,7 @@ char *w;                /* path/pattern to match */
 
   /* catch special case: treat "*.*" as "*" for DOS-impaired people */
   r = strlen(p);
-  if (strcmp(p + r - 3, "*.*") == 0)
+  if (r >= 3 && strcmp(p + r - 3, "*.*") == 0)
     p[r - 2] = '\0';
 
   /* Normalize path delimiter as '/'. */
@@ -391,6 +391,10 @@ iztimes *t;             /* return value: access, modific. and creation times */
   ulg r;
   unsigned int len = strlen(f);
   int isstdin = !strcmp(f, "-");
+#ifdef XTR_OS2_NATIVE
+  extern int xtr_os2_stage_stat(const char *,ulg *,long *,iztimes *);
+  if(xtr_os2_stage_stat(f,a,n,t))return 0x00210000UL;
+#endif
 
   if (f == label) {
     if (a != NULL)
@@ -444,6 +448,15 @@ iztimes *t;             /* return value: access, modific. and creation times */
     t->ctime = s.st_ctime;
   }
 
+#ifdef OS2_KLIBC_SYMLINKS
+  if (!linkput) {
+    char resolved[1024];
+    if (iz_os2_link_resolve(name,resolved,sizeof(resolved),1)) {
+      free(name);return 0;
+    }
+    r=GetFileTime(resolved);
+  } else
+#endif
   r = GetFileTime(name);
   free(name);
 
