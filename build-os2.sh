@@ -32,19 +32,13 @@ case " ${LOCAL_OS2_CFLAGS:-} " in
 esac
 # -zp1 matches the OS/2 EA ABI and preexisting makefile.os2 settings.
 # Disable ASM and optional third-party codecs, but keep built-in AES.
-common="-bt=os2 -3r -mf -zp1 -zq -DNO_ASM -D__32BIT__ $opt"
+# Keep compiler diagnostics in build-os2/build.log only.
+common="-bt=os2 -3r -mf -zp1 -zq -fr -DNO_ASM -D__32BIT__ $opt"
 build="$root/build-os2"
 out="$root/os2"
 mkdir -p "$build" "$out"
 log="$build/build.log"
 : > "$log"
-# .err files emitted by wcc386 in source directories are not build products.
-cleanup()
-{
-  find "$root/zip30" "$root/unzip60" "$root/zipopt" "$root/zipdedup" \
-    "$root/xtrmeta" -type f -name '*.err' -exec rm -f '{}' +
-}
-trap cleanup 0
 compile()
 {
   target=$1
