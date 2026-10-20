@@ -195,6 +195,9 @@ or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav).
 * Use “`./build-dos16.sh`” for DOS 16‑bit builds using
   [Open Watcom V2.0](https://github.com/open-watcom/open-watcom-v2).
 
+* Use “`./build-os2.sh`” for OS/2 32‑bit builds using
+  [Open Watcom V2.0](https://github.com/open-watcom/open-watcom-v2).
+
 > [!IMPORTANT]
 > Examine the actual build scripts (and the “`build-all.sh`” script the
 > developer uses to build the binary releases) for more details.
