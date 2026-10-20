@@ -493,7 +493,7 @@ int cs;                 /* force case-sensitive match if TRUE */
 /* Compare the sh pattern p with the string s and return true if they match,
    false if they don't or if there is a syntax error in the pattern. */
 {
-  while (s[0] == '.' && s[1] == '/') 
+  while (s[0] == '.' && s[1] == '/')
     s += 2;                /* strip redundant leading "./" sections */
   return recmatch(p, s, cs) == 1;
 }
@@ -862,7 +862,7 @@ void envargs(Pargc, Pargv, envstr, envstr2)
 
             /* remove escape characters */
             while ((argstart = MBSCHR(argstart, '\\')) != NULL) {
-                strcpy(argstart, argstart + 1);
+                memmove(argstart, argstart +1, strlen(argstart)+1);
                 if (*argstart)
                     ++argstart;
             }
