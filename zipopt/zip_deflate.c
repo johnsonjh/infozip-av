@@ -34,6 +34,7 @@
 #define flush_outbuf zo_legacy_flush_outbuf
 #define seekable zo_legacy_seekable
 #define error zo_legacy_error
+#define huffman_optimize_extra zo_legacy_huffman_optimize_extra
 #define level zo_legacy_level
 #define noisy zo_legacy_noisy
 #define verbose zo_legacy_verbose
@@ -78,6 +79,7 @@ static int (*zo_writer) (void *, const unsigned char *, unsigned);
 static void *zo_context;
 static int zo_failure;
 
+int zo_legacy_huffman_optimize_extra = 0;
 int zo_legacy_level = 0;
 int zo_legacy_noisy = 0;
 int zo_legacy_verbose = 0;

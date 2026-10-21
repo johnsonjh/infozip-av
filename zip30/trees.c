@@ -123,6 +123,7 @@
    then include ctype.h and get 8-byte off_t.  8/14/04 EG */
 #include "zip.h"
 #include <ctype.h>
+#include "huffman_extra.h"
 
 #ifndef USE_ZLIB
 
@@ -943,9 +944,14 @@ local void send_tree (tree, max_code)
  * Construct the Huffman tree for the bit lengths and return the index in
  * bl_order of the last bit length code to send.
  */
+static he_result he_legacy_result;
+static int he_legacy_selected = 0;
+
 local int build_bl_tree()
 {
     int max_blindex;  /* index of last bit length code of non zero freq */
+    ulg previous_opt_len = opt_len;
+    he_legacy_selected=0;
 
     /* Determine the bit length frequencies for literal and distance trees */
     scan_tree((ct_data near *)dyn_ltree, l_desc.max_code);
@@ -966,6 +972,39 @@ local int build_bl_tree()
     }
     /* Update opt_len to include the bit length tree and counts */
     opt_len += 3*(max_blindex+1) + 5+5+4;
+
+    if (huffman_optimize_extra) {
+        unsigned char sequence[HE_MAX], initial[19];
+        unsigned count=0, i;
+
+        for(i=0U;i<=(unsigned)l_desc.max_code;++i)
+            sequence[count++]=(unsigned char)dyn_ltree[i].Len;
+
+        for(i=0U;i<=(unsigned)d_desc.max_code;++i)
+            sequence[count++]=(unsigned char)dyn_dtree[i].Len;
+
+        for(i=0U;i<19U;++i) initial[i]=(unsigned char)bl_tree[i].Len;
+
+        if(count<=HE_MAX) {
+            he_optimize(sequence,count,initial,&he_legacy_result);
+
+            if(he_legacy_result.cost < (unsigned long)(opt_len-previous_opt_len)) {
+                he_legacy_selected=1;
+                opt_len=previous_opt_len+(ulg)he_legacy_result.cost;
+                max_blindex=(int)he_legacy_result.hclen-1;
+
+                for(i=0U;i<19U;++i) bl_tree[i].Len=he_legacy_result.lengths[i];
+
+                for(i=0U;i<=MAX_BITS;++i) bl_count[i]=0;
+
+                for(i=0U;i<19U;++i)
+                    if(bl_tree[i].Len) ++bl_count[bl_tree[i].Len];
+
+                gen_codes((ct_data near *)bl_tree,BL_CODES-1);
+            }
+        }
+    }
+
     Tracev((stderr, "\ndyn trees: dyn %ld, stat %ld", opt_len, static_len));
 
     return max_blindex;
@@ -995,6 +1034,23 @@ local void send_all_trees(lcodes, dcodes, blcodes)
     }
     Tracev((stderr, "\nbl tree: sent %s",
      zip_fuzofft(bits_sent, NULL, NULL)));
+
+    if (he_legacy_selected) {
+        unsigned i;
+
+        for(i=0U;i<he_legacy_result.count;++i) {
+            unsigned sym=he_legacy_result.symbol[i];
+            unsigned count=he_legacy_result.repeat[i];
+
+            send_code(sym,bl_tree);
+
+            if(sym==16U) send_bits(count-3U,2);
+            else if(sym==17U) send_bits(count-3U,3);
+            else if(sym==18U) send_bits(count-11U,7);
+        }
+
+        return;
+    }
 
     send_tree((ct_data near *)dyn_ltree, lcodes-1); /* send the literal tree */
     Tracev((stderr, "\nlit tree: sent %s",

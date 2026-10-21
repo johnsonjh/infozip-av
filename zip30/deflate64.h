@@ -28,6 +28,8 @@ typedef struct d64_stats
  * 1 for allocation failure, 2 for output failure, and 3 for invalid input.
  */
 
+void d64_set_huffman_optimize_extra(int enabled);
+
 int d64_encode (d64_read_func read_cb, d64_write_func write_cb, void *opaque,
                 int level, d64_stats *stats);
 

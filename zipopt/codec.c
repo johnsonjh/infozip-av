@@ -16,6 +16,9 @@
 #include "../zip30/zopfli.h"
 
 #include "codec.h"
+
+extern int zo_legacy_huffman_optimize_extra;
+
 #include "zip_deflate.h"
 
 #ifdef ZO_WITH_WAVPACK
@@ -801,6 +804,10 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
       return 0;
     }
 
+  ZopfliSetHuffmanOptimizeExtra(settings->huffman_optimize_extra);
+  d64_set_huffman_optimize_extra(settings->huffman_optimize_extra);
+  zo_legacy_huffman_optimize_extra = settings->huffman_optimize_extra;
+
   switch (id)
     {
     case 0:
@@ -836,7 +843,9 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
           unsigned dlevel
               = settings->levels[id] == 11U ? 9U : settings->levels[id];
 #if defined(ZO_USE_ZLIB_NG) || defined(ZO_USE_ZLIB)
-          rc = zo_deflate (&s, dlevel);
+          rc = settings->huffman_optimize_extra ?
+              zo_zip_internal_deflate (zo_rd, zo_wr, &s, dlevel) :
+              zo_deflate (&s, dlevel);
 #else  /* if defined( ZO_USE_ZLIB_NG ) || defined( ZO_USE_ZLIB ) */
           rc = zo_zip_internal_deflate (zo_rd, zo_wr, &s, dlevel);
 #endif /* if defined( ZO_USE_ZLIB_NG ) || defined( ZO_USE_ZLIB ) */

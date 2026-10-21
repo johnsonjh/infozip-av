@@ -22,6 +22,13 @@
  * method-8 DEFLATE output. */
 
 #include "zopfli.h"
+#include "huffman_extra.h"
+
+static int zopfli_huffman_optimize_extra = 0;
+
+void ZopfliSetHuffmanOptimizeExtra(int enabled) {
+  zopfli_huffman_optimize_extra = enabled ? 1 : 0;
+}
 
 /* Recoverable allocations for the self-contained Zopfli encoder.
  * Every allocation made during a DeflatePart call is owned by the call,
@@ -1477,7 +1484,9 @@ static size_t EncodeTree(const unsigned* ll_lengths,
                          const unsigned* d_lengths,
                          int use_16, int use_17, int use_18,
                          unsigned char* bp,
-                         unsigned char** out, size_t* outsize) {
+                         unsigned char** out, size_t* outsize,
+                         unsigned* resulting_clcl,
+                         unsigned* resulting_hclen) {
   unsigned lld_total;  /* Total amount of literal, length, distance codes. */
   /* Runlength encoded version of lengths of litlen and dist trees. */
   unsigned* rle = 0;
@@ -1583,6 +1592,11 @@ static size_t EncodeTree(const unsigned* ll_lengths,
   /* Trim zeros. */
   while (hclen > 0 && clcounts[order[hclen + 4 - 1]] == 0) hclen--;
 
+  if (resulting_clcl != NULL) {
+    memcpy(resulting_clcl, clcl, sizeof(clcl));
+  }
+  if (resulting_hclen != NULL) *resulting_hclen = hclen;
+
   if (!size_only) {
     AddBits(hlit, 5, bp, out, outsize);
     AddBits(hdist, 5, bp, out, outsize);
@@ -1619,6 +1633,367 @@ static size_t EncodeTree(const unsigned* ll_lengths,
   return result_size;
 }
 
+#ifdef ZOPFLI_EXACT_RLE
+/*
+ * Find the shortest RLE spelling of the concatenated literal/length and
+ * distance code-length lists for one *fixed* code-length Huffman tree.
+ *
+ * Unlike the usual greedy encoder this tries every legal 16/17/18 repeat
+ * length, including repeats crossing the alphabet boundary.  It is used
+ * only while writing an already selected dynamic block.  Thus the existing
+ * match decisions, block splitting and block-cost estimates stay unchanged.
+ * The original writer remains the fallback whenever this does not win.
+ *
+ * The largest header has 286 + 32 = 318 lengths.  Fixed, bounded scratch
+ * avoids any allocation and remains valid for ANSI C89 implementations.
+ */
+#define ZOPFLI_RLE_MAX_LENGTHS 318
+#define ZOPFLI_RLE_INF ((size_t)-1 / 4)
+static size_t EncodeTreeExactRle(const unsigned* ll_lengths,
+                                 const unsigned* d_lengths,
+                                 const unsigned* clcl,
+                                 unsigned hclen,
+                                 int use_16, int use_17, int use_18,
+                                 unsigned char* bp,
+                                 unsigned char** out, size_t* outsize,
+                                 size_t* frequencies) {
+  unsigned char lengths[ZOPFLI_RLE_MAX_LENGTHS];
+  unsigned char choices[ZOPFLI_RLE_MAX_LENGTHS];
+  unsigned char counts[ZOPFLI_RLE_MAX_LENGTHS];
+  size_t best[ZOPFLI_RLE_MAX_LENGTHS + 1];
+  unsigned hlit = 29;
+  unsigned hdist = 29;
+  unsigned hlit2, total, i, j, run, limit;
+  int at;
+  static const unsigned order[19] = {
+    16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
+  };
+
+  while (hlit > 0 && ll_lengths[257 + hlit - 1] == 0) hlit--;
+  while (hdist > 0 && d_lengths[1 + hdist - 1] == 0) hdist--;
+  hlit2 = hlit + 257;
+  total = hlit2 + hdist + 1;
+  if (total > ZOPFLI_RLE_MAX_LENGTHS) return (size_t)-1;
+  for (i = 0; i < total; ++i) {
+    lengths[i] = (unsigned char)(i < hlit2 ? ll_lengths[i]
+                                      : d_lengths[i - hlit2]);
+  }
+
+  best[total] = 0;
+  for (at = (int)total - 1; at >= 0; --at) {
+    unsigned value = lengths[at];
+    /* A zero Huffman length means this symbol has NO code, not a free code.
+       Some greedy trees omit literal zero entirely in favour of 17/18. */
+    size_t cost = clcl[value] != 0 && best[at + 1] != ZOPFLI_RLE_INF
+                      ? (size_t)clcl[value] + best[at + 1]
+                      : ZOPFLI_RLE_INF;
+    unsigned symbol = value;
+    unsigned count = 1;
+
+    limit = 1;
+    while ((unsigned)at + limit < total && limit < 138U &&
+           lengths[at + limit] == value) ++limit;
+
+    if (use_16 && clcl[16] != 0 && at != 0 &&
+        lengths[at - 1] == value) {
+      for (run = 3; run <= 6 && run <= limit; ++run) {
+        size_t next = best[at + run] == ZOPFLI_RLE_INF
+                          ? ZOPFLI_RLE_INF
+                          : (size_t)clcl[16] + 2 + best[at + run];
+        if (next < cost) { cost = next; symbol = 16; count = run; }
+      }
+    }
+    if (value == 0 && use_17 && clcl[17] != 0) {
+      for (run = 3; run <= 10 && run <= limit; ++run) {
+        size_t next = best[at + run] == ZOPFLI_RLE_INF
+                          ? ZOPFLI_RLE_INF
+                          : (size_t)clcl[17] + 3 + best[at + run];
+        if (next < cost) { cost = next; symbol = 17; count = run; }
+      }
+    }
+    if (value == 0 && use_18 && clcl[18] != 0) {
+      for (run = 11; run <= 138 && run <= limit; ++run) {
+        size_t next = best[at + run] == ZOPFLI_RLE_INF
+                          ? ZOPFLI_RLE_INF
+                          : (size_t)clcl[18] + 7 + best[at + run];
+        if (next < cost) { cost = next; symbol = 18; count = run; }
+      }
+    }
+    best[at] = cost;
+    choices[at] = (unsigned char)symbol;
+    counts[at] = (unsigned char)count;
+  }
+
+  if (best[0] == ZOPFLI_RLE_INF) return (size_t)-1;
+  if (frequencies != NULL) {
+    for (i = 0; i < 19; ++i) frequencies[i] = 0;
+    for (i = 0; i < total; i += counts[i]) ++frequencies[choices[i]];
+  }
+  if (out != NULL) {
+    unsigned clsymbols[19];
+    ZopfliLengthsToSymbols(clcl, 19, 7, clsymbols);
+    AddBits(hlit, 5, bp, out, outsize);
+    AddBits(hdist, 5, bp, out, outsize);
+    AddBits(hclen, 4, bp, out, outsize);
+    for (j = 0; j < hclen + 4; ++j) {
+      AddBits(clcl[order[j]], 3, bp, out, outsize);
+    }
+    for (i = 0; i < total; i += counts[i]) {
+      unsigned symbol = choices[i];
+      AddHuffmanBits(clsymbols[symbol], clcl[symbol], bp, out, outsize);
+      if (symbol == 16) AddBits(counts[i] - 3, 2, bp, out, outsize);
+      else if (symbol == 17) AddBits(counts[i] - 3, 3, bp, out, outsize);
+      else if (symbol == 18) AddBits(counts[i] - 11, 7, bp, out, outsize);
+    }
+  }
+  return 14U + 3U * (hclen + 4U) + best[0];
+}
+#endif /* ZOPFLI_EXACT_RLE */
+
+/*
+ * Experimental, independent Kraft-capacity optimizer for Deflate's
+ * code-length alphabet.  Enabled only by ZOPFLI_R7_EXPERIMENTAL.
+ *
+ * Enumerate lengths for the four RLE control symbols (0,16,17,18).
+ * For each length of symbol 16, assign the nonzero literal length
+ * symbols by dynamic programming over the 128 available leaf units.
+ * Price zero runs separately, then reconstruct and independently price
+ * every improving complete header with EncodeTreeExactRle().
+ * This keeps the original and earlier optimizers as safe fallbacks.
+ */
+#ifdef ZOPFLI_R7_EXPERIMENTAL
+#define ZOPFLI_R7_CAPACITY 128U
+#define ZOPFLI_R7_INF 0x3fffffffUL
+static unsigned R7Weight(unsigned len) {
+  return len ? 1U << (7U - len) : 0U;
+}
+
+static unsigned long R7PositiveRun(unsigned n, unsigned lit,
+                                   unsigned rep) {
+  unsigned long dp[ZOPFLI_RLE_MAX_LENGTHS + 1];
+  unsigned pos, r;
+  dp[0] = 0;
+  for (pos = 1; pos <= n; ++pos) {
+    unsigned long cost = dp[pos - 1] + lit;
+    if (rep && pos >= 4) {
+      for (r = 3; r <= 6 && r < pos; ++r) {
+        unsigned long next = dp[pos - r] + rep + 2U;
+        if (next < cost) cost = next;
+      }
+    }
+    dp[pos] = cost;
+  }
+  return dp[n];
+}
+
+/* Price runs of zero lengths in linear time using monotone queues for
+ * the three repeat symbols.  Symbol 16 requires one preceding zero,
+ * but 17 and 18 may occur at the start of a run. */
+static unsigned long R7ZeroPrice(const unsigned short* hist, unsigned longest,
+                                 unsigned len0, unsigned len16,
+                                 unsigned len17, unsigned len18) {
+  unsigned long dp[ZOPFLI_RLE_MAX_LENGTHS + 1];
+  unsigned short queues[3][ZOPFLI_RLE_MAX_LENGTHS + 1];
+  unsigned head[3] = {0,0,0}, tail[3] = {0,0,0};
+  static const unsigned minimum[3] = {3,3,11};
+  static const unsigned maximum[3] = {6,10,138};
+  static const unsigned extra[3] = {2,3,7};
+  unsigned length[3];
+  unsigned n, t;
+  unsigned long total = 0;
+  length[0] = len16;
+  length[1] = len17;
+  length[2] = len18;
+  dp[0] = 0;
+  for (n = 1; n <= longest; ++n) {
+    unsigned long best = len0 && dp[n - 1] < ZOPFLI_R7_INF
+                           ? dp[n - 1] + len0 : ZOPFLI_R7_INF;
+    for (t = 0; t < 3; ++t) {
+      unsigned at;
+      if (!length[t] || n < minimum[t]) continue;
+      at = n - minimum[t];
+      if (t == 0 && at == 0) continue;
+      while (tail[t] > head[t] &&
+             dp[queues[t][tail[t] - 1]] >= dp[at]) --tail[t];
+      queues[t][tail[t]++] = (unsigned short)at;
+      while (head[t] < tail[t] &&
+             (unsigned)queues[t][head[t]] + maximum[t] < n) ++head[t];
+      if (head[t] < tail[t] &&
+          dp[queues[t][head[t]]] < ZOPFLI_R7_INF) {
+        unsigned long cost = dp[queues[t][head[t]]] + length[t] + extra[t];
+        if (cost < best) best = cost;
+      }
+    }
+    dp[n] = best;
+    if (hist[n]) {
+      if (best >= ZOPFLI_R7_INF) return ZOPFLI_R7_INF;
+      total += (unsigned long)hist[n] * best;
+    }
+  }
+  return total;
+}
+
+static void R7FindTree(const unsigned* ll_lengths,
+                       const unsigned* d_lengths,
+                       unsigned* best_tree, unsigned* best_hclen,
+                       size_t* best_cost) {
+  unsigned short hist[16][ZOPFLI_RLE_MAX_LENGTHS + 1];
+  unsigned longest[16];
+  unsigned symbols[15], nsymbols = 0;
+  unsigned char sequence[ZOPFLI_RLE_MAX_LENGTHS];
+  unsigned char back[16][ZOPFLI_R7_CAPACITY + 1];
+  unsigned long positive[16][8], prev[ZOPFLI_R7_CAPACITY + 1];
+  unsigned long next[ZOPFLI_R7_CAPACITY + 1];
+  unsigned clcl[19];
+  unsigned hlit = 29, hdist = 29, total, i, n, v, count;
+  unsigned hclen, rep, len0, len17, len18;
+  unsigned cap, c, len, s, rest, used;
+  unsigned long fixed, price, zero;
+  size_t checked;
+  static const unsigned order[19] = {
+    16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15
+  };
+
+  memset(hist, 0, sizeof(hist));
+  memset(longest, 0, sizeof(longest));
+  while (hlit > 0 && ll_lengths[257 + hlit - 1] == 0) --hlit;
+  while (hdist > 0 && d_lengths[1 + hdist - 1] == 0) --hdist;
+  total = 257 + hlit + hdist + 1;
+  if (total > ZOPFLI_RLE_MAX_LENGTHS) return;
+  for (i = 0; i < total; ++i) {
+    v = i < 257 + hlit ? ll_lengths[i] : d_lengths[i - (257 + hlit)];
+    if (v > 15) return;
+    sequence[i] = (unsigned char)v;
+  }
+  i = 0;
+  while (i < total) {
+    v = sequence[i];
+    count = 1;
+    while (i + count < total && sequence[i + count] == v) ++count;
+    ++hist[v][count];
+    if (count > longest[v]) longest[v] = count;
+    i += count;
+  }
+  for (v = 1; v <= 15; ++v) {
+    if (longest[v]) symbols[nsymbols++] = v;
+  }
+  /* No filler-symbol search for the degenerate one-symbol alphabet. */
+  if (!nsymbols || (nsymbols == 1 && !longest[0])) return;
+  hclen = 0;
+  for (i = 0; i < 19; ++i) {
+    v = order[i];
+    if (v > 0 && v < 16 && longest[v]) hclen = i > 3 ? i - 3 : 0;
+  }
+  fixed = 14UL + 3UL * (hclen + 4U);
+
+  /* Use symbol 16 only if a run has at least four entries. */
+  count = 0;
+  for (v = 0; v < 16; ++v) {
+    if (longest[v] >= 4) count = 7;
+  }
+  for (rep = 0; rep <= count; ++rep) {
+    for (v = 0; v < nsymbols; ++v) {
+      s = symbols[v];
+      for (len = 1; len <= 7; ++len) {
+        price = 0;
+        for (n = 1; n <= longest[s]; ++n) {
+          if (hist[s][n])
+            price += (unsigned long)hist[s][n] * R7PositiveRun(n, len, rep);
+        }
+        positive[s][len] = price;
+      }
+    }
+    for (cap = 0; cap <= ZOPFLI_R7_CAPACITY; ++cap)
+      prev[cap] = ZOPFLI_R7_INF;
+    prev[0] = 0;
+    for (v = 0; v < nsymbols; ++v) {
+      s = symbols[v];
+      for (cap = 0; cap <= ZOPFLI_R7_CAPACITY; ++cap)
+        next[cap] = ZOPFLI_R7_INF;
+      for (cap = 0; cap <= ZOPFLI_R7_CAPACITY; ++cap) {
+        if (prev[cap] == ZOPFLI_R7_INF) continue;
+        for (len = 1; len <= 7; ++len) {
+          c = cap + R7Weight(len);
+          if (c > ZOPFLI_R7_CAPACITY) continue;
+          price = prev[cap] + positive[s][len];
+          if (price < next[c]) {
+            next[c] = price;
+            back[v + 1][c] = (unsigned char)len;
+          }
+        }
+      }
+      memcpy(prev, next, sizeof(prev));
+    }
+    for (len0 = 0; len0 <= (longest[0] ? 7U : 0U); ++len0) {
+      for (len17 = 0; len17 <= (longest[0] >= 3 ? 7U : 0U); ++len17) {
+        for (len18 = 0; len18 <= (longest[0] >= 11 ? 7U : 0U); ++len18) {
+          used = R7Weight(rep) + R7Weight(len0) +
+                 R7Weight(len17) + R7Weight(len18);
+          if (used > ZOPFLI_R7_CAPACITY) continue;
+          cap = ZOPFLI_R7_CAPACITY - used;
+          if (prev[cap] == ZOPFLI_R7_INF) continue;
+          if (fixed + prev[cap] >= (unsigned long)*best_cost) continue;
+          zero = R7ZeroPrice(hist[0], longest[0],
+                             len0, rep, len17, len18);
+          if (zero == ZOPFLI_R7_INF) continue;
+          if (fixed + prev[cap] + zero >= (unsigned long)*best_cost) continue;
+          memset(clcl, 0, sizeof(clcl));
+          clcl[0] = len0; clcl[16] = rep;
+          clcl[17] = len17; clcl[18] = len18;
+          rest = cap;
+          for (v = nsymbols; v > 0; --v) {
+            len = back[v][rest];
+            if (len == 0 || len > 7 || R7Weight(len) > rest) break;
+            clcl[symbols[v - 1]] = len;
+            rest -= R7Weight(len);
+          }
+          if (v != 0 || rest != 0) continue;
+          /* Mandatory verification via existing complete-header scorer. */
+          checked = EncodeTreeExactRle(ll_lengths, d_lengths,
+                      clcl, hclen, rep != 0, len17 != 0, len18 != 0,
+                      NULL, NULL, NULL, NULL);
+          if (checked < *best_cost) {
+            *best_cost = checked;
+            *best_hclen = hclen;
+            memcpy(best_tree, clcl, sizeof(clcl));
+          }
+        }
+      }
+    }
+  }
+}
+#endif /* ZOPFLI_R7_EXPERIMENTAL */
+
+/* Emit a verified complete shared-optimizer header, preserving the
+ * original Zopfli spelling when no strictly smaller header exists. */
+static void AddSharedOptimizedTree(const he_result* result,
+                                   unsigned hlit, unsigned hdist,
+                                   unsigned char* bp, unsigned char** out,
+                                   size_t* outsize) {
+  unsigned codes[19], i, count[8], next[8], c, bits;
+  memset(count,0,sizeof(count)); memset(next,0,sizeof(next));
+  for(i=0;i<19U;++i) if(result->lengths[i]) ++count[result->lengths[i]];
+  c=0U;
+  for(bits=1U;bits<=7U;++bits) { c=(c+count[bits-1U])<<1U; next[bits]=c; }
+  for(i=0;i<19U;++i) {
+    bits=result->lengths[i];
+    codes[i]=bits ? next[bits]++ : 0U;
+  }
+  AddBits(hlit-257U,5U,bp,out,outsize);
+  AddBits(hdist-1U,5U,bp,out,outsize);
+  AddBits(result->hclen-4U,4U,bp,out,outsize);
+  for(i=0;i<result->hclen;++i)
+    AddBits(result->lengths[he_order[i]],3U,bp,out,outsize);
+  for(i=0;i<result->count;++i) {
+    unsigned sym=result->symbol[i];
+    unsigned rep=result->repeat[i];
+    AddHuffmanBits(codes[sym],result->lengths[sym],bp,out,outsize);
+    if(sym==16U) AddBits(rep-3U,2U,bp,out,outsize);
+    else if(sym==17U) AddBits(rep-3U,3U,bp,out,outsize);
+    else if(sym==18U) AddBits(rep-11U,7U,bp,out,outsize);
+  }
+}
+
 static void AddDynamicTree(const unsigned* ll_lengths,
                            const unsigned* d_lengths,
                            unsigned char* bp,
@@ -1626,20 +2001,132 @@ static void AddDynamicTree(const unsigned* ll_lengths,
   int i;
   int best = 0;
   size_t bestsize = 0;
+#ifdef ZOPFLI_EXACT_RLE
+  unsigned exact_clcl[19];
+  unsigned newclcl[19];
+  size_t frequencies[19];
+  unsigned pass;
+  unsigned k;
+  static const unsigned clorder[19] = {16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15};
+  unsigned exact_hclen = 0;
+  int exact_best = 0;
+  size_t exact_bestsize = (size_t)-1;
+#endif
 
+  /* Runtime opt-in always takes precedence over the older experimental
+     compile-time defines.  No flag means the original eight-mask greedy
+     header output, even if those experimental defines are present. */
+  if (!zopfli_huffman_optimize_extra) {
+    for (i=0; i<8; ++i) {
+      size_t nbits=EncodeTree(ll_lengths,d_lengths,
+                             i&1,i&2,i&4,0,0,0,NULL,NULL);
+      if (bestsize==0 || nbits<bestsize) { bestsize=nbits; best=i; }
+    }
+    EncodeTree(ll_lengths,d_lengths,best&1,best&2,best&4,
+               bp,out,outsize,NULL,NULL);
+    return;
+  }
+  if (zopfli_huffman_optimize_extra) {
+    he_result improved;
+    unsigned char seq[HE_MAX], initial[19];
+    unsigned llcount=286U, dcount=32U, nseq, pos, j;
+    unsigned long prior=HE_INF;
+    while(llcount>257U && ll_lengths[llcount-1U]==0U) --llcount;
+    while(dcount>1U && d_lengths[dcount-1U]==0U) --dcount;
+    nseq=llcount+dcount;
+    for(j=0U;j<llcount;++j) seq[j]=(unsigned char)ll_lengths[j];
+    for(j=0U;j<dcount;++j) seq[llcount+j]=(unsigned char)d_lengths[j];
+    /* Seed from all eight existing Zopfli header variants. */
+    for(pos=0U;pos<8U;++pos) {
+      unsigned tree[19], h;
+      size_t existing=EncodeTree(ll_lengths,d_lengths,
+                   pos&1U,pos&2U,pos&4U,0,0,0,tree,&h);
+      if(existing<prior) {
+        prior=(unsigned long)existing;
+        for(j=0U;j<19U;++j) initial[j]=(unsigned char)tree[j];
+      }
+    }
+    he_optimize(seq,nseq,initial,&improved);
+    if(improved.cost < prior) {
+      AddSharedOptimizedTree(&improved,llcount,dcount,bp,out,outsize);
+      return;
+    }
+  }
   for(i = 0; i < 8; i++) {
+#ifdef ZOPFLI_EXACT_RLE
+    unsigned clcl[19];
+    unsigned hclen;
+    size_t exact_size;
+#endif
     size_t size = EncodeTree(ll_lengths, d_lengths,
                              i & 1, i & 2, i & 4,
-                             0, 0, 0);
+                             0, 0, 0,
+#ifdef ZOPFLI_EXACT_RLE
+                             clcl, &hclen);
+#else
+                             NULL, NULL);
+#endif
     if (bestsize == 0 || size < bestsize) {
       bestsize = size;
       best = i;
     }
+#ifdef ZOPFLI_EXACT_RLE
+    exact_size = EncodeTreeExactRle(ll_lengths, d_lengths, clcl, hclen,
+                                    i & 1, i & 2, i & 4,
+                                    NULL, NULL, NULL, NULL);
+    if (exact_size < exact_bestsize) {
+      exact_bestsize = exact_size;
+      exact_best = i;
+      exact_hclen = hclen;
+      memcpy(exact_clcl, clcl, sizeof(exact_clcl));
+    }
+    /* Alternating minimization: exact RLE for a fixed tree, followed by
+       a length-limited Huffman rebuild for that RLE's frequencies.
+       Keep the best complete candidate, never a partially evaluated tree. */
+    for (pass = 0; pass < 3; ++pass) {
+      size_t candidate;
+      unsigned h = 15;
+      candidate = EncodeTreeExactRle(ll_lengths, d_lengths, clcl, hclen,
+                                     i & 1, i & 2, i & 4,
+                                     NULL, NULL, NULL, frequencies);
+      if (candidate == (size_t)-1) break;
+      ZopfliCalculateBitLengths(frequencies, 19, 7, newclcl);
+      while (h > 0 && newclcl[clorder[h + 3]] == 0) --h;
+      candidate = EncodeTreeExactRle(ll_lengths, d_lengths, newclcl, h,
+                                     i & 1, i & 2, i & 4,
+                                     NULL, NULL, NULL, NULL);
+      if (candidate < exact_bestsize) {
+        exact_bestsize = candidate;
+        exact_best = i;
+        exact_hclen = h;
+        memcpy(exact_clcl, newclcl, sizeof(exact_clcl));
+      }
+      for (k = 0; k < 19; ++k) clcl[k] = newclcl[k];
+      hclen = h;
+    }
+#endif
   }
 
-  EncodeTree(ll_lengths, d_lengths,
-             best & 1, best & 2, best & 4,
-             bp, out, outsize);
+#ifdef ZOPFLI_EXACT_RLE
+#ifdef ZOPFLI_R7_EXPERIMENTAL
+  {
+    size_t previous = exact_bestsize;
+    R7FindTree(ll_lengths, d_lengths, exact_clcl,
+               &exact_hclen, &exact_bestsize);
+    /* Only replace the winning mask when R7 has supplied a better tree. */
+    if (exact_bestsize < previous) exact_best = 7;
+  }
+#endif
+  if (exact_bestsize < bestsize) {
+    (void)EncodeTreeExactRle(ll_lengths, d_lengths,
+                             exact_clcl, exact_hclen,
+                             exact_best & 1, exact_best & 2, exact_best & 4,
+                             bp, out, outsize, NULL);
+    return;
+  }
+#endif
+  EncodeTree(ll_lengths, d_lengths, best & 1, best & 2, best & 4,
+             bp, out, outsize, NULL, NULL);
 }
 
 /*
@@ -1653,7 +2140,7 @@ static size_t CalculateTreeSize(const unsigned* ll_lengths,
   for(i = 0; i < 8; i++) {
     size_t size = EncodeTree(ll_lengths, d_lengths,
                              i & 1, i & 2, i & 4,
-                             0, 0, 0);
+                             0, 0, 0, NULL, NULL);
     if (result == 0 || size < result) result = size;
   }
 

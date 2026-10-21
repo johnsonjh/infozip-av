@@ -33,6 +33,7 @@ New configurable compression settings:
     zipopt/zipopt --compress-level=all=5 --compress-level=zstd=9 input.zip output.zip
     zipopt/zipopt --zstd-level=22 --methods=zstd input.zip output.zip
     zipopt/zipopt --methods=deflate --disable-zopfli input.zip output.zip
+    zipopt/zipopt --methods=deflate,deflate64 --huffman-optimize-extra input.zip output.zip
 
 `--compress-level=NAME=N` accepts a Zip-style level of 1..9 or 11 for
 adjustable candidates (Deflate, Deflate64, DCL Implode, bzip2, LZMA, XZ,
@@ -56,6 +57,18 @@ with the active compiler and flags. If they do, levels 1..9 use native zlib-ng;
 otherwise zipopt uses the bundled Info-ZIP encoder in `zip30/deflate.c` and
 `zip30/trees.c`. This fallback has no external zlib dependency and is not
 thread-safe, consistent with zipopt's sequential candidate execution.
+
+`--huffman-optimize-extra` is an opt-in header-only optimization for
+Deflate and Deflate64 at every supported compression level. It evaluates
+exact code-length RLE, alternating Huffman/RLE refinement, and bounded
+Kraft-capacity R7 search for each dynamic block. It never replaces any
+legacy header unless the complete serialized header is strictly smaller.
+This can increase CPU usage substantially and is disabled by default.
+When an external zlib/zlib-ng Deflate backend is selected, this option
+routes the affected candidate through the always-built internal encoder;
+other invocations retain their normal external backend. The codecs for
+unrelated methods are unaffected.  On memory-constrained systems, any
+allocation failure in the R7 search safely leaves the earlier candidates.
 
 `ZO_DEFLATE_BACKEND=native`, `zlib` and `internal` force a specific backend;
 `native` fails at build time when native zlib-ng is not linkable.

@@ -255,7 +255,6 @@ zo_method_name (unsigned method)
 static void
 zo_usage (void)
 {
-  /******************************************************************************/
   fprintf (
       stdout,
       "Xtro-ZIP - ZipOpt - Advanced Zip archive optimization utility\n"
@@ -263,6 +262,7 @@ zo_usage (void)
       "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>\n\n",
       ZO_VER, ZO_DATE);
 
+        /******************************************************************************/
   puts ("Usage: zipopt [option(s)...] <in.zip> <out.zip>\n"
         "  --methods=<help|list|all>      specify methods (default: all)\n"
         "  --fwkcs-md5                    write FWKCS MD5 metadata to output\n"
@@ -274,11 +274,12 @@ zo_usage (void)
         "  --wavpack-extra-level=N        WavPack extra level (0..6; default 6)\n"
         "  --wavpack-compat-reencode      do not retain WavPack V5 streams\n"
         "  --disable-zopfli               ordinary Deflate instead of Zopfli\n"
+        "  --huffman-optimize-extra       run expensive Huffman header optimizations\n"
         "  --zopfli-iterations=N          Zopfli passes (1..10000; default 15)\n"
         "  -v, --verbose                  verbose output display mode\n"
         "  -V, --version                  display version and acceleration\n"
         "  -h, --help                     display this help text");
-  /******************************************************************************/
+        /******************************************************************************/
 }
 
 static void
@@ -886,6 +887,10 @@ main (int argc, char **argv)
       else if (!strncmp (arg, "--methods=", 10))
         {
           method_arg = arg + 10;
+        }
+      else if (!strcmp (arg, "--huffman-optimize-extra"))
+        {
+          settings.huffman_optimize_extra = 1;
         }
       else if (!strcmp (arg, "--disable-zopfli"))
         {

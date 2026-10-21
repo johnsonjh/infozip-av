@@ -42,6 +42,7 @@ int filesync = 0;       /* 1=file sync, delete entries not on file system */
 int adjust = 0;         /* 1=adjust offsets for sfx'd file (keep preamble) */
 int fwkcs_md5 = 0;      /* 1=add FWKCS MD5 metadata */
 int level = 6;          /* 0=fastest compression, 9=best compression, 11=Zopfli */
+int huffman_optimize_extra = 0; /* extra Deflate header search, opt-in */
 int zopfli_iterations = 15;  /* Zopfli optimization iterations */
 int dcl_implode_mode = 0;    /* 0=binary literals, 1=ASCII literals */
 ulg dcl_implode_dict = 0;    /* 0=automatic, otherwise 1K/2K/4K */

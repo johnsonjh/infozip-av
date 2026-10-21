@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "deflate64.h"
+#include "huffman_extra.h"
 
 #define D64_HISTORY 65536UL
 #define D64_MAX_MATCH 65538UL
@@ -28,6 +29,12 @@
 #define D64_MEM_ERROR 1
 #define D64_WRITE_ERROR 2
 #define D64_PARAM_ERROR 3
+
+static int d64_huffman_optimize_extra = 0;
+
+void d64_set_huffman_optimize_extra(int enabled) {
+  d64_huffman_optimize_extra = enabled ? 1 : 0;
+}
 
 typedef struct d64_token
 {
@@ -1335,6 +1342,27 @@ d64_prepare_dynamic (const unsigned long litfreq[D64_LIT_CODES],
       cost += (unsigned long)bl[rle[i].sym] + (unsigned long)rle[i].extra_bits;
     }
 
+  if (d64_huffman_optimize_extra) {
+    he_result improved;
+    unsigned char initial[19];
+    unsigned j;
+    for (j=0U;j<19U;++j) initial[j]=bl[j];
+    he_optimize(seq,nseq,initial,&improved);
+    if (improved.cost < cost && improved.count <= D64_MAX_RLE) {
+      for(j=0U;j<19U;++j) bl[j]=improved.lengths[j];
+      if (!d64_build_codes(bl,D64_BL_CODES,7U,blcode)) return 0;
+      *nrle=improved.count;
+      *hclen=improved.hclen;
+      for(j=0U;j<*nrle;++j) {
+        unsigned sym=improved.symbol[j], count=improved.repeat[j];
+        rle[j].sym=sym;
+        rle[j].extra=(sym==16U||sym==17U) ? count-3U :
+                     (sym==18U ? count-11U : 0U);
+        rle[j].extra_bits=(sym==16U)?2U:((sym==17U)?3U:((sym==18U)?7U:0U));
+      }
+      cost=improved.cost;
+    }
+  }
   *header_cost = cost;
 
   return 1;

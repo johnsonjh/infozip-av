@@ -377,6 +377,15 @@ Compiler Flags
     required.  --zopfli-iterations selects 1 through 10000 optimization
     iterations; the default is 15.
 
+    --huffman-optimize-extra activates a newly implemented dynamic-tree
+    header optimizer for ZIP DEFLATE levels 1 through 9, Zopfli Deflate,
+    and Deflate64 levels 1..9+11 (when available). It always evaluates
+    exact code-length RLE, three alternating Huffman/RLE passes, and a
+    Kraft-capacity R7 search, committing only if the complete dynamic-block
+    header shrinks.  Note that external USE_ZLIB backends cannot perform
+    this internal transformation and Zip will report an error rather than
+    silently ignore flag.
+
   LZMA_SUPPORT
     Enable liblzma-backed LZMA and XZ compression using XZ-Utils 5.4.0+.
     Unix generic builds define this automatically via the configure script

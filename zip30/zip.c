@@ -1700,6 +1700,7 @@ local void help_extended()
 "  --dcl-implode-mode ascii|binary  DCL-implode mode (default binary)",
 "  --dcl-implode-dict 1k|2k|4k      DCL-implode dict size (default automatic)",
 "  --dcl-implode-optimal[-]         override DCL optimal (-11 also enables it)",
+"  --huffman-optimize-extra         run expensive Huffman header optimizations",
 #ifdef ZOPFLI_SUPPORT
 "  --zopfli-iterations n            Zopfli iterations (default 15, 1..10000)",
 #endif
@@ -2946,6 +2947,7 @@ int set_filetype(out_path)
 #define o_so            0x133
 #define o_fwkcs_md5     0x14b
 #define o_11            0x14c
+#define o_huffman_extra 0x180
 #define o_zopfli_iter   0x14d
 #define o_dcl_mode      0x14e
 #define o_dcl_dict      0x14f
@@ -3187,6 +3189,7 @@ struct option_struct far options[] = {
     {"",   "pkav-avextra", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_pkav_avextra, "PKAV AVEXTRA text file"},
     {"z",  "archive-comment", o_NO_VALUE,   o_NOT_NEGATABLE, 'z',  "ask for archive comment"},
     {"Z",  "compression-method", o_REQUIRED_VALUE, o_NOT_NEGATABLE, 'Z', "compression method"},
+    {"",   "huffman-optimize-extra", o_NO_VALUE, o_NOT_NEGATABLE, o_huffman_extra, "Optimize Deflate headers"},
     {"",   "zopfli-iterations", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_zopfli_iter, "Zopfli optimization iterations"},
     {"",   "dcl-implode-mode", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_mode, "DCL literal mode: ascii or binary"},
     {"",   "dcl-implode-dict", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_dcl_dict, "DCL dictionary: 1k, 2k, or 4k"},
@@ -4444,6 +4447,9 @@ char **argv;            /* command line tokens */
           break;
         case 'z':   /* Edit zip file comment */
           zipedit = 1;  break;
+        case o_huffman_extra:
+          huffman_optimize_extra = 1;
+          break;
         case o_zopfli_iter:
           {
             char *endp;
@@ -5058,6 +5064,12 @@ char **argv;            /* command line tokens */
     ZIPERR(ZE_COMPERR, "Zopfli support not enabled");
 #endif
   }
+#ifdef USE_ZLIB
+  if (huffman_optimize_extra && level > 0 && level <= 9 &&
+      (method == BEST || method == DEFLATE))
+    ZIPERR(ZE_PARMS,
+           "--huffman-optimize-extra requires internal Deflate for levels 1..9");
+#endif
   if (zopfli_iterations_set &&
       !(level == 11 && (method == BEST || method == DEFLATE))) {
     ZIPERR(ZE_PARMS,

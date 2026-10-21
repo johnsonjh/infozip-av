@@ -25,7 +25,8 @@ CODEC_DEPS = $(wildcard ../zip30/shrink.c ../zip30/reduce.c \
     ../zip30/d64split.inc ../zip30/pkdcl.c ../zip30/ppmd8.c \
     ../zip30/ppmd8enc.c ../zip30/zopfli.c ../zip30/deflate64.h \
     ../zip30/pkdcl.h ../zip30/ppmd8.h ../zip30/zopfli.h \
-    ../zip30/deflate.c ../zip30/trees.c)
+    ../zip30/deflate64.h ../zip30/deflate.c ../zip30/trees.c \
+    ../zip30/huffman_extra.h)
 # Match Zip/UnZip's configure policy: automatic native zlib-ng detection,
 # otherwise the bundled Info-ZIP Deflate encoder.  EXTERNAL_ZLIB and LOCAL_ZIP
 # are checked for the same explicit backend requests as Zip's configure.
@@ -102,11 +103,11 @@ else ifeq ($(ZO_SELECTED_BACKEND),native)
   endif
   ZO_DEFLATE_FLAGS = $(ZO_EXT_PLATFORM_FLAGS) -DZO_USE_ZLIB_NG $(ZO_ZNG_CFLAGS)
   ZO_DEFLATE_LIBS = $(ZO_ZNG_LIBS)
-  ZO_INTERNAL_DEFLATE =
+  ZO_INTERNAL_DEFLATE = build/zo-zip-deflate.o
 else ifeq ($(ZO_SELECTED_BACKEND),zlib)
   ZO_DEFLATE_FLAGS = $(ZO_EXT_PLATFORM_FLAGS) -DZO_USE_ZLIB $(IZ_ZLIB_CFLAGS)
   ZO_DEFLATE_LIBS = $(if $(strip $(IZ_ZLIB_LIBS)),$(IZ_ZLIB_LIBS),-lz)
-  ZO_INTERNAL_DEFLATE =
+  ZO_INTERNAL_DEFLATE = build/zo-zip-deflate.o
 else
   $(error Unsupported ZO_DEFLATE_BACKEND=$(ZO_DEFLATE_BACKEND); use auto, native, zlib or internal)
 endif

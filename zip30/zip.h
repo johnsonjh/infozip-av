@@ -456,6 +456,7 @@ extern int filesync;            /* 1=file sync, delete entries not on file syste
 extern int adjust;              /* Adjust the unzipsfx'd zip file */
 extern int fwkcs_md5;           /* Add FWKCS MD5 central extra field */
 extern int level;               /* Compression level */
+extern int huffman_optimize_extra; /* expensive Huffman header optimizatoins */
 extern int zopfli_iterations;   /* Zopfli optimization iterations */
 extern int dcl_implode_mode;    /* DCL literal mode: 0=binary, 1=ASCII */
 extern ulg dcl_implode_dict;    /* DCL dictionary bytes: 0=automatic */

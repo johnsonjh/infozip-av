@@ -3293,6 +3293,7 @@ local zoff_t zopflifilecompress(z_entry, cmpr_method)
     }
 
     ZopfliInitOptions(&options);
+    ZopfliSetHuffmanOptimizeExtra(huffman_optimize_extra);
     options.numiterations = zopfli_iterations;
 
     history = 0;
@@ -3444,6 +3445,8 @@ local zoff_t deflate64filecompress(z_entry, cmpr_method)
     state.output_size = 0;
     state.write_error = 0;
     memset(&stats, 0, sizeof(stats));
+
+    d64_set_huffman_optimize_extra(huffman_optimize_extra);
 
     r = d64_encode(d64_zip_read, d64_zip_write, &state, lev, &stats);
     if (state.write_error || r == 2) {

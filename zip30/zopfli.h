@@ -38,6 +38,8 @@ typedef struct ZopfliOptions {
 } ZopfliOptions;
 
 void ZopfliInitOptions(ZopfliOptions* options);
+/* Opt-in final dynamic header optimization; defaults off. */
+void ZopfliSetHuffmanOptimizeExtra(int enabled);
 
 /* Return 1 for success or 0 if a memory allocation failed.  On failure,
  * the output buffer (including any preceding partial output) is released,
