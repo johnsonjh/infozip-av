@@ -25,8 +25,8 @@
 #define REVDATE "July 5th 2008"
 
 /* Xtro-ZIP distribution banner (independent of ZIP format/API versions). */
-#define XTRO_VER "0.3"
-#define XTRO_DATE "2026-10-18"
+#define XTRO_VER "0.5"
+#define XTRO_DATE "2026-10-21"
 #define XTRO_URL "https://github.com/johnsonjh/infozip-av"
 #define XTRO_AUTHOR "Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>"
 #define XTRO_UNZIP_TITLE "Xtro-ZIP - Advanced UnZip archive utility - derived from Info-ZIP"
