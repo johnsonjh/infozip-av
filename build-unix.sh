@@ -77,6 +77,14 @@ UNZIPDIR="unzip60"
 ZIPDEDUPDIR="zipdedup"
 ZIPOPTDIR="zipopt"
 
+# Vendored libbzip2 is used only when the system library cannot link or when
+# explicitly requested.  Do not alter the flat bzlib.h/libbz2.a lookup used by
+# build-win32.sh, build-all.sh, or build-dos386.sh.
+case "${BZIP2_BACKEND:-auto}" in
+  auto | system | vendored) ;;
+  *) echo 'ERROR: BZIP2_BACKEND must be auto, system, or vendored' >&2; exit 2 ;;
+esac
+
 PREFIX="$(pwd -P 2> /dev/null && :)/build"
 
 test "${PREFIX:?}" = "/build" && {
@@ -85,6 +93,113 @@ test "${PREFIX:?}" = "/build" && {
 }
 
 mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
+
+# Use a real link test, not merely existence of bzlib.h or an archive.
+# Extra flags supplied by the caller participate in both probes.  Keep the
+# original external-library directory conventions otherwise unchanged.
+BZIP2_CHOICE=${BZIP2_BACKEND:-auto}
+if [ "$BZIP2_CHOICE" != vendored ]; then
+  bzprobe="$PREFIX/.bz2-probe-$$"
+  cat > "$bzprobe.c" <<'XTR_BZ_PROBE'
+#include <bzlib.h>
+int main(void)
+{
+    bz_stream strm;
+    int result;
+    strm.bzalloc = 0;
+    strm.bzfree = 0;
+    strm.opaque = 0;
+    result = BZ2_bzDecompressInit(&strm, 0, 0);
+    if (result != BZ_OK) return 1;
+    if (BZ2_bzDecompressEnd(&strm) != BZ_OK) return 2;
+    return BZ2_bzlibVersion() == 0;
+}
+XTR_BZ_PROBE
+  if "$BUILD_CC" ${LOCAL_ZIP:-} ${LOCAL_UNZIP:-}  \
+    "$bzprobe.c" ${LOCAL_GLDFLAGS:-} -lbz2 \
+    -o "$bzprobe" > "$PREFIX/bzip2-system-probe.log" 2>&1; then
+    BZIP2_CHOICE=system
+    echo 'build-unix: using existing system libbz2'
+  else
+    if [ "$BZIP2_CHOICE" = system ]; then
+      rm -f "$bzprobe" "$bzprobe.c"
+      echo 'ERROR: BZIP2_BACKEND=system but bzlib.h/library link test failed' >&2
+      cat "$PREFIX/bzip2-system-probe.log" >&2
+      exit 1
+    fi
+    BZIP2_CHOICE=vendored
+  fi
+  rm -f "$bzprobe" "$bzprobe.c"
+fi
+
+if [ "$BZIP2_CHOICE" = vendored ]; then
+  BZIP2_VENDOR_DIR="$PREFIX/bzip2"
+  mkdir -p "$BZIP2_VENDOR_DIR"
+  # A flat header/archive pair is also understood by the old Info-ZIP
+  # configure scripts.  Source and build artifacts remain separate.
+  cp "$PWD/vendor/bzip2/bzlib.h" "$BZIP2_VENDOR_DIR/bzlib.h"
+  rm -f "$BZIP2_VENDOR_DIR/libbz2.a"
+  BZIP2_VENDOR_OBJS=
+  for unit in blocksort huffman crctable randtable compress decompress bzlib; do
+    "$BUILD_CC" -std=c89 -DBZ_STRICT_ANSI ${BZIP2_VENDOR_CFLAGS:--O2} \
+      -I"$PWD/vendor/bzip2" -c "$PWD/vendor/bzip2/$unit.c" \
+      -o "$BZIP2_VENDOR_DIR/$unit.o"
+    BZIP2_VENDOR_OBJS="$BZIP2_VENDOR_OBJS $BZIP2_VENDOR_DIR/$unit.o"
+  done
+  # Intentionally unquoted list: each object is a separate archiver argument.
+  "${AR:-ar}" rcs "$BZIP2_VENDOR_DIR/libbz2.a" $BZIP2_VENDOR_OBJS
+  # Relative to the zip30/ and unzip60/ make working directories.
+  BZIP2_ZIP_MAKE_ARG=IZ_BZIP2=../build/bzip2
+  BZIP2_UNZIP_MAKE_ARG=IZ_BZIP2=../build/bzip2
+  export XTR_BZIP2_FULL_API=1
+  LOCAL_ZIP="${LOCAL_ZIP:-} -I$BZIP2_VENDOR_DIR"
+  LOCAL_UNZIP="${LOCAL_UNZIP:-} -I$BZIP2_VENDOR_DIR"
+  LOCAL_GLDFLAGS="-L$BZIP2_VENDOR_DIR ${LOCAL_GLDFLAGS:-}"
+  echo 'build-unix: using vendored libbzip2 (static, full API)'
+else
+  # Preserve the historical makefile defaults and any existing explicit
+  # IZ_BZIP2 settings; do not override them with an empty command-line
+  # assignment.  UnZip's link rule emits -L$(IZ_BZIP2), requiring a value.
+  BZIP2_ZIP_MAKE_ARG=
+  BZIP2_UNZIP_MAKE_ARG=
+fi
+
+# The SFX build must not require WavPack when it is unavailable.  Existing
+# normal UnZip codec detection is independent of this executable's options.
+wprobe="$PREFIX/.wavpack-probe-$$"
+cat > "$wprobe.c" <<'XTR_WV_PROBE'
+#include <wavpack/wavpack.h>
+int main(void) { return WavpackGetLibraryVersion() == 0; }
+XTR_WV_PROBE
+if "$BUILD_CC" ${LOCAL_UNZIP:-} "$wprobe.c" ${LOCAL_GLDFLAGS:-} \
+  -lwavpack -o "$wprobe" > "$PREFIX/wavpack-sfx-probe.log" 2>&1; then
+  echo 'build-unix: UnZipSFX WavPack support enabled'
+else
+  D_USE_WAVPACK_SFX=
+  L_WAVPACK_SFX=
+  echo 'build-unix: UnZipSFX WavPack unavailable (disabled)'
+fi
+rm -f "$wprobe" "$wprobe.c"
+
+# Make's historical flags files and codec objects are not automatically
+# rebuilt when changing backend.  Force a complete reconfigure when the
+# selection changes, including the first run after an older build.
+backend_stamp="$PREFIX/.bzip2-backend"
+if [ ! -f "$backend_stamp" ] ||
+   [ "$(cat "$backend_stamp")" != "$BZIP2_CHOICE" ]; then
+  for source_dir in "$UNZIPDIR" "$ZIPDIR" "$ZIPDEDUPDIR" "$ZIPOPTDIR"; do
+    case "$source_dir" in
+      "$UNZIPDIR" | "$ZIPDIR") clean_makefile='-f unix/Makefile' ;;
+      *) clean_makefile= ;;
+    esac
+    (cd "$source_dir" && "$MAKE" $clean_makefile clean) \
+      > "$PREFIX/bzip2-clean-$source_dir.log" 2>&1 || {
+        echo "ERROR: cleaning $source_dir before backend switch failed" >&2
+        tail -30 "$PREFIX/bzip2-clean-$source_dir.log" >&2
+        exit 1
+      }
+  done
+fi
 
 (
   cd "${UNZIPDIR:?}" \
@@ -100,6 +215,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
       L_WAVPACK_SFX="${L_WAVPACK_SFX:-}" \
       D_USE_REFPTR_SFX="${D_USE_REFPTR_SFX:-}" \
       D_USE_WZMP3_SFX="${D_USE_WZMP3_SFX:-}" \
+      $BZIP2_UNZIP_MAKE_ARG \
       LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
       LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
       EXTERNAL_ZLIB="${EXTERNAL_ZLIB:-}" \
@@ -113,6 +229,7 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
       CC="${BUILD_CC}" \
       CFLAGS_NOOPT="${CF_NOOPT:?}" \
       LFLAGS2="${GLDFLAGS}" \
+      $BZIP2_ZIP_MAKE_ARG \
       LOCAL_ZIP="${LOCAL_ZIP:-}" \
       LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
       EXTERNAL_ZLIB="${EXTERNAL_ZLIB:-}" \
@@ -168,4 +285,5 @@ mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
 "${SSTRIP:-sstrip}" -z "${PREFIX:?}"/bin/* 2> /dev/null || :
 upx -qq --best "build/bin/unzipsfx" 2> /dev/null || :
 
+printf '%s\n' "$BZIP2_CHOICE" > "$backend_stamp"
 ls -la "${PREFIX}"/*/*

@@ -685,6 +685,17 @@ if test -n "${IZ_BZIP2}" -a "${IZ_BZIP2}" != "bzip2" ; then
         echo "-- => skipping OS and bzip2 dir checks."
         echo "-- NO bzip2 support !"
       fi
+    elif test "${XTR_BZIP2_FULL_API:-0}" = 1; then
+      # The full upstream 1.0.8 API is intentionally retained for Xtro's
+      # tested vendored build.  Never relax the legacy check implicitly.
+      if test -f "${IZ_BZIP2}/bzlib.h"; then
+        LIBBZ2="${IZ_BZIP2}/libbz2.a"
+        D_USE_BZ2="-DUSE_BZIP2"
+        L_BZ2="${BZLF} -lbz2"
+        echo "-- Xtro-ZIP vendored full-API libbzip2 enabled"
+      else
+        echo "    ${IZ_BZIP2}/bzlib.h not found"
+      fi
     else
       echo "    Found bzip2 library, ${IZ_BZIP2}/libbz2.a,"
       echo "      but library not compiled with BZ_NO_STDIO."

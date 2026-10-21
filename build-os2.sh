@@ -1,6 +1,6 @@
 #!/bin/sh
 # Cross-compile to 32-bit OS/2 LX, Open Watcom V2
-# No third-party libraries built - yet (zstd, lzma, etc.)
+# Built-in vendored bzip2; other optional codecs remain disabled.
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 watcom=${WATCOM:-/opt/watcom}
@@ -33,7 +33,7 @@ esac
 # -zp1 matches the OS/2 EA ABI and preexisting makefile.os2 settings.
 # Disable ASM and optional third-party codecs, but keep built-in AES.
 # Keep compiler diagnostics in build-os2/build.log only.
-common="-bt=os2 -3r -mf -zp1 -zq -fr -DNO_ASM -D__32BIT__ $opt"
+common="-bt=os2 -3r -mf -zp1 -zq -fr -DNO_ASM -D__32BIT__ -I=$root/vendor/bzip2 $opt"
 build="$root/build-os2"
 out="$root/os2"
 mkdir -p "$build" "$out"
@@ -78,6 +78,9 @@ link_target()
     printf '%b' "$objs" | while IFS= read -r obj; do
       [ -n "$obj" ] && printf 'file %s\n' "$obj"
     done
+    if [ "${use_bz2:-0}" = 1 ]; then
+      printf 'library %s\n' "$bzlib"
+    fi
   } > "$response"
   echo "LINK $target.exe"
   if ! (cd "$build" && wlink "@$response") >> "$log" 2>&1; then
@@ -95,13 +98,34 @@ if p[:2] != b'MZ' or p[o:o+2] != b'LX':
 PY
   then exit 1; fi
 }
+# Full upstream libbz2 (no BZ_NO_STDIO) is built as an OS/2 static archive.
+# Keep all intermediate files outside vendor/ so upstream source remains clean.
+bzlib="$build/libbz2.lib"
+bzobjects=''
+for unit in blocksort huffman crctable randtable compress decompress bzlib; do
+  obj="$build/bz2_${unit}.obj"
+  echo "CC  libbz2  $unit.c"
+  if ! (cd "$root" && wcc386 $common -za -DBZ_STRICT_ANSI \
+    ${LOCAL_OS2_CFLAGS:-} -fo="$obj" "vendor/bzip2/$unit.c") >> "$log" 2>&1; then
+    echo "ERROR: vendored libbz2/$unit compilation failed; see $log" >&2
+    tail -40 "$log" >&2; exit 1
+  fi
+  bzobjects="$bzobjects +$obj"
+done
+rm -f "$bzlib"
+echo 'LIB libbz2.lib'
+if ! (cd "$build" && wlib -q -n "$bzlib" $bzobjects) >> "$log" 2>&1; then
+  echo "ERROR: OS/2 libbz2 archive failed; see $log" >&2
+  tail -40 "$log" >&2; exit 1
+fi
 # UnZip OS/2 source is linked into each relevant executable.
 # The native OS/2 SYMLINK EA backend replaces POSIX lstat/readlink.
 # UnZip restores link EAs through native DosSetPathInfo, not kLIBC.
-zipflags='-DOS2_KLIBC_SYMLINKS -DXTR_OS2_NATIVE'
-unzipflags='-DSET_DIR_ATTRIB -DXTR_OS2_NATIVE'
+zipflags='-DOS2_KLIBC_SYMLINKS -DXTR_OS2_NATIVE -DBZIP2_SUPPORT'
+unzipflags='-DSET_DIR_ATTRIB -DXTR_OS2_NATIVE -DUSE_BZIP2'
+use_bz2=1
 objs=''
-for m in zip crc32 crypt deflate fileio globals trees ttyio util zipfile zipup; do
+for m in zip crc32 crypt deflate fileio globals trees ttyio util zipfile zipup zbz2err; do
   compile zip zip "$m.c" "$m" "$zipflags"
 done
 compile zip zip os2/os2.c os2 "$zipflags"
@@ -114,7 +138,7 @@ for m in xtros2_ea xtros2_nls xtros2_native xtros2_memory xtrm xtrv1 xtrsha; do
 done
 link_target zip
 objs=''
-for m in unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio unreduce unshrink zipinfo; do
+for m in unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo; do
   compile unzip unzip "$m.c" "$m" "$unzipflags"
 done
 compile unzip unzip os2/os2.c os2 "$unzipflags"
@@ -126,6 +150,7 @@ compile unzip zip os2/os2link.c os2link "$unzipflags"
 link_target unzip
 cp "$out/unzip.exe" "$out/zipinfo.exe"
 for tool in zipnote zipcloak zipsplit; do
+  use_bz2=0
   objs=''
   case "$tool" in
   zipnote) supporting='zipfile fileio util globals' ;;
@@ -141,6 +166,7 @@ for tool in zipnote zipcloak zipsplit; do
   compile "$tool" zip os2/os2acl.c os2acl '-DUTIL -DNO_SYMLINKS'
   link_target "$tool"
 done
+use_bz2=0
 objs=''
 for m in funzip crc32 crypt globals inflate ttyio; do
   compile funzip unzip "$m.c" "$m" "$unzipflags -DFUNZIP"
@@ -148,16 +174,17 @@ done
 compile funzip unzip os2/os2.c os2 "$unzipflags -DFUNZIP"
 compile funzip unzip os2/os2acl.c os2acl "$unzipflags -DFUNZIP"
 link_target funzip
+use_bz2=1
 objs=''
-for m in unzip crc32 crypt extract fileio globals inflate match process ttyio; do
-  compile unzipsfx unzip "$m.c" "$m" '-DSFX -DSET_DIR_ATTRIB'
+for m in unzip crc32 crypt extract fileio globals inflate match process ttyio ubz2err; do
+  compile unzipsfx unzip "$m.c" "$m" '-DSFX -DSET_DIR_ATTRIB -DUSE_BZIP2 -DBZIP2_SFX'
 done
-compile unzipsfx unzip os2/os2.c os2 '-DSFX -DSET_DIR_ATTRIB'
-compile unzipsfx unzip os2/os2acl.c os2acl '-DSFX -DSET_DIR_ATTRIB'
+compile unzipsfx unzip os2/os2.c os2 '-DSFX -DSET_DIR_ATTRIB -DUSE_BZIP2 -DBZIP2_SFX'
+compile unzipsfx unzip os2/os2acl.c os2acl '-DSFX -DSET_DIR_ATTRIB -DUSE_BZIP2 -DBZIP2_SFX'
 for m in xtros2_ea xtros2_nls xtros2_decode xtros2_memory xtrm xtrv1 xtrsha; do
-  compile unzipsfx zip "../xtrmeta/$m.c" "$m" '-DSFX -DSET_DIR_ATTRIB'
+  compile unzipsfx zip "../xtrmeta/$m.c" "$m" '-DSFX -DSET_DIR_ATTRIB -DUSE_BZIP2 -DBZIP2_SFX'
 done
-compile unzipsfx zip os2/os2link.c os2link '-DSFX -DSET_DIR_ATTRIB'
+compile unzipsfx zip os2/os2link.c os2link '-DSFX -DSET_DIR_ATTRIB -DUSE_BZIP2 -DBZIP2_SFX'
 link_target unzipsfx
 printf 'OS/2: 7 LX executables and ZipInfo alias in %s\n' "$out"
 # An explicitly enabled, disposable-data EA probe for native beta testers.
@@ -165,6 +192,7 @@ printf 'OS/2: 7 LX executables and ZipInfo alias in %s\n' "$out"
 case "${OS2_TEST_HELPERS:-0}" in
 0) ;;
 1)
+  use_bz2=0
   objs=''
   echo 'CC  ea-fixture  tests/os2native/ea-fixture.c'
   if ! (cd "$root" && wcc386 $common -DOS2 ${LOCAL_OS2_CFLAGS:-} \
@@ -190,14 +218,15 @@ case "${OS2_AUX_TOOLS:-1}" in
 1)
   echo 'OS/2: building experimental zipopt/zipdedup utilities'
   uzobjs=''
+  use_bz2=1
   objs=''
   for m in unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo api; do
-    compile auxuz unzip "$m.c" "$m" '-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG'
+    compile auxuz unzip "$m.c" "$m" '-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG -DUSE_BZIP2'
   done
-  compile auxuz unzip os2/os2.c os2 '-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG'
-  compile auxuz unzip os2/os2acl.c os2acl '-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG'
+  compile auxuz unzip os2/os2.c os2 '-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG -DUSE_BZIP2'
+  compile auxuz unzip os2/os2acl.c os2acl '-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG -DUSE_BZIP2'
   uzobjs=$objs
-  auxflags='-DOS2 -DNO_EXCEPT_SIGNALS -DNO_ZLIB_NG -DZO_SELECT_EXTERNAL_CODECS -DZIPOPT_EMBED'
+  auxflags='-DOS2 -DNO_EXCEPT_SIGNALS -DNO_ZLIB_NG -DZO_SELECT_EXTERNAL_CODECS -DZIPOPT_EMBED -DZO_WITH_BZIP2'
   compile_aux()
   {
     atarget=$1
@@ -231,10 +260,12 @@ case "${OS2_AUX_TOOLS:-1}" in
   done
   objs="${objs}$(printf '%s\n' "$xtr_objs" | sed '/^$/d; s/$/\\n/')${uzobjs}"
   link_target zipopt
+  use_bz2=0
   objs=''
   compile_aux preflight zipopt/archive.c archive ''
   compile_aux preflight zipopt/preflight.c main ''
   link_target zipopt-preflight
+  use_bz2=1
   objs=''
   compile_aux decodecheck zipopt/archive.c archive ''
   compile_aux decodecheck zipopt/extract.c extract ''
@@ -253,6 +284,7 @@ esac
 case "${OS2_TEST_HELPERS:-0}" in
 0) ;;
 1)
+  use_bz2=0
   obj="$build/ea-fixture.obj"
   echo 'CC  ea-fixture  tests/os2native/ea-fixture.c'
   if ! (cd "$root" && wcc386 $common -DOS2 ${LOCAL_OS2_CFLAGS:-} \

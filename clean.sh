@@ -72,6 +72,10 @@ rm -rf ./dos16 2> /dev/null || :
 rm -rf ./build-dos386 2> /dev/null || :
 rm -rf ./dos386 2> /dev/null || :
 
+# Unix fallback archive and OS/2 archive live under these build directories.
+rm -rf ./build/bzip2 2> /dev/null || :
+rm -f ./build/bzip2-system-probe.log ./build/wavpack-sfx-probe.log 2> /dev/null || :
+rm -f ./build/.bzip2-backend ./build/bzip2-clean-*.log 2> /dev/null || :
 rm -rf ./build-os2 2> /dev/null || :
 rm -rf ./os2 2> /dev/null || :
 
