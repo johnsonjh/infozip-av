@@ -40,7 +40,6 @@ Do not treat ZIP file-content CRC as evidence that EAs were restored.
 | B3b | Repeat encryption of identical test data/password at near-identical times | observe salts without claiming uniqueness or cryptographic unpredictability; flag any duplicates for investigation |
 | B3c | AES decryption only | succeeds without OS/2 randomness calls; wrong password/tampered authentication fails |
 | B3d | OS/2 `DosGetDateTime` or `DosQuerySysInfo` failure (test shim/fault injector) | entropy request fails; no AES output accepted and no silent weak fallback |
-
 | L1 | legacy `0x0009` EAs without `--xattrs` | exactly original native EAs/flags |
 | L2 | LAN Server `0x4C41` ACL with and without `-X` | expected ACL option behavior; no silent failure |
 | V1 | unencrypted `--xattrs` inline manifest | both legacy and Xtro present; EA values/flags restored once |
