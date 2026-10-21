@@ -69,7 +69,7 @@
 * innumerable **bug fixes** and other improvements
 
 > [!NOTE]
-> [**Precompiled binaries for several platforms are available for download.**](#downloads)
+> [**Precompiled binaries for several popular platforms (Windows, Linux, OS/2, DOS, etc.) are available for download.**](https://github.com/johnsonjh/infozip-av/releases/tag/v0)
 
 ### Features
 
