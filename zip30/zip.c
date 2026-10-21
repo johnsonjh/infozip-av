@@ -5064,6 +5064,15 @@ char **argv;            /* command line tokens */
     ZIPERR(ZE_COMPERR, "Zopfli support not enabled");
 #endif
   }
+  /* Reject methods that have no Deflate-format Huffman headers.  The
+   * -0 selection likewise has no headers to optimize.  Validate before
+   * any existing archive is opened for modification. */
+  if (huffman_optimize_extra &&
+      (level == 0 ||
+       (method != BEST && method != DEFLATE && method != DEFLATE64)))
+    ZIPERR(ZE_PARMS,
+           "--huffman-optimize-extra requires Deflate or Deflate64 compression");
+
 #ifdef USE_ZLIB
   if (huffman_optimize_extra && level > 0 && level <= 9 &&
       (method == BEST || method == DEFLATE))

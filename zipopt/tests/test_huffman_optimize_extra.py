@@ -72,6 +72,139 @@ def main():
         print("PASS: 1,800 randomized C89 header invariants")
         if args.skip_archives:
             return
+        # Reject the option when no encoder capable of using it is selected.
+        # The destination must not be created or modified on a CLI error.
+        negative_src = temp / "invalid-option-input.bin"
+        negative_src.write_bytes(b"test unsupported method selection\n" * 100)
+        negative_archive = temp / "invalid-option-source.zip"
+        with zipfile.ZipFile(negative_archive, "w") as z:
+            z.write(negative_src, "input.bin")
+        negative_cases = 0
+        for method in ("store", "bzip2", "lzma", "zstd"):
+            if method != "store":
+                # Optional codecs may be absent in stripped-down Zip builds.
+                probe = temp / ("available-zip-%s.zip" % method)
+                trial = subprocess.run(
+                    [args.zip, "-q", "-Z", method, str(probe), str(negative_src)],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=60,
+                )
+                if trial.returncode:
+                    continue
+            out = temp / ("reject-zip-%s.zip" % method)
+            command = [
+                args.zip,
+                "-q",
+                "-Z",
+                method,
+                "--huffman-optimize-extra",
+                str(out),
+                str(negative_src),
+            ]
+            result = subprocess.run(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60
+            )
+            if result.returncode == 0 or out.exists():
+                raise AssertionError((command, result.returncode))
+            if b"--huffman-optimize-extra requires Deflate or Deflate64" not in (
+                result.stdout + result.stderr
+            ):
+                raise AssertionError(result.stderr)
+            negative_cases += 1
+        for method in (None, "deflate", "deflate64"):
+            out = temp / ("reject-zip-zero-%s.zip" % (method or "default"))
+            command = [args.zip, "-q", "-0"]
+            if method:
+                command.extend(["-Z", method])
+            command.extend(["--huffman-optimize-extra", str(out), str(negative_src)])
+            result = subprocess.run(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60
+            )
+            if result.returncode == 0 or out.exists():
+                raise AssertionError((command, result.returncode))
+            if b"--huffman-optimize-extra requires Deflate or Deflate64" not in (
+                result.stdout + result.stderr
+            ):
+                raise AssertionError(result.stdout + result.stderr)
+            negative_cases += 1
+        available = run([args.zipopt, "--methods=list"]).stdout.decode("ascii")
+        for methods in ("store", "bzip2", "lzma", "zstd", "store,bzip2"):
+            if any(
+                ("  %s " % method) not in available for method in methods.split(",")
+            ):
+                continue
+            out = temp / ("reject-opt-%s.zip" % methods.replace(",", "-"))
+            command = [
+                args.zipopt,
+                "--methods=" + methods,
+                "--huffman-optimize-extra",
+                str(negative_archive),
+                str(out),
+            ]
+            result = subprocess.run(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60
+            )
+            if result.returncode == 0 or out.exists():
+                raise AssertionError((command, result.returncode))
+            if (
+                b"--huffman-optimize-extra requires a Deflate or Deflate64 candidate"
+                not in result.stderr
+            ):
+                raise AssertionError(result.stderr)
+            negative_cases += 1
+        # Existing archive bytes must also survive a rejected option.
+        protected = temp / "existing-destination.zip"
+        protected.write_bytes(negative_archive.read_bytes())
+        original = protected.read_bytes()
+        commands = (
+            [
+                args.zip,
+                "-q",
+                "-Z",
+                "store",
+                "--huffman-optimize-extra",
+                str(protected),
+                str(negative_src),
+            ],
+            [
+                args.zipopt,
+                "--methods=store",
+                "--huffman-optimize-extra",
+                str(negative_archive),
+                str(protected),
+            ],
+        )
+        for command in commands:
+            result = subprocess.run(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60
+            )
+            if result.returncode == 0 or protected.read_bytes() != original:
+                raise AssertionError((command, result.returncode))
+            negative_cases += 1
+        for methods in ("store,deflate", "store,deflate64", "deflate64"):
+            out = temp / ("accept-opt-%s.zip" % methods.replace(",", "-"))
+            run(
+                [
+                    args.zipopt,
+                    "--methods=" + methods,
+                    "--huffman-optimize-extra",
+                    str(negative_archive),
+                    str(out),
+                ]
+            )
+            run([args.unzip, "-tqq", str(out)])
+        for method in ("deflate", "deflate64", None):
+            out = temp / ("accept-zip-%s.zip" % (method or "default"))
+            cmd = [args.zip, "-q", "-9"]
+            if method:
+                cmd.extend(["-Z", method])
+            run(cmd + ["--huffman-optimize-extra", str(out), str(negative_src)])
+            run([args.unzip, "-tqq", str(out)])
+        print(
+            "PASS: %d unsupported method selections rejected before output"
+            % negative_cases
+        )
         archive_cases = 0
         savings = {}
         for num, data in enumerate(payloads()):

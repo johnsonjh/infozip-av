@@ -1104,6 +1104,29 @@ main (int argc, char **argv)
       return 2;
     }
 
+  if (settings.huffman_optimize_extra)
+    {
+      int huffman_method_present = 0;
+
+      for (k = 0; k < zo_candidate_count; k++)
+        {
+          if (enabled[k] && (zo_candidates[k].method == 8U
+                             || zo_candidates[k].method == 9U))
+            {
+              huffman_method_present = 1;
+              break;
+            }
+        }
+
+      if (!huffman_method_present)
+        {
+          fprintf (stderr,
+                   "zipopt: --huffman-optimize-extra requires a Deflate or Deflate64 candidate\n");
+          free (enabled);
+          return 2;
+        }
+    }
+
   if (iterations_set
       && (settings.disable_zopfli || settings.levels[10] != 11U))
     {
