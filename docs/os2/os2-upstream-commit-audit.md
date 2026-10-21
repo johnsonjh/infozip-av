@@ -1,6 +1,6 @@
 # Xtro-ZIP cu102: complete bitwiseworks OS/2 history audit
 
-Basis: full `.git` histories from the user-supplied `zip-os2.tar.xz` (12 reachable commits, `d24b653` HEAD) and `unzip-os2.tar.xz` (15 reachable commits, `2c13f24` HEAD). Both were inspected with `git show`, including changed-file lists and the operative code changes. The repos retain an old Info-ZIP Zip 3.0 / UnZip 6.0 base. They are *not* compatible replacement source trees for Xtro-ZIP cu102. Decisions below target cu102 and native Open Watcom V2 (`wcc386`, `wlink system os2v2`, no kLIBC/libcx).
+Basis: full `.git` histories from a user-supplied `zip-os2.tar.xz` (12 reachable commits, `d24b653` HEAD) and `unzip-os2.tar.xz` (15 reachable commits, `2c13f24` HEAD). Both were inspected with `git show`, including changed-file lists and the operative code changes. The repos retain an old Info-ZIP Zip 3.0 / UnZip 6.0 base. They are *not* compatible replacement source trees for Xtro-ZIP cu102. Decisions below target cu102 and native Open Watcom V2 (`wcc386`, `wlink system os2v2`, no kLIBC/libcx).
 
 Status legend: **PORT** = included in the accompanying incremental OS/2 patch; **EXISTING** = cu102 already has the relevant behavior or an equivalent; **TEST** = relevant but must be demonstrated/validated before copying; **DEFER** = independent feature or packaging matter outside the initial patch; **N/A** = vendor import or unrelated toolchain adjustment.
 

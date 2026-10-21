@@ -1,6 +1,6 @@
 # Xtro-ZIP cu102: Netlabs SVN checkout audit (2026-10-20)
 
-Supplied checkouts: `netlabs-zip-unzip.tar.xz` and `netlabs-unzip.tar.xz`. Both are genuine working-copy snapshots, with `.svn/wc.db` records for repository `https://svn.netlabs.org/repos/ports`, UUID `8d6eb4b1-0faa-de11-b929-00e081727c95`. Both snapshots are at repository revision **2373**. The first archive contains `netlabs/zip/zip/{trunk,vendor}` and `netlabs/unzip/trunk`, but the latter is **zlib 1.2.11**, not Info-ZIP UnZip. The separate second archive contains `netlabs-unzip/unzip/{trunk,vendor}` for Info-ZIP UnZip. Names in the first archive are potentially confusing.
+Verified against snapshots at repository revision **2373**. The first archive contains `netlabs/zip/zip/{trunk,vendor}` and `netlabs/unzip/trunk`.  The separate second archive contains `netlabs-unzip/unzip/{trunk,vendor}` for Info-ZIP UnZip. Names in the first archive are potentially confusing.
 
 An SVN checkout stores current file text and pristine bases, *not* all revisions or server-side commit messages. Therefore this report audits every active-source difference from the supplied bitwiseworks Git tip, every changed source file between the SVN `vendor` and `trunk` directories, and metadata-reported revisions; it does **not** claim to retrieve every historical SVN changeset. The separately provided bitwiseworks full Git commit-history audit is in `os2-upstream-commit-audit.md`.
 

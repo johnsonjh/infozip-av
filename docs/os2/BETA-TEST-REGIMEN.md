@@ -3,16 +3,15 @@
 **Candidate status:** Open Watcom V2 cross-built, Linux-hosted metadata tests
 passed. **Not yet qualified for production or irreplaceable files.** This
 procedure is for volunteers using a disposable OS/2/ArcaOS/eComStation test
-volume. Never test hostile archives on an important volume. Exact test binary
-hashes must match the accompanying `SHA256SUMS.txt`.
+volume. Never test hostile archives on an important volume.
 
 ## 0. Every tester must send an environment and results manifest
 
 Record OS/2 Warp/eComStation/ArcaOS full version and fixpack, kernel date,
 filesystem and drive of the scratch area (HPFS/JFS/FAT), codepage, country,
 terminal/shell, presence of kLIBC and version, available conventional/virtual
-memory, presence of LAN Server ACL components, and SHA-256 of `zip.exe` and
-`unzip.exe`. Provide full console output, **both the command and exit code**,
+memory, and presence of LAN Server ACL components.
+Provide full console output, **both the command and exit code**,
 any relevant raw EA bytes and the resulting safe sample archive. Do not send
 real passwords, confidential EAs, or dumps of production files. Label each
 result **PASS / FAIL / UNSUPPORTED / NOT RUN**; do not mark skipped as PASS.
@@ -172,7 +171,7 @@ run the native `ea-fixture check` as well.
 
 For **every** case, record `test-ID`, actual command, exit code, exact
 stdout/stderr, expected/actual EA bytes and flags, OS build, filesystem,
-codepage, executables' SHA-256 checksums, and a reproducibility assessment.
+codepage, and a reproducibility assessment.
 Bundle non-sensitive test fixtures and ZIPs with a README listing failed,
 unsupported and unexecuted cases separately. Share passwords only by an
 approved private channel; never include them in logs or the bug report.
