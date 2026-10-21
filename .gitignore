@@ -7,6 +7,7 @@ a.out
 /build-dos16/
 /build-dos386/
 /build-os2/
+/build-os2-libs/
 /build-win32/
 /CMPSC-work/
 *.core

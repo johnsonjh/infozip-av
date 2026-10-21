@@ -1,0 +1,222 @@
+diff --git a/src/common/mythread.h b/src/common/mythread.h
+index bec69b44..54b3bc52 100644
+--- a/src/common/mythread.h
++++ b/src/common/mythread.h
+@@ -78,7 +78,7 @@ do { \
+ } while (0)
+ 
+ 
+-#if !(defined(_WIN32) && !defined(__CYGWIN__)) \
++#if !defined(__OS2__) && !(defined(_WIN32) && !defined(__CYGWIN__)) \
+ 		&& (!defined(__wasm__) || defined(__EMSCRIPTEN__))
+ // Use sigprocmask() to set the signal mask in single-threaded programs.
+ #include <signal.h>
+diff --git a/src/liblzma/common/alone_decoder.c b/src/liblzma/common/alone_decoder.c
+index 174b3b1d..4b6e252b 100644
+--- a/src/liblzma/common/alone_decoder.c
++++ b/src/liblzma/common/alone_decoder.c
+@@ -146,12 +146,13 @@ alone_decode(void *coder_ptr, const lzma_allocator *allocator,
+ 			{
+ 				.id = LZMA_FILTER_LZMA1EXT,
+ 				.init = &lzma_lzma_decoder_init,
+-				.options = &coder->options,
++				.options = NULL,
+ 			}, {
+ 				.init = NULL,
+ 			}
+ 		};
+ 
++		filters[0].options = &coder->options;
+ 		const lzma_ret ret = lzma_next_filter_init(&coder->next,
+ 				allocator, filters);
+ 		if (ret != LZMA_OK) {
+diff --git a/src/liblzma/common/alone_encoder.c b/src/liblzma/common/alone_encoder.c
+index 21b03950..f2b1428e 100644
+--- a/src/liblzma/common/alone_encoder.c
++++ b/src/liblzma/common/alone_encoder.c
+@@ -125,16 +125,17 @@ alone_encoder_init(lzma_next_coder *next, const lzma_allocator *allocator,
+ 	memset(coder->header + 1 + 4, 0xFF, 8);
+ 
+ 	// Initialize the LZMA encoder.
+-	const lzma_filter_info filters[2] = {
++	lzma_filter_info filters[2] = {
+ 		{
+ 			.id = LZMA_FILTER_LZMA1,
+ 			.init = &lzma_lzma_encoder_init,
+-			.options = (void *)(options),
++			.options = NULL,
+ 		}, {
+ 			.init = NULL,
+ 		}
+ 	};
+ 
++	filters[0].options = (void *)(options);
+ 	return lzma_next_filter_init(&coder->next, allocator, filters);
+ }
+ 
+diff --git a/src/liblzma/common/common.h b/src/liblzma/common/common.h
+index 20af32f6..d46009f4 100644
+--- a/src/liblzma/common/common.h
++++ b/src/liblzma/common/common.h
+@@ -274,6 +274,18 @@ struct lzma_next_coder_s {
+ 
+ 
+ /// Macro to initialize lzma_next_coder structure
++#ifdef __WATCOMC__
++/* Watcom C99 does not implement C99 compound literals. */
++static inline lzma_next_coder
++lzma_watcom_next_coder_init(void)
++{
++    lzma_next_coder n;
++    memset(&n, 0, sizeof(n));
++    n.id = LZMA_VLI_UNKNOWN;
++    return n;
++}
++#define LZMA_NEXT_CODER_INIT lzma_watcom_next_coder_init()
++#else
+ #define LZMA_NEXT_CODER_INIT \
+ 	(lzma_next_coder){ \
+ 		.coder = NULL, \
+@@ -287,6 +299,7 @@ struct lzma_next_coder_s {
+ 		.update = NULL, \
+ 		.set_out_limit = NULL, \
+ 	}
++#endif
+ 
+ 
+ /// Internal data for lzma_strm_init, lzma_code, and lzma_end. A pointer to
+diff --git a/src/liblzma/common/index.c b/src/liblzma/common/index.c
+index 3fbb5b1c..7301f129 100644
+--- a/src/liblzma/common/index.c
++++ b/src/liblzma/common/index.c
+@@ -937,16 +937,12 @@ lzma_index_cat(lzma_index *restrict dest, lzma_index *restrict src,
+ 	src->block_number_bias -= dest->record_count;
+ 
+ 	// Prepend all the Streams from dest to src.
+-	const index_cat_info info = {
+-		.uncompressed_adjust = dest->uncompressed_bias
+-				- src->uncompressed_bias,
+-		.compressed_adjust = dest->compressed_bias
+-				- src->compressed_bias,
+-		.block_number_adjust = dest->block_number_bias
+-				- src->block_number_bias,
+-		.stream_number_adjust = src->streams.count,
+-		.streams = &src->streams,
+-	};
++	index_cat_info info;
++	info.uncompressed_adjust = dest->uncompressed_bias - src->uncompressed_bias;
++	info.compressed_adjust = dest->compressed_bias - src->compressed_bias;
++	info.block_number_adjust = dest->block_number_bias - src->block_number_bias;
++	info.stream_number_adjust = src->streams.count;
++	info.streams = &src->streams;
+ 	index_cat_helper(&info, (index_stream *)(dest->streams.root));
+ 
+ 	// Update info about all the combined Streams.
+diff --git a/src/liblzma/common/index_hash.c b/src/liblzma/common/index_hash.c
+index b7f1b6b5..f5f906f1 100644
+--- a/src/liblzma/common/index_hash.c
++++ b/src/liblzma/common/index_hash.c
+@@ -131,7 +131,9 @@ hash_append(lzma_index_hash_info *info, lzma_vli unpadded_size,
+ 			+ lzma_vli_size(uncompressed_size);
+ 	++info->count;
+ 
+-	const lzma_vli sizes[2] = { unpadded_size, uncompressed_size };
++	lzma_vli sizes[2];
++	sizes[0] = unpadded_size;
++	sizes[1] = uncompressed_size;
+ 	lzma_check_update(&info->check, LZMA_CHECK_BEST,
+ 			(const uint8_t *)(sizes), sizeof(sizes));
+ 
+diff --git a/src/liblzma/common/stream_buffer_encoder.c b/src/liblzma/common/stream_buffer_encoder.c
+index 04d58695..f9d958de 100644
+--- a/src/liblzma/common/stream_buffer_encoder.c
++++ b/src/liblzma/common/stream_buffer_encoder.c
+@@ -76,9 +76,10 @@ lzma_stream_buffer_encode(lzma_filter *filters, lzma_check check,
+ 	// Encode the Stream Header.
+ 	lzma_stream_flags stream_flags = {
+ 		.version = 0,
+-		.check = check,
++		.check = LZMA_CHECK_NONE,
+ 	};
+ 
++	stream_flags.check = check;
+ 	if (lzma_stream_header_encode(&stream_flags, out + out_pos)
+ 			!= LZMA_OK)
+ 		return LZMA_PROG_ERROR;
+@@ -88,10 +89,12 @@ lzma_stream_buffer_encode(lzma_filter *filters, lzma_check check,
+ 	// Encode a Block but only if there is at least one byte of input.
+ 	lzma_block block = {
+ 		.version = 0,
+-		.check = check,
+-		.filters = filters,
++		.check = LZMA_CHECK_NONE,
++		.filters = NULL,
+ 	};
+ 
++	block.check = check;
++	block.filters = filters;
+ 	if (in_size > 0)
+ 		return_if_error(lzma_block_buffer_encode(&block, allocator,
+ 				in, in_size, out, &out_pos, out_size));
+diff --git a/src/liblzma/common/stream_encoder.c b/src/liblzma/common/stream_encoder.c
+index e7e5b3fc..7a59ba9e 100644
+--- a/src/liblzma/common/stream_encoder.c
++++ b/src/liblzma/common/stream_encoder.c
+@@ -185,12 +185,14 @@ stream_encode(void *coder_ptr, const lzma_allocator *allocator,
+ 			return ret;
+ 
+ 		// Encode the Stream Footer into coder->buffer.
+-		const lzma_stream_flags stream_flags = {
++		lzma_stream_flags stream_flags = {
+ 			.version = 0,
+-			.backward_size = lzma_index_size(coder->index),
+-			.check = coder->block_options.check,
++			.backward_size = 0,
++			.check = LZMA_CHECK_NONE,
+ 		};
+ 
++		stream_flags.backward_size = lzma_index_size(coder->index);
++		stream_flags.check = coder->block_options.check;
+ 		if (lzma_stream_footer_encode(&stream_flags, coder->buffer)
+ 				!= LZMA_OK)
+ 			return LZMA_PROG_ERROR;
+@@ -323,8 +325,9 @@ stream_encoder_init(lzma_next_coder *next, const lzma_allocator *allocator,
+ 	// Encode the Stream Header
+ 	lzma_stream_flags stream_flags = {
+ 		.version = 0,
+-		.check = check,
++		.check = LZMA_CHECK_NONE,
+ 	};
++	stream_flags.check = check;
+ 	return_if_error(lzma_stream_header_encode(
+ 			&stream_flags, coder->buffer));
+ 
+diff --git a/src/liblzma/lz/lz_decoder.h b/src/liblzma/lz/lz_decoder.h
+index 2698e016..fea2c499 100644
+--- a/src/liblzma/lz/lz_decoder.h
++++ b/src/liblzma/lz/lz_decoder.h
+@@ -139,6 +139,16 @@ typedef struct {
+ } lzma_lz_decoder;
+ 
+ 
++#ifdef __WATCOMC__
++static inline lzma_lz_decoder
++lzma_watcom_lz_decoder_init(void)
++{
++    lzma_lz_decoder n;
++    memset(&n, 0, sizeof(n));
++    return n;
++}
++#define LZMA_LZ_DECODER_INIT lzma_watcom_lz_decoder_init()
++#else
+ #define LZMA_LZ_DECODER_INIT \
+ 	(lzma_lz_decoder){ \
+ 		.coder = NULL, \
+@@ -147,6 +157,7 @@ typedef struct {
+ 		.set_uncompressed = NULL, \
+ 		.end = NULL, \
+ 	}
++#endif
+ 
+ 
+ extern lzma_ret lzma_lz_decoder_init(lzma_next_coder *next,

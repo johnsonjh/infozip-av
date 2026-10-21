@@ -76,6 +76,19 @@ rm -rf ./dos386 2> /dev/null || :
 rm -rf ./build/bzip2 2> /dev/null || :
 rm -f ./build/bzip2-system-probe.log ./build/wavpack-sfx-probe.log 2> /dev/null || :
 rm -f ./build/.bzip2-backend ./build/bzip2-clean-*.log 2> /dev/null || :
+
+# Keep checked-out upstream codec sources and user-selected revisions.
+# Only delete generated OW2 library objects/staging files by default.
+if [ -d ./build-os2-libs ]; then
+  for codec in lzma zstd wavpack; do
+    rm -rf "./build-os2-libs/$codec/build" \
+      "./build-os2-libs/$codec/ow2-source" \
+      "./build-os2-libs/$codec/install" \
+      "./build-os2-libs/$codec/probe" 2> /dev/null || :
+    rm -f "./build-os2-libs/$codec/build.log"
+  done
+fi
+
 rm -rf ./build-os2 2> /dev/null || :
 rm -rf ./os2 2> /dev/null || :
 

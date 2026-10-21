@@ -1,0 +1,35 @@
+# Xtro-ZIP: Linux-hosted Open Watcom V2 -> OS/2 LX static library toolchain.
+# The compiler and runtime headers must come from the same WATCOM tree.
+set(CMAKE_SYSTEM_NAME OS2)
+set(CMAKE_SYSTEM_PROCESSOR i386)
+if(NOT DEFINED ENV{WATCOM})
+    message(FATAL_ERROR "Set WATCOM=/opt/watcom (or your OW2 installation)")
+endif()
+if(EXISTS "$ENV{WATCOM}/binl64/wcc386")
+    set(_watcom_bin "$ENV{WATCOM}/binl64")
+elseif(EXISTS "$ENV{WATCOM}/binl/wcc386")
+    set(_watcom_bin "$ENV{WATCOM}/binl")
+else()
+    message(FATAL_ERROR "Linux-hosted Open Watcom V2 tools not found")
+endif()
+set(CMAKE_C_COMPILER "${_watcom_bin}/wcc386")
+set(CMAKE_USER_MAKE_RULES_OVERRIDE "${CMAKE_CURRENT_LIST_DIR}/watcom-rules-override.cmake")
+set(CMAKE_AR "${_watcom_bin}/wlib")
+set(CMAKE_LINKER "${_watcom_bin}/wlink")
+set(CMAKE_RANLIB ":")
+# OW's frontend doesn't accept GCC's -c/-o syntax, so do not let CMake
+# guess those flags. CMake may otherwise silently emit host libraries.
+set(CMAKE_SIZEOF_VOID_P 4)
+set(CMAKE_C_COMPILER_WORKS TRUE)
+set(CMAKE_C_COMPILER_FORCED TRUE)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+set(CMAKE_C_OUTPUT_EXTENSION .obj)
+set(CMAKE_STATIC_LIBRARY_PREFIX "")
+set(CMAKE_STATIC_LIBRARY_SUFFIX ".lib")
+set(CMAKE_C_FLAGS_INIT "-bt=os2 -3r -mf -zp1 -zq -fr -D__32BIT__ -DNO_ASM")
+set(CMAKE_C_COMPILE_OBJECT "<CMAKE_C_COMPILER> <DEFINES> <INCLUDES> <FLAGS> -fo=<OBJECT> <SOURCE>")
+set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> -q -b <TARGET> +<OBJECTS>")
+set(CMAKE_C_ARCHIVE_FINISH "")
+set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_LINKER> system os2v2 name <TARGET> file <OBJECTS> <LINK_LIBRARIES>")
+# The CMake compiler detection is intentionally not claimed to be a
+# supported upstream OW2/OS2 port. Only an actual full link probe is accepted.

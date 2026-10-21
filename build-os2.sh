@@ -1,6 +1,6 @@
 #!/bin/sh
 # Cross-compile to 32-bit OS/2 LX, Open Watcom V2
-# Built-in vendored bzip2; other optional codecs remain disabled.
+# Built-in vendored bzip2; optional OW2 static codec libraries detected.
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 watcom=${WATCOM:-/opt/watcom}
@@ -31,14 +31,103 @@ case " ${LOCAL_OS2_CFLAGS:-} " in
   ;;
 esac
 # -zp1 matches the OS/2 EA ABI and preexisting makefile.os2 settings.
-# Disable ASM and optional third-party codecs, but keep built-in AES.
+# Disable ASM; optional codecs require verified OW2 LX link probes.
 # Keep compiler diagnostics in build-os2/build.log only.
-common="-bt=os2 -3r -mf -zp1 -zq -fr -DNO_ASM -D__32BIT__ -I=$root/vendor/bzip2 $opt"
+common="-bt=os2 -ei -3r -mf -zp1 -zq -fr -DNO_ASM -D__32BIT__ -I=$root/vendor/bzip2 $opt"
 build="$root/build-os2"
 out="$root/os2"
 mkdir -p "$build" "$out"
 log="$build/build.log"
 : > "$log"
+
+# Never trust header/archive existence alone: a stale host .a or incompatible
+# OW2 library must fail a target link probe before enabling a ZIP method.
+. "$root/tests/os2libs/probe-library.sh"
+zip_extra_flags=''
+unzip_extra_flags=''
+aux_extra_flags=''
+extra_include_flags=''
+optional_libs=''
+check_os2_codec()
+{
+  codec=$1
+  setting=$2
+  defdir=$3
+  header=$4
+  archive=$5
+  # Fixed cases avoid `eval` on user-supplied library directory strings.
+  case "$setting" in
+  OS2_LZMA)
+    mode=${OS2_LZMA:-auto}
+    prefix=${OS2_LZMA_DIR:-$defdir}
+    explicit=${OS2_LZMA_DIR+x}
+    ;;
+  OS2_ZSTD)
+    mode=${OS2_ZSTD:-auto}
+    prefix=${OS2_ZSTD_DIR:-$defdir}
+    explicit=${OS2_ZSTD_DIR+x}
+    ;;
+  OS2_WAVPACK)
+    mode=${OS2_WAVPACK:-auto}
+    prefix=${OS2_WAVPACK_DIR:-$defdir}
+    explicit=${OS2_WAVPACK_DIR+x}
+    ;;
+  *)
+    echo "ERROR: unexpected $setting" >&2; exit 2
+    ;;
+  esac
+  case "$mode" in auto | on | off) ;; *)
+    echo "ERROR: $setting must be auto, on, off" >&2; exit 2
+    ;;
+  esac
+  [ "$mode" != off ] || {
+    echo "OS/2: $codec disabled"; return 0
+  }
+  case "$prefix" in
+  *' '* | *'	'* | *'
+'*)
+    echo "ERROR: OS/2 codec path contains whitespace: $prefix" >&2; exit 2
+    ;;
+  esac
+  if [ ! -e "$prefix/include/$header" ] && [ ! -e "$prefix/lib/$archive" ]; then
+    if [ "$mode" = on ] || [ -n "$explicit" ]; then
+      echo "ERROR: $codec explicitly required, but not installed under $prefix" >&2; exit 1
+    fi
+    echo "OS/2: $codec not installed (using built-in methods)"
+    return 0
+  fi
+  if [ ! -s "$prefix/include/$header" ] || [ ! -s "$prefix/lib/$archive" ]; then
+    echo "ERROR: incomplete $codec installation at $prefix" >&2; exit 1
+  fi
+  if ! probe_os2_library "$codec" "$prefix" "$build" "$root"; then
+    echo "ERROR: $codec OW2 link probe failed: $build/probe-$codec.log" >&2
+    tail -35 "$build/probe-$codec.log" >&2 || :
+    exit 1
+  fi
+  echo "OS/2: enabled $codec from $prefix"
+  extra_include_flags="$extra_include_flags -I=$prefix/include"
+  optional_libs="$optional_libs $prefix/lib/$archive"
+  case "$codec" in
+  lzma)
+    zip_extra_flags="$zip_extra_flags -DLZMA_SUPPORT"
+    unzip_extra_flags="$unzip_extra_flags -DUSE_LZMA -DUSE_XZ"
+    aux_extra_flags="$aux_extra_flags -DZO_WITH_LZMA"
+    ;;
+  zstd)
+    zip_extra_flags="$zip_extra_flags -DZSTD_SUPPORT"
+    unzip_extra_flags="$unzip_extra_flags -DUSE_ZSTD"
+    aux_extra_flags="$aux_extra_flags -DZO_WITH_ZSTD"
+    ;;
+  wavpack)
+    unzip_extra_flags="$unzip_extra_flags -DUSE_WAVP"
+    ;;
+  esac
+}
+# AUTO only selects libraries that are fully staged and link-probed.
+check_os2_codec lzma OS2_LZMA "$root/build-os2-libs/lzma/install" lzma.h liblzma.lib
+check_os2_codec zstd OS2_ZSTD "$root/build-os2-libs/zstd/install" zstd.h libzstd.lib
+check_os2_codec wavpack OS2_WAVPACK "$root/build-os2-libs/wavpack/install" wavpack/wavpack.h libwavpack.lib
+common="$common $extra_include_flags"
 compile()
 {
   target=$1
@@ -81,6 +170,11 @@ link_target()
     if [ "${use_bz2:-0}" = 1 ]; then
       printf 'library %s\n' "$bzlib"
     fi
+    if [ "${use_optional:-0}" = 1 ]; then
+      for os2lib in $optional_libs; do
+        printf 'library %s\n' "$os2lib"
+      done
+    fi
   } > "$response"
   echo "LINK $target.exe"
   if ! (cd "$build" && wlink "@$response") >> "$log" 2>&1; then
@@ -121,9 +215,10 @@ fi
 # UnZip OS/2 source is linked into each relevant executable.
 # The native OS/2 SYMLINK EA backend replaces POSIX lstat/readlink.
 # UnZip restores link EAs through native DosSetPathInfo, not kLIBC.
-zipflags='-DOS2_KLIBC_SYMLINKS -DXTR_OS2_NATIVE -DBZIP2_SUPPORT'
-unzipflags='-DSET_DIR_ATTRIB -DXTR_OS2_NATIVE -DUSE_BZIP2'
+zipflags="-DOS2_KLIBC_SYMLINKS -DXTR_OS2_NATIVE -DBZIP2_SUPPORT $zip_extra_flags"
+unzipflags="-DSET_DIR_ATTRIB -DXTR_OS2_NATIVE -DUSE_BZIP2 $unzip_extra_flags"
 use_bz2=1
+use_optional=1
 objs=''
 for m in zip crc32 crypt deflate fileio globals trees ttyio util zipfile zipup zbz2err; do
   compile zip zip "$m.c" "$m" "$zipflags"
@@ -150,6 +245,7 @@ compile unzip zip os2/os2link.c os2link "$unzipflags"
 link_target unzip
 cp "$out/unzip.exe" "$out/zipinfo.exe"
 for tool in zipnote zipcloak zipsplit; do
+  use_optional=0
   use_bz2=0
   objs=''
   case "$tool" in
@@ -167,6 +263,7 @@ for tool in zipnote zipcloak zipsplit; do
   link_target "$tool"
 done
 use_bz2=0
+use_optional=0
 objs=''
 for m in funzip crc32 crypt globals inflate ttyio; do
   compile funzip unzip "$m.c" "$m" "$unzipflags -DFUNZIP"
@@ -175,6 +272,7 @@ compile funzip unzip os2/os2.c os2 "$unzipflags -DFUNZIP"
 compile funzip unzip os2/os2acl.c os2acl "$unzipflags -DFUNZIP"
 link_target funzip
 use_bz2=1
+use_optional=0
 objs=''
 for m in unzip crc32 crypt extract fileio globals inflate match process ttyio ubz2err; do
   compile unzipsfx unzip "$m.c" "$m" '-DSFX -DSET_DIR_ATTRIB -DUSE_BZIP2 -DBZIP2_SFX'
@@ -217,16 +315,17 @@ case "${OS2_AUX_TOOLS:-1}" in
 0) ;;
 1)
   echo 'OS/2: building experimental zipopt/zipdedup utilities'
+  use_optional=1
   uzobjs=''
   use_bz2=1
   objs=''
   for m in unzip crc32 crypt envargs explode extract fileio globals inflate list match process ttyio ubz2err unreduce unshrink zipinfo api; do
-    compile auxuz unzip "$m.c" "$m" '-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG -DUSE_BZIP2'
+    compile auxuz unzip "$m.c" "$m" "-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG -DUSE_BZIP2 $unzip_extra_flags"
   done
-  compile auxuz unzip os2/os2.c os2 '-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG -DUSE_BZIP2'
-  compile auxuz unzip os2/os2acl.c os2acl '-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG -DUSE_BZIP2'
+  compile auxuz unzip os2/os2.c os2 "-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG -DUSE_BZIP2 $unzip_extra_flags"
+  compile auxuz unzip os2/os2acl.c os2acl "-DDLL -DZIPOPT_EMBED -DNO_EXCEPT_SIGNALS -DNO_IZ_CHECK_TZ -DNO_ZLIB_NG -DUSE_BZIP2 $unzip_extra_flags"
   uzobjs=$objs
-  auxflags='-DOS2 -DNO_EXCEPT_SIGNALS -DNO_ZLIB_NG -DZO_SELECT_EXTERNAL_CODECS -DZIPOPT_EMBED -DZO_WITH_BZIP2'
+  auxflags="-DOS2 -DNO_EXCEPT_SIGNALS -DNO_ZLIB_NG -DZO_SELECT_EXTERNAL_CODECS -DZIPOPT_EMBED -DZO_WITH_BZIP2 $aux_extra_flags"
   compile_aux()
   {
     atarget=$1
@@ -261,11 +360,13 @@ case "${OS2_AUX_TOOLS:-1}" in
   objs="${objs}$(printf '%s\n' "$xtr_objs" | sed '/^$/d; s/$/\\n/')${uzobjs}"
   link_target zipopt
   use_bz2=0
+  use_optional=0
   objs=''
   compile_aux preflight zipopt/archive.c archive ''
   compile_aux preflight zipopt/preflight.c main ''
   link_target zipopt-preflight
   use_bz2=1
+  use_optional=1
   objs=''
   compile_aux decodecheck zipopt/archive.c archive ''
   compile_aux decodecheck zipopt/extract.c extract ''
