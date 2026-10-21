@@ -32,7 +32,7 @@ Do not treat ZIP file-content CRC as evidence that EAs were restored.
 ## Required matrix
 
 | Set | Input / condition | Expected result |
-| --- | --- | --- |
+|----:|:----|:----|
 | B1 | Store/Deflate regular files, nested directories | complete contents and ZIP CRC |
 | B2 | 7 standard executables plus ZipInfo, zipopt, zipdedup | launch, help output; basic operations |
 | B3 | ZipCrypto and each selected AES mode | round trip, wrong-password refusal; capture exact failure messages |
