@@ -174,7 +174,7 @@ build_codec()
     -DCMAKE_TOOLCHAIN_FILE="$root/tests/os2libs/watcom-toolchain.cmake" \
     -DCMAKE_BUILD_TYPE= \
     -DBUILD_SHARED_LIBS=OFF \
-    -DCMAKE_C_FLAGS="-bt=os2 -za99 -ei -3r -mf -zp1 -zq -fr -D__32BIT__ -DNO_ASM $opt" \
+    -DCMAKE_C_FLAGS="-bt=os2 -za99 -ei -3r -mf -zp1 -zq -fr -D__32BIT__ -DNO_ASM -DZSTD_DISABLE_DEPRECATE_WARNINGS $opt" \
     -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
     $bc_opts > "$bc_log" 2>&1; then
     echo "ERROR: $bc_name configure failed; see $bc_log" >&2
