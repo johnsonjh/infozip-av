@@ -92,6 +92,10 @@ fi
 rm -rf ./build-os2 2> /dev/null || :
 rm -rf ./os2 2> /dev/null || :
 
+test -z "${PRESERVE_OS2_LIBS:-}" && {
+  rm -rf ./build-os2-libs
+} || :
+
 test -d "${PREFIX:?}" && rmdir "${PREFIX:?}"
 
 git clean -ndx 2> /dev/null || :
