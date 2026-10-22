@@ -14,6 +14,9 @@
 #define __ZIP_C
 
 #include "zip.h"
+#ifdef USE_LIBDEFLATE
+# include "libdeflate.h"
+#endif
 #define XLD_ENABLE_AUTO 1
 #include "../common/xtrlibdeflate_size.h"
 #if defined(UNIX) && defined(UNICODE_SUPPORT)
@@ -2082,7 +2085,7 @@ local void version_info()
     "ZIP-Implode          (ZIP method 6; Implode LZSS-Shannon-Fano supported)",
 #endif
 #ifdef USE_LIBDEFLATE
-    "libdeflate           (ZIP method 8; libdeflate compression)",
+    "libdeflate           (ZIP method 8; libdeflate compression; v" LIBDEFLATE_VERSION_STRING ")",
 #endif
 #ifdef DEFLATE64_SUPPORT
     "Deflate64            (ZIP method 9; Deflate64(tm) supported)",

@@ -6,6 +6,7 @@ cross-compile or execute PE/DOS binaries.
 """
 
 import pathlib
+import shutil
 import subprocess
 import tempfile
 
@@ -19,6 +20,8 @@ NAMES = (
     "xtrv1.h",
     "xtrrewrite.h",
     "xtrverify_inline.h",
+    "source_epoch.h",
+    "source_epoch_times.h",
 )
 
 
@@ -36,12 +39,19 @@ def main():
     for build in ("build-win32.sh", "build-dos386.sh"):
         text = (ROOT / build).read_text()
         assert "xtrmeta/stage-cross.sh" in text, build
+        assert '"$STAGE/src/common/xtrlibdeflate_size.h"' in text, build
     with tempfile.TemporaryDirectory(prefix="xtro-cross-stage-") as td:
         src = pathlib.Path(td) / "src"
         src.mkdir()
         for name in ("zipopt", "zipdedup", "zip30", "unzip60"):
             # Symlink source trees: make dry-runs only, no target binaries.
             (src / name).symlink_to(ROOT / name, target_is_directory=True)
+        common = src / "common"
+        common.mkdir()
+        shutil.copy2(ROOT / "common/xtrlibdeflate_size.h", common)
+        assert (common / "xtrlibdeflate_size.h").read_bytes() == (
+            ROOT / "common/xtrlibdeflate_size.h"
+        ).read_bytes()
         stage = src / "xtrmeta"
         missing = run(
             [

@@ -13,6 +13,7 @@ export WIN32_LZMA_DIR="$(pwd -P)/build-win32/lzma/install"
 export WIN32_WAVPACK_DIR="$(pwd -P)/build-win32/wavpack/install"
 export WIN32_ZLIBNG_DIR="$(pwd -P)/build-win32/zlib-ng/install"
 export WIN32_ZSTD_DIR="$(pwd -P)/build-win32/zstd/install"
+export WIN32_LIBDEFLATE_DIR="$(pwd -P)/build-win32/libdeflate/install"
 
 ################################################################################
 
@@ -119,6 +120,67 @@ test -f /opt/cwsdpmi/cwsdstub.exe || {
 
 # Windows build
 
+# libdeflate supplies a whole-buffer codec; only the static library and its
+# public header are needed.  Build in a target-specific checkout, since the
+# MinGW and DJGPP archives must never be mixed with host objects or each other.
+build_libdeflate()
+{
+  ld_root="$(pwd -P)/$1"
+  ld_system=$2
+  ld_flags=$3
+  test -d "$ld_root" \
+    || git clone https://github.com/ebiggers/libdeflate "$ld_root"
+  test -d "$ld_root/.git" || {
+    printf '%s\n' "ERROR: libdeflate source is not a git checkout: $ld_root" >&2
+    return 1
+  }
+  if [ "$ld_system" = Generic ]; then
+    # Upstream's x86 detector invokes CPUID unconditionally. On an actual
+    # 386 or an early 486 this raises #UD. Also, merely disabling CPUID
+    # still compiles AVX/SSE routines with alignments DJGPP cannot emit.
+    # Build the scalar x86-independent implementation for DOS386 only.
+    ld_flags="$ld_flags -DLIBDEFLATE_PORTABLE_X86"
+  fi
+  (
+    cd "$ld_root" || exit 1
+    git clean -fdx || exit 1
+    if [ "$ld_system" = Generic ]; then
+      for ld_patch in "$iz_sde_root/tests/libdeflate-no-cpuid.patch" \
+                      "$iz_sde_root/tests/libdeflate-386-scalar.patch"; do
+        if git apply --check "$ld_patch" > /dev/null 2>&1; then
+          git apply "$ld_patch" || exit 1
+        elif git apply --reverse --check "$ld_patch" > /dev/null 2>&1; then
+          # git clean removes build outputs, not edits to tracked files.
+          # Each patch may already be applied in a reused checkout.
+          :
+        else
+          printf 'ERROR: libdeflate DJGPP patch does not apply: %s\n' "$ld_patch" >&2
+          exit 1
+        fi
+      done
+    fi
+    cmake -S . -B build-xtro \
+      -DCMAKE_SYSTEM_NAME="$ld_system" \
+      -DCMAKE_C_COMPILER="${CC:?}" \
+      -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_FLAGS="$ld_flags" \
+      -DCMAKE_C_FLAGS_RELEASE:STRING= \
+      -DLIBDEFLATE_BUILD_STATIC_LIB=ON \
+      -DLIBDEFLATE_BUILD_SHARED_LIB=OFF \
+      -DLIBDEFLATE_BUILD_GZIP=OFF \
+      -DLIBDEFLATE_BUILD_TESTS=OFF \
+      -DLIBDEFLATE_INSTALL=OFF \
+      && cmake --build build-xtro --target libdeflate_static \
+        --parallel "${CPUS:-1}" \
+      && test -s build-xtro/libdeflate.a \
+      && test -s libdeflate.h \
+      && mkdir -p install/include install/lib \
+      && cp libdeflate.h install/include/ \
+      && cp build-xtro/libdeflate.a install/lib/
+  )
+}
+
 winbuild()
 {
   # Setup
@@ -197,9 +259,15 @@ winbuild()
     && cmake --build build-mingw --target install \
       --parallel $(nproc) --verbose)
 
+  # libdeflate (static, no programs or DLL). The target link probe in
+  # build-win32.sh must succeed; do not silently omit it from this build.
+  build_libdeflate build-win32/libdeflate Windows \
+    "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501 -O3 -flto=auto"
+
   env \
     LOCAL_ZIP="${LOCAL_ZIP:-} -DXTR_WIN_NATIVE" \
     LOCAL_UNZIP="${LOCAL_UNZIP:-} -DXTR_WIN_NATIVE -DXTR_WIN_UTF8_PATHS" \
+    WIN32_LIBDEFLATE=on \
     MINGW_TARGET=x86_64-w64-mingw32 \
     MINGW_CC="${CC:?}" ./build-win32.sh
 
@@ -314,6 +382,12 @@ test -d build-dos386/zstd \
   && cp lib/zstd.h lib/zstd_errors.h install/include/ \
   && cp lib/libzstd.a install/lib/)
 
+# libdeflate: use the DJGPP compiler, not the native host compiler.  CMake's
+# Generic target and static-only try-compiles avoid attempting to execute a
+# DOS program on the build host; build-dos386.sh performs the real link probe.
+build_libdeflate build-dos386/libdeflate Generic \
+  "-march=i386 -O3 -flto=auto"
+
 # Release builds require every selected external codec. An unsuccessful target
 # link probe must fail the build, not silently publish reduced-feature EXEs.
 env LOCAL_ZIP="-march=i386 -O3 -flto=auto" \
@@ -323,6 +397,7 @@ env LOCAL_ZIP="-march=i386 -O3 -flto=auto" \
   DOS386_LZMA="${DOS386_LZMA:-on}" \
   DOS386_WAVPACK="${DOS386_WAVPACK:-on}" \
   DOS386_ZSTD="${DOS386_ZSTD:-on}" \
+  DOS386_LIBDEFLATE=on \
   ./build-dos386.sh
 rm -rf ./dos386
 mv -f ./build-dos386/bin dos386
@@ -337,3 +412,8 @@ upx -qq --best ./dos386/unzipsfx.exe || :
 # 16-bit DOS build
 
 env DOS16_EXPERIMENTAL_ZIPDEDUP=1 ./build-dos16.sh
+
+# OS/2
+
+./build-os2-libs.sh
+./build-os2.sh

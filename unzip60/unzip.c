@@ -65,6 +65,9 @@
 #include "xtrover.h"
 
 #include "unzip.h"      /* includes, typedefs, macros, prototypes, etc. */
+#if defined(USE_LIBDEFLATE) && !defined(SFX)
+# include "libdeflate.h"
+#endif
 #ifndef SFX
 # include "../common/xtrlibdeflate_size.h"
 int xld_unzip_enabled = 0;
@@ -2846,8 +2849,9 @@ static void show_version_info(__G)
         ++numopts;
 #endif
 #if defined(USE_LIBDEFLATE) && !defined(SFX)
-        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
-          LoadFarStringSmall(UseLibdeflate)));
+        Info(slide, 0, ((char *)slide,
+          "        libdeflate (ZIP method 8; libdeflate decompression; v%s)\n",
+          LIBDEFLATE_VERSION_STRING));
         ++numopts;
 #endif
 #ifdef USE_LZMA

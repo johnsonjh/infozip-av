@@ -11,7 +11,8 @@ src=$1
 dst=$2
 # Validate *all* required files before creating a partial staging directory.
 for name in xtrm.c xtrm.h xtrsha.c xtrsha.h xtrv1.c xtrv1.h \
-            xtrrewrite.h xtrverify_inline.h; do
+  xtrrewrite.h xtrverify_inline.h \
+  source_epoch.h source_epoch_times.h; do
   if [ ! -f "$src/$name" ]; then
     printf 'Missing Xtro-ZIP cross-build input: %s\n' "$src/$name" >&2
     exit 1
@@ -19,6 +20,7 @@ for name in xtrm.c xtrm.h xtrsha.c xtrsha.h xtrv1.c xtrv1.h \
 done
 mkdir -p "$dst"
 for name in xtrm.c xtrm.h xtrsha.c xtrsha.h xtrv1.c xtrv1.h \
-            xtrrewrite.h xtrverify_inline.h; do
+  xtrrewrite.h xtrverify_inline.h \
+  source_epoch.h source_epoch_times.h; do
   cp "$src/$name" "$dst/$name"
 done

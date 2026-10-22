@@ -326,12 +326,13 @@ fi
 # WavPack has no ZipOpt compression candidate; it is used for decoding only.
 DOS_ZO_LIBS="$DOS_UNZIP_LIBS"
 
-mkdir -p "$STAGE/src" "$STAGE/bin"
+mkdir -p "$STAGE/src" "$STAGE/src/common" "$STAGE/bin"
 cp -R "$SOURCE_ROOT/zip30" "$STAGE/src/zip30"
 cp -R "$SOURCE_ROOT/unzip60" "$STAGE/src/unzip60"
 cp -R "$SOURCE_ROOT/zipopt" "$STAGE/src/zipopt"
 cp -R "$SOURCE_ROOT/zipdedup" "$STAGE/src/zipdedup"
-cp "$SOURCE_ROOT/common/xtrlibdeflate_size.h" "$STAGE/src/xtrlibdeflate_size.h"
+# Keep the ../common/ layout expected by Zip, UnZip, ZipOpt and ZipDedup.
+cp "$SOURCE_ROOT/common/xtrlibdeflate_size.h" "$STAGE/src/common/xtrlibdeflate_size.h"
 # ZipOpt and ZipDedup compile Xtro's portable metadata core from the
 # staged source tree.  Keep this sibling directory alongside both tools.
 sh "$SOURCE_ROOT/xtrmeta/stage-cross.sh" \
