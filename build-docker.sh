@@ -15,7 +15,7 @@ docker run -it -h xtro-zip-build-alpine32 -v "$(pwd -P)":/work \
     export LOCAL_GLDFLAGS="-s -static -flto=auto"; ./build-unix.sh'
 
 sudo rm -f build/*.log build/.bzip2-backend
-zip --huffman-optimize-extra --fwkcs-md5 -11 --zopfli-iterations 150 \
+zip --huffman-optimize-extra --fwkcs-md5 -11 --zopfli-iterations 20 \
   staging/linux32.zip -r build
 
 ############################# Linux 64-bit static musl #########################
@@ -29,7 +29,7 @@ docker run -it -h xtro-zip-build-alpine -v "$(pwd -P)":/work \
     export LOCAL_GLDFLAGS="-s -static -flto=auto"; ./build-unix.sh'
 
 sudo rm -f build/*.log build/.bzip2-backend
-zip --huffman-optimize-extra --fwkcs-md5 -11 --zopfli-iterations 150 \
+zip --huffman-optimize-extra --fwkcs-md5 -11 --zopfli-iterations 20 \
   staging/linux64.zip -r build
 
 ########################## Windows, DOS, and OS/2 builds #######################
@@ -41,7 +41,7 @@ docker run -it -h xtro-zip-build-fedora -v "$(pwd -P)":/work \
 
 zip --huffman-optimize-extra --fwkcs-md5 \
   --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' \
-  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 150 \
+  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 20 \
   dos386.zip -r dos386
 cat dos386/unzipsfx.exe dos386.zip > dos386.exe
 zip -A dos386.exe
@@ -50,7 +50,7 @@ rm -f dos386.zip
 
 zip --huffman-optimize-extra --fwkcs-md5 \
   --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' \
-  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 150 \
+  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 20 \
   dos16.zip -r dos16
 cat dos16/unzipsfx.exe dos16.zip > dos16.exe
 zip -A dos16.exe
@@ -59,21 +59,23 @@ rm -f dos16.zip
 
 zip --huffman-optimize-extra --fwkcs-md5 \
   --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' \
-  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 150 \
+  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 20 \
   staging/win64.zip -r win64
 
 zip --huffman-optimize-extra --fwkcs-md5 \
   --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' \
-  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 150 \
+  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 20 \
   staging/win64ucrt.zip -r win64ucrt
 
 zip --huffman-optimize-extra --fwkcs-md5 \
   --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' \
-  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 150 \
+  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 20 \
   staging/win32.zip -r win32
 
 sudo rm -f os2/zipopt-decodecheck.exe os2/zipopt-preflight.exe
-zip --huffman-optimize-extra --fwkcs-md5 -11 --zopfli-iterations 150 \
+zip --huffman-optimize-extra --fwkcs-md5 \
+  --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' \
+  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 20 \
   staging/os2.zip -r os2
 
 sudo ./clean.sh
