@@ -19,6 +19,8 @@
    different sizes and needless to say leads to segmentation faults.  Putting
    zip.h first seems to fix this.  8/14/04 EG */
 #include "zip.h"
+#define XTR_SDE_NEED_EXTRAS 1
+#include "../xtrmeta/source_epoch_times.h"
 /* On MinGW-w64, optional codec headers (including some bzlib.h builds)
  * can include <windows.h>, which pulls in GCC x86 intrinsic headers.
  * Parse those headers before crypt.h defines Info-ZIP's __G macro;
@@ -560,7 +562,10 @@ local int iz_aes_write_initial(strength, password)
 {
     unsigned char salt[16],ver[4],ctr[4];
     unsigned n=iz_aes_quantum ? 16U : iz_aes_salt_size((unsigned)strength);
-    if(!iz_aes_entropy(salt,n))return ZE_ENTROPY;
+    if (iz_sde_active && iz_sde_insecure)
+        iz_sde_random(salt,n,iz_aes_quantum?"AE3":"WinZipAES",
+                      iz_sde_current_member);
+    else if(!iz_aes_entropy(salt,n))return ZE_ENTROPY;
     if (iz_aes_quantum) {
         iz_ae3_salt_counter(salt,ctr);
         if (!iz_ae3_init(&iz_zip_ae3_ctx,password,salt,ctr,
@@ -905,6 +910,17 @@ struct zlist far *z;    /* zip entry to compress */
 #endif
   if (tim == 0 || q == (zoff_t) -3)
     return ZE_OPEN;
+
+  if (iz_sde_active) {
+    /* The original filesystem timestamp has already served every file
+     * selection decision. Normalize only this newly written ZIP member. */
+    f_utim.mtime = iz_sde_clamp(f_utim.mtime);
+    f_utim.atime = iz_sde_clamp(f_utim.atime);
+    f_utim.ctime = iz_sde_clamp(f_utim.ctime);
+    tim = iz_sde_dostime(f_utim.mtime);
+  }
+
+  iz_sde_current_member = z->iname;
 
   /* q is set to -1 if the input file is a device, -2 for a volume label */
   if (q == (zoff_t) -2) {
@@ -1394,6 +1410,13 @@ struct zlist far *z;    /* zip entry to compress */
 #endif /* DOS || OS2 || WIN32 */
   if (pkav_enabled)
     z->atx &= 0xffUL;
+
+  if (iz_sde_active &&
+      (!xtr_sde_clip_extras((unsigned char *)z->extra,z->ext,iz_sde_epoch) ||
+       !xtr_sde_clip_extras((unsigned char *)z->cextra,z->cext,iz_sde_epoch))) {
+    if (ifile != fbad) zclose(ifile);
+    return ZE_PARMS;
+  }
 
   if ((r = putlocal(z, PUTLOCAL_WRITE)) != ZE_OK) {
     if (ifile != fbad)

@@ -46,10 +46,21 @@
 ifneq ($(filter default undefined,$(origin CC)),)
 CC = cc
 endif
+# Immediate $(shell) calls do not portably inherit GNU make command-line
+# assignments. A direct assignment could otherwise bypass validation and
+# produce a falsely dated binary. Accept only the exported environment form.
+ifeq ($(origin SOURCE_DATE_EPOCH),command line)
+$(error Export SOURCE_DATE_EPOCH in the environment (make command-line assignment unsupported for safe validation))
+endif
 # Try using the gcc target rather than changing CC (CC and LD
 LD = $(CC)#	must match, else "unresolved symbol:  ___main" is possible)
 AS = as
-LOC = $(D_USE_BZ2) $(D_USE_LZMA) $(D_USE_ZSTD) $(D_USE_WAVPACK) $(LOCAL_UNZIP)
+IZ_SDE_CHECK := $(shell LC_ALL=C sh ../tests/source-date-epoch-build.sh validate >/dev/null 2>&1 || printf invalid)
+ifneq ($(IZ_SDE_CHECK),)
+$(error Invalid SOURCE_DATE_EPOCH (expected decimal UTC seconds 315532800..2147483647))
+endif
+IZ_SDE_FLAGS := $(shell LC_ALL=C sh ../tests/source-date-epoch-build.sh flags)
+LOC = $(D_USE_BZ2) $(D_USE_LZMA) $(D_USE_ZSTD) $(D_USE_WAVPACK) $(LOCAL_UNZIP) $(IZ_SDE_FLAGS)
 AF = $(LOC)
 CFLAGS = -O
 CF_NOOPT = -I. -I$(IZ_BZIP2) -DUNIX $(LOC)
@@ -82,7 +93,11 @@ SHELL = /bin/sh
 MAKEF = -f unix/Makefile
 
 # Version info for unix/unix.c
+ifneq ($(origin SOURCE_DATE_EPOCH),undefined)
+HOST_VERSINFO=-DIZ_CC_NAME='\"\$$(CC) \"' -DIZ_OS_NAME='\"`uname -s`\"'
+else
 HOST_VERSINFO=-DIZ_CC_NAME='\"\$$(CC) \"' -DIZ_OS_NAME='\"`uname -a`\"'
+endif
 
 # defaults for crc32 stuff and system dependent headers
 CRCA_O =

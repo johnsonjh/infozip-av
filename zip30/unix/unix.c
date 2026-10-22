@@ -646,14 +646,18 @@ int set_extra_field(z, z_utim)
   z->extra[2]  = (char)EB_UT_LEN(2);    /* length of data part of local e.f. */
   z->extra[3]  = 0;
   z->extra[4]  = EB_UT_FL_MTIME | EB_UT_FL_ATIME;    /* st_ctime != creation */
-  z->extra[5]  = (char)(s.st_mtime);
-  z->extra[6]  = (char)(s.st_mtime >> 8);
-  z->extra[7]  = (char)(s.st_mtime >> 16);
-  z->extra[8]  = (char)(s.st_mtime >> 24);
-  z->extra[9]  = (char)(s.st_atime);
-  z->extra[10] = (char)(s.st_atime >> 8);
-  z->extra[11] = (char)(s.st_atime >> 16);
-  z->extra[12] = (char)(s.st_atime >> 24);
+  {
+    time_t mtime = iz_sde_clamp(s.st_mtime);
+    time_t atime = iz_sde_clamp(s.st_atime);
+    z->extra[5]  = (char)(mtime);
+    z->extra[6]  = (char)(mtime >> 8);
+    z->extra[7]  = (char)(mtime >> 16);
+    z->extra[8]  = (char)(mtime >> 24);
+    z->extra[9]  = (char)(atime);
+    z->extra[10] = (char)(atime >> 8);
+    z->extra[11] = (char)(atime >> 16);
+    z->extra[12] = (char)(atime >> 24);
+  }
 
 #ifndef UIDGID_NOT_16BIT
   /* Only store the UID and GID in the old Ux extra field if the runtime
@@ -1039,7 +1043,7 @@ void version_local()
 
 /* Define the compile date string */
 #ifdef __DATE__
-#  define COMPILE_DATE " on " __DATE__
+#  define COMPILE_DATE " on " IZ_BUILD_DATE
 #else
 #  define COMPILE_DATE ""
 #endif

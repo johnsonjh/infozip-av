@@ -754,6 +754,31 @@ See \"unzip -hh\" or unzip.txt for more help.  Examples:\n\
 /*  main() / UzpMain() stub  */
 /*****************************/
 
+#include "../xtrmeta/source_epoch.h"
+#include <time.h>
+static int iz_unzip_validate_source_epoch(void)
+{
+    const char *s = getenv("SOURCE_DATE_EPOCH");
+    unsigned long epoch;
+    time_t t;
+    if (s == NULL) return 1;
+    if (!xtr_source_epoch_parse(s, &epoch)) {
+        fputs("unzip: invalid SOURCE_DATE_EPOCH (315532800..2147483647)\n",
+              stderr);
+        return 0;
+    }
+    t = (time_t)epoch;
+    if ((unsigned long)t != epoch || gmtime(&t) == NULL) {
+        fputs("unzip: SOURCE_DATE_EPOCH not representable by time_t\n",stderr);
+        return 0;
+    }
+    s = getenv("SOURCE_DATE_EPOCH_INSECURE");
+    if (s != NULL && *s != '\0')
+        fputs("WARNING: SOURCE_DATE_EPOCH_INSECURE permits deterministic, "
+              "CRYPTOGRAPHICALLY INSECURE encryption randomness!\n",stderr);
+    return 1;
+}
+
 int MAIN(argc, argv)   /* return PK-type error code (except under VMS) */
     int argc;
     char *argv[];
@@ -761,6 +786,10 @@ int MAIN(argc, argv)   /* return PK-type error code (except under VMS) */
     int r;
 
     CONSTRUCTGLOBALS();
+    if (!iz_unzip_validate_source_epoch()) {
+        DESTROYGLOBALS();
+        RETURN(PK_PARAM);
+    }
 #if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32)
     {
         int n=0;

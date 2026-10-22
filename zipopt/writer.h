@@ -15,6 +15,7 @@ typedef struct zo_outentry
   zo_u64 local_off, usize, csize;
   unsigned method, flags, version;
   int has_md5;
+  int normalize_timestamp;
   unsigned char md5[16];
 } zo_outentry;
 
@@ -26,6 +27,8 @@ typedef struct zo_writer
   zo_outentry *entries;
   zo_u64 written;
   int failed;
+  int sde_active, fwkcs_requested;
+  unsigned long sde_epoch;
 } zo_writer;
 
 int zo_writer_begin (zo_writer *, zo_archive *, const char *);

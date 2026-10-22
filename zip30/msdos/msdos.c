@@ -953,7 +953,7 @@ void version_local()
 
 /* Define the compile date string */
 #ifdef __DATE__
-#  define COMPILE_DATE " on " __DATE__
+#  define COMPILE_DATE " on " IZ_BUILD_DATE
 #else
 #  define COMPILE_DATE ""
 #endif

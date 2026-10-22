@@ -1742,7 +1742,7 @@ void version(__G)
 #endif /* SGI */
 
 #ifdef __DATE__
-      " on ", __DATE__
+      " on ", IZ_BUILD_DATE
 #else
       "", ""
 #endif

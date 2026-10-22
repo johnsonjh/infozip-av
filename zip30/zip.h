@@ -78,6 +78,21 @@ freely, subject to the above disclaimer and the following restrictions:
 
 #define ZIP   /* for crypt.c:  include zip password functions, not unzip */
 
+/* Build scripts pass only validated ASCII numeric/date tokens.  Stringify
+ * inside the C preprocessor: no shell-quoted source text is evaluated. */
+#define IZ_SDE_STRING_INNER(x) #x
+#define IZ_SDE_STRING(x) IZ_SDE_STRING_INNER(x)
+#if defined(IZ_BUILD_YEAR) && defined(IZ_BUILD_MONTH) && defined(IZ_BUILD_DAY)
+# define IZ_BUILD_DATE IZ_SDE_STRING(IZ_BUILD_YEAR) "-" IZ_SDE_STRING(IZ_BUILD_MONTH) "-" IZ_SDE_STRING(IZ_BUILD_DAY)
+#else
+# define IZ_BUILD_DATE __DATE__
+#endif
+#if defined(IZ_BUILD_HOUR) && defined(IZ_BUILD_MINUTE) && defined(IZ_BUILD_SECOND)
+# define IZ_BUILD_TIME IZ_SDE_STRING(IZ_BUILD_HOUR) ":" IZ_SDE_STRING(IZ_BUILD_MINUTE) ":" IZ_SDE_STRING(IZ_BUILD_SECOND)
+#else
+# define IZ_BUILD_TIME __TIME__
+#endif
+
 /* Types centralized here for easy modification */
 #define local static            /* More meaningful outside functions */
 typedef unsigned char uch;      /* unsigned 8-bit value */
@@ -147,6 +162,17 @@ typedef struct iztimes {
    time_t mtime;                /* new modification time */
    time_t ctime;                /* new creation time (!= Unix st.ctime) */
 } iztimes;
+
+/* Initialized exactly once at the beginning of a Zip/ZipUtils invocation.
+ * When the environment variable is absent these preserve the old paths. */
+extern int iz_sde_active;
+extern int iz_sde_insecure;
+extern time_t iz_sde_epoch;
+int iz_sde_init OF((void));
+time_t iz_sde_clamp OF((time_t));
+ulg iz_sde_dostime OF((time_t));
+void iz_sde_random OF((uch *, unsigned, ZCONST char *, ZCONST char *));
+extern ZCONST char *iz_sde_current_member;
 
 /* Lengths of headers after signatures in bytes */
 #define LOCHEAD 26

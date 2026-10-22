@@ -1,5 +1,12 @@
 # Make UnZip DLL-type objects, but link them statically into zipdedup!
 # Needs bzip2, lzma and zstd libraries; compiler defaults to cc.
+ifeq ($(origin SOURCE_DATE_EPOCH),command line)
+$(error Export SOURCE_DATE_EPOCH in the environment; direct make assignment is unsupported)
+endif
+IZ_SDE_CHECK := $(shell LC_ALL=C sh ../tests/source-date-epoch-build.sh validate >/dev/null 2>&1 || printf invalid)
+ifneq ($(IZ_SDE_CHECK),)
+$(error Invalid SOURCE_DATE_EPOCH (expected decimal UTC seconds 315532800..2147483647))
+endif
 ifneq ($(filter default undefined,$(origin CC)),)
 CC = cc
 endif

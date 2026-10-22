@@ -200,6 +200,9 @@ or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav).
   *Optionally*, use “`./build-os2-libs.sh`” **before** starting the build to
   compile additional OS/2 libraries (LZMA, Zstandard, WavPack).
 
+* To make “reproducible” (deterministic) builds, see
+  [SOURCE_DATE_EPOCH usage and security policy](docs/SOURCE_DATE_EPOCH.md).
+
 > [!IMPORTANT]
 > Examine the actual build scripts (and the “`build-all.sh`” script the
 > developer uses to build the binary releases) for more detailed information.

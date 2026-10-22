@@ -17,6 +17,9 @@
 
 #include "../xtrmeta/xtrv1.h"
 #include "../xtrmeta/xtrverify_inline.h"
+#include "../xtrmeta/source_epoch.h"
+#define XTR_SDE_NEED_DOS 1
+#include "../xtrmeta/source_epoch_times.h"
 
 #include "writer.h"
 
@@ -32,6 +35,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 typedef struct
 {
@@ -755,7 +759,10 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
           || y->central_comment_len != x->central_comment_len
           || !zo_archive_at (original, x->central_offset, src, 46)
           || !zo_archive_at (&output, y->central_offset, dst, 46)
-          || memcmp (src + 12, dst + 12, 4) || /* DOS timestamp */
+          || (w->entries[(size_t)i].normalize_timestamp
+                  ? (xtr_sde_clip_dos(src+12,xtr_sde_dos(w->sde_epoch)),
+                     memcmp(src+12,dst+12,4))
+                  : memcmp(src+12,dst+12,4)) || /* DOS timestamp */
           memcmp (src + 36, dst + 36, 6) || /* attrs and original OS flags */
           (src[5] != dst[5]) ||             /* version-made-by host OS */
           !zo_equal_records (
@@ -833,8 +840,40 @@ main (int argc, char **argv)
   unsigned char requested[ZO_MAX_CANDIDATES];
   unsigned skipped[ZO_MAX_CANDIDATES], skipped_count = 0;
   int fwkcs_md5 = 0;
+  int sde_active = 0;
+  unsigned long sde_epoch = 0UL;
   zo_settings settings;
   int j;
+
+  {
+    const char *epoch_string = getenv ("SOURCE_DATE_EPOCH");
+    if (epoch_string != NULL)
+      {
+        unsigned long epoch;
+        time_t native_time;
+        const char *insecure;
+        if (!xtr_source_epoch_parse (epoch_string, &epoch))
+          {
+            fputs ("zipopt: invalid SOURCE_DATE_EPOCH (required range "
+                   "315532800..2147483647)\n", stderr);
+            return 2;
+          }
+        sde_active = 1;
+        sde_epoch = epoch;
+        native_time = (time_t)epoch;
+        if ((unsigned long)native_time != epoch
+            || gmtime (&native_time) == NULL)
+          {
+            fputs ("zipopt: SOURCE_DATE_EPOCH not supported by time_t\n",
+                   stderr);
+            return 2;
+          }
+        insecure = getenv ("SOURCE_DATE_EPOCH_INSECURE");
+        if (insecure != NULL && *insecure != '\0')
+          fputs ("WARNING: SOURCE_DATE_EPOCH_INSECURE permits deterministic, "
+                 "CRYPTOGRAPHICALLY INSECURE encryption randomness!\n", stderr);
+      }
+  }
 
   memset (&settings, 0, sizeof (settings));
   memset (requested, 0, sizeof (requested));
@@ -1258,6 +1297,9 @@ main (int argc, char **argv)
 
       goto done;
     }
+  w.sde_active = sde_active;
+  w.sde_epoch = sde_epoch;
+  w.fwkcs_requested = fwkcs_md5;
 
   for (i = 0; i < a.count; i++)
     {

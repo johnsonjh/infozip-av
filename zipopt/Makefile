@@ -1,4 +1,14 @@
 .DEFAULT_GOAL := all
+# Reject an invalid reproducible-build request before starting any compiler.
+# As for the historical Zip/UnZip Unix makefiles, use the exported environment
+# (not a make command-line assignment, which $(shell) need not inherit).
+ifeq ($(origin SOURCE_DATE_EPOCH),command line)
+$(error Export SOURCE_DATE_EPOCH in the environment; direct make assignment is unsupported)
+endif
+IZ_SDE_CHECK := $(shell LC_ALL=C sh ../tests/source-date-epoch-build.sh validate >/dev/null 2>&1 || printf invalid)
+ifneq ($(IZ_SDE_CHECK),)
+$(error Invalid SOURCE_DATE_EPOCH (expected decimal UTC seconds 315532800..2147483647))
+endif
 # zipopt — private, in-process UnZip build (early implementation stages)
 # SPDX-License-Identifier: MIT-0
 ifneq ($(filter default undefined,$(origin CC)),)

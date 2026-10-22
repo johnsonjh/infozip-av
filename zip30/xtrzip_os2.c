@@ -60,7 +60,9 @@ reserve_id (unsigned char id[16])
     {
       unsigned i, at;
 #ifndef NO_AES
-      if (!iz_aes_entropy (id, 16U))
+      if (iz_sde_active)
+        iz_sde_random (id, 16U, "XtroOwner", iz_sde_current_member);
+      else if (!iz_aes_entropy (id, 16U))
         {
           return 1;
         }

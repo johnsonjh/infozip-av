@@ -400,6 +400,9 @@ char **argv;            /* command line tokens */
   struct zlist far *z;  /* steps through zfiles linked list */
   int xtro_archive = 0; /* preserve verified owner/companion pairs */
 
+  if (!iz_sde_init())
+    return ZE_PARMS;
+
 #ifdef THEOS
   setlocale(LC_CTYPE, "I");
 #endif

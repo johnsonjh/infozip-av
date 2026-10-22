@@ -2,6 +2,10 @@
 
 set -e
 
+# Validate before creating any output tree. The helper emits only inert ASCII
+# preprocessor tokens; it never interpolates input into a make/shell program.
+IZ_SDE_FLAGS=$(sh ./tests/source-date-epoch-build.sh flags) || exit 2
+
 test -z "${MAKE:-}" && {
   MAKE="$(command -v gmake 2> /dev/null \
     || command -v make 2> /dev/null \
@@ -40,6 +44,11 @@ test -z "${WLB:-}" && {
 # "-DNOMEMCPY -DIZ_HAVE_UXUIDGID -DNO_LCHMOD" are "important" RHEL flags, do not remove!
 CF_NOOPT="${LTO:-} -I. -DUNIX ${RPM_OPT_FLAGS:--O3} -DNOMEMCPY -DIZ_HAVE_UXUIDGID -DNO_LCHMOD"
 GLDFLAGS="${LTO:-} ${WLB:-}"
+if [ -n "$IZ_SDE_FLAGS" ]; then
+  CF_NOOPT="$CF_NOOPT $IZ_SDE_FLAGS"
+  LOCAL_ZIP="${LOCAL_ZIP:-} $IZ_SDE_FLAGS"
+  LOCAL_UNZIP="${LOCAL_UNZIP:-} $IZ_SDE_FLAGS"
+fi
 
 # Enable LZMA-enabled unzipsfx
 D_USE_LZMA_SFX="-DLZMA_SFX"

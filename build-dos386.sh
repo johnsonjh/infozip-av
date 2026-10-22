@@ -54,6 +54,10 @@ case "${1-}" in
   ;;
 esac
 SOURCE_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P) || exit 1
+IZ_SDE_FLAGS=$(sh "$SOURCE_ROOT/tests/source-date-epoch-build.sh" flags) || exit 2
+if [ -n "$IZ_SDE_FLAGS" ]; then
+  DOS386_CFLAGS="${DOS386_CFLAGS:-} $IZ_SDE_FLAGS"
+fi
 if [ -n "${DJGPP_CC:-}" ]; then
   CC=$DJGPP_CC
 elif [ -x /opt/djgpp/bin/i586-pc-msdosdjgpp-gcc ]; then

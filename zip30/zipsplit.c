@@ -641,6 +641,9 @@ char **argv;            /* command line tokens */
 #endif
   char errbuf[5000];
 
+  if (!iz_sde_init())
+    return ZE_PARMS;
+
 #ifdef THEOS
   setlocale(LC_CTYPE, "I");
 #endif

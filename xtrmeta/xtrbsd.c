@@ -26,6 +26,14 @@ extern int extattr_delete_fd (int, int, const char *);
 # include <stdlib.h>
 # include <string.h>
 # include <unistd.h>
+static int xb_epoch_set;
+static time_t xb_epoch;
+void
+xtr_bsd_capture_set_epoch (time_t epoch)
+{
+  xb_epoch = epoch;
+  xb_epoch_set = 1;
+}
 /* FreeBSD 15's stream namespace is separate from extattr(2), although
  * individual entries can alias on ZFS. The mock ABI has no kernel headers. */
 # if (defined(__FreeBSD__) && defined(O_NAMEDATTR)                             \
@@ -269,12 +277,20 @@ static int
 xb_stamp_put (unsigned char *p, const struct timespec *ts)
 {
   time_t n = ts->tv_sec;
+  long nanos = ts->tv_nsec;
   int neg = n < (time_t)0;
   unsigned i;
 
-  if (ts->tv_nsec < 0 || ts->tv_nsec > 999999999L)
+  if (nanos < 0 || nanos > 999999999L)
     {
       return XTR_UNSUPPORTED;
+    }
+
+  if (xb_epoch_set && (n > xb_epoch || (n == xb_epoch && nanos > 0)))
+    {
+      n = xb_epoch;
+      nanos = 0;
+      neg = 0;
     }
 
   if (neg)
@@ -294,7 +310,7 @@ xb_stamp_put (unsigned char *p, const struct timespec *ts)
       return XTR_UNSUPPORTED;
     }
 
-  xb_put32 (p + 8, (unsigned long)ts->tv_nsec);
+  xb_put32 (p + 8, (unsigned long)nanos);
   return XTR_OK;
 }
 static int

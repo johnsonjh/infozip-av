@@ -85,6 +85,58 @@
 
 #define MAXCOM 256      /* Maximum one-line comment size */
 
+/* Reorder only files discovered by one explicit argument, never the
+ * arguments themselves or the untouched members of an existing archive. */
+local int iz_sde_filecmp(aa, bb)
+ZCONST zvoid *aa;
+ZCONST zvoid *bb;
+{
+  ZCONST struct flist far *a = *(struct flist far *far *)aa;
+  ZCONST struct flist far *b = *(struct flist far *far *)bb;
+  ZCONST unsigned char *x = (ZCONST unsigned char *)a->iname;
+  ZCONST unsigned char *y = (ZCONST unsigned char *)b->iname;
+  while (*x && *y) {
+    if (*x != *y) return *x < *y ? -1 : 1;
+    x++; y++;
+  }
+  if (*x != *y) return *x ? 1 : -1;
+  x = (ZCONST unsigned char *)a->name;
+  y = (ZCONST unsigned char *)b->name;
+  while (*x && *y) {
+    if (*x != *y) return *x < *y ? -1 : 1;
+    x++; y++;
+  }
+  return *x == *y ? 0 : (*x ? 1 : -1);
+}
+
+local int iz_sde_sort_discovered(link)
+struct flist far *far *link;
+{
+  struct flist far *f;
+  struct flist far **items;
+  struct flist far *far *next;
+  size_t count = 0, i;
+  if (!iz_sde_active) return ZE_OK;
+  for (f = *link; f != NULL; f = f->nxt) count++;
+  if (count < 2) return ZE_OK;
+  if (count > ((size_t)-1) / sizeof(*items)) return ZE_MEM;
+  items = (struct flist far **)malloc(count * sizeof(*items));
+  if (items == NULL) return ZE_MEM;
+  for (f = *link, i = 0; f != NULL; f = f->nxt)
+    items[i++] = f;
+  qsort((char *)items, count, sizeof(*items), iz_sde_filecmp);
+  next = link;
+  for (i = 0; i < count; i++) {
+    *next = items[i];
+    items[i]->lst = next;
+    next = &items[i]->nxt;
+  }
+  *next = NULL;
+  fnxt = next;
+  free(items);
+  return ZE_OK;
+}
+
 
 /* Local option flags */
 #ifndef DELETE
@@ -3294,6 +3346,10 @@ char **argv;            /* command line tokens */
 
   char **args = NULL;  /* could be wide argv */
 
+  /* Validate once, before option processing or any output side effects. */
+  if (!iz_sde_init())
+    return ZE_PARMS;
+
 
 #ifdef THEOS
   /* the argument expansion from the standard library is full of bugs */
@@ -4978,6 +5034,18 @@ char **argv;            /* command line tokens */
     }
   }
 
+  if (iz_sde_active && key != NULL) {
+    if (!iz_sde_insecure)
+      ZIPERR(ZE_PARMS,
+             "reproducible encryption requires nonempty SOURCE_DATE_EPOCH_INSECURE");
+  }
+
+  /* Deterministic opaque PKAV validation against historical implementations
+   * must be completed before enabling creation in this mode. */
+  if (iz_sde_active && pkav_enabled)
+    ZIPERR(ZE_PARMS,
+           "PKAV authenticity output is not certified reproducible");
+
   if (show_what_doing) {
     fprintf(mesg, "sd: Command line read\n");
     fflush(mesg);
@@ -5138,8 +5206,13 @@ char **argv;            /* command line tokens */
       struct tm *now;
       time_t clocktime;
 
-      time(&clocktime);
-      now = localtime(&clocktime);
+      if (iz_sde_active) {
+        clocktime = iz_sde_epoch;
+        now = gmtime(&clocktime);
+      } else {
+        time(&clocktime);
+        now = localtime(&clocktime);
+      }
 
       fprintf(logfile, "---------\n");
       fprintf(logfile, "Zip log opened %s", asctime(now));
@@ -5546,8 +5619,13 @@ char **argv;            /* command line tokens */
         fprintf(logfile, " bytes)");
 
         /* get current time */
-        time(&clocktime);
-        now = localtime(&clocktime);
+        if (iz_sde_active) {
+          clocktime = iz_sde_epoch;
+          now = gmtime(&clocktime);
+        } else {
+          time(&clocktime);
+          now = localtime(&clocktime);
+        }
         fprintf(logfile, "\nDone %s", asctime(now));
         fflush(logfile);
     }
@@ -5672,6 +5750,7 @@ char **argv;            /* command line tokens */
         fflush(mesg);
       }
       for (; filelist; ) {
+        struct flist far *far *sde_first_new = fnxt;
         if ((r = PROCNAME(filelist->name)) != ZE_OK) {
           if (r == ZE_MISS) {
             if (bad_open_is_error) {
@@ -5684,6 +5763,8 @@ char **argv;            /* command line tokens */
             ZIPERR(r, filelist->name);
           }
         }
+        if ((r = iz_sde_sort_discovered(sde_first_new)) != ZE_OK)
+          ZIPERR(r, "sorting discovered archive names");
         free(filelist->name);
         filearg = filelist;
         filelist = filelist->next;
@@ -5694,6 +5775,7 @@ char **argv;            /* command line tokens */
 
   /* recurse from current directory for -R */
   if (recurse == 2) {
+    struct flist far *far *sde_first_new = fnxt;
 #ifdef AMIGA
     if ((r = PROCNAME("")) != ZE_OK)
 #else
@@ -5711,6 +5793,8 @@ char **argv;            /* command line tokens */
         ZIPERR(r, "-R");
       }
     }
+    if ((r = iz_sde_sort_discovered(sde_first_new)) != ZE_OK)
+      ZIPERR(r, "sorting discovered archive names");
   }
 
 
@@ -7756,8 +7840,13 @@ char **argv;            /* command line tokens */
 
       /* get current time */
 
-      time(&clocktime);
-      now = localtime(&clocktime);
+      if (iz_sde_active) {
+        clocktime = iz_sde_epoch;
+        now = gmtime(&clocktime);
+      } else {
+        time(&clocktime);
+        now = localtime(&clocktime);
+      }
       fprintf(logfile, "\nDone %s", asctime(now));
   }
 

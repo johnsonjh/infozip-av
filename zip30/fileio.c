@@ -15,6 +15,7 @@
 
 #include "zip.h"
 #include "crc32.h"
+#include "../xtrmeta/source_epoch.h"
 
 #if defined(XTR_WIN_NATIVE) && defined(WIN32) && defined(__MINGW32__) && !defined(UTIL) && !defined(WINDLL)
 /* Replace/unlink the archive using exactly the same Unicode pathname used
@@ -32,6 +33,107 @@
 #endif /* def VMS */
 
 #include <time.h>
+
+int iz_sde_active = 0;
+int iz_sde_insecure = 0;
+time_t iz_sde_epoch = (time_t)0;
+ZCONST char *iz_sde_current_member = NULL;
+static unsigned long iz_sde_sequence = 0UL;
+
+/* Only callers at the beginning of an invocation may call this function.
+ * The override is deliberately not inspected at all if the epoch is absent. */
+int iz_sde_init()
+{
+  ZCONST char *value = getenv("SOURCE_DATE_EPOCH");
+  unsigned long epoch;
+  time_t converted;
+  if (value == NULL) {
+    iz_sde_active = 0;
+    iz_sde_insecure = 0;
+    iz_sde_sequence = 0UL;
+    return 1;
+  }
+  if (!xtr_source_epoch_parse(value, &epoch)) {
+    fputs("error: SOURCE_DATE_EPOCH must be decimal seconds in "
+          "[315532800,2147483647], without spaces or signs\n", stderr);
+    return 0;
+  }
+  converted = (time_t)epoch;
+  if ((unsigned long)converted != epoch || gmtime(&converted) == NULL) {
+    fputs("error: SOURCE_DATE_EPOCH is not representable by this C runtime\n",
+          stderr);
+    return 0;
+  }
+  iz_sde_epoch = converted;
+  iz_sde_active = 1;
+  iz_sde_sequence = 0UL;
+  value = getenv("SOURCE_DATE_EPOCH_INSECURE");
+  iz_sde_insecure = value != NULL && *value != '\0';
+  if (iz_sde_insecure)
+    fputs("WARNING: SOURCE_DATE_EPOCH_INSECURE makes encryption salts/IVs "
+          "predictable and is CRYPTOGRAPHICALLY INSECURE!\n", stderr);
+  return 1;
+}
+
+time_t iz_sde_clamp(t)
+time_t t;
+{
+  return iz_sde_active && t > iz_sde_epoch ? iz_sde_epoch : t;
+}
+
+#ifndef UTIL
+ulg iz_sde_dostime(t)
+time_t t;
+{
+  struct tm *utc;
+  time_t even;
+  if (t < (time_t)XTR_EPOCH_MIN)
+    return dostime(1980, 1, 1, 0, 0, 0);
+  /* DOS timestamps have a two-second resolution; always round DOWN. */
+  even = (time_t)((unsigned long)t & ~1UL);
+  utc = gmtime(&even);
+  if (utc == NULL)
+    return dostime(1980, 1, 1, 0, 0, 0);
+  return dostime(utc->tm_year + 1900, utc->tm_mon + 1, utc->tm_mday,
+                 utc->tm_hour, utc->tm_min, utc->tm_sec);
+}
+#endif
+
+/* A deliberately INSECURE deterministic byte stream.  It is used ONLY with
+ * the explicit SOURCE_DATE_EPOCH + SOURCE_DATE_EPOCH_INSECURE double opt-in.
+ * Its use must never leak into the default cryptographic random generators. */
+void iz_sde_random(out, length, domain, name)
+uch *out;
+unsigned length;
+ZCONST char *domain;
+ZCONST char *name;
+{
+  unsigned long h = 2166136261UL;
+  unsigned i;
+  unsigned long e = (unsigned long)iz_sde_epoch;
+  ZCONST unsigned char *p;
+
+  for (i = 0; i < 4U; i++) {
+    h = ((h ^ (e & 255UL)) * 16777619UL) & 0xffffffffUL;
+    e >>= 8;
+  }
+  for (p = (ZCONST unsigned char *)domain; *p != 0; p++)
+    h = ((h ^ (unsigned long)*p) * 16777619UL) & 0xffffffffUL;
+  for (p = (ZCONST unsigned char *)name; p && *p != 0; p++)
+    h = ((h ^ (unsigned long)*p) * 16777619UL) & 0xffffffffUL;
+  e = iz_sde_sequence++;
+  for (i = 0; i < 4U; i++) {
+    h = ((h ^ (e & 255UL)) * 16777619UL) & 0xffffffffUL;
+    e >>= 8;
+  }
+  for (i = 0; i < length; i++) {
+    h ^= h << 13;
+    h ^= h >> 17;
+    h ^= h << 5;
+    h &= 0xffffffffUL;
+    out[i] = (uch)(h & 255UL);
+  }
+}
 
 #ifdef NO_MKTIME
 time_t mktime OF((struct tm *));

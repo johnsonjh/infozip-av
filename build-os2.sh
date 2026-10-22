@@ -3,6 +3,7 @@
 # Built-in vendored bzip2; optional OW2 static codec libraries detected.
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+iz_sde_flags=$(sh "$root/tests/source-date-epoch-build.sh" flags) || exit 2
 watcom=${WATCOM:-/opt/watcom}
 if [ ! -d "$watcom" ]; then
   echo "ERROR: Open Watcom missing at $watcom; set WATCOM" >&2
@@ -33,7 +34,7 @@ esac
 # -zp1 matches the OS/2 EA ABI and preexisting makefile.os2 settings.
 # Disable ASM; optional codecs require verified OW2 LX link probes.
 # Keep compiler diagnostics in build-os2/build.log only.
-common="-bt=os2 -ei -3r -mf -zp1 -zq -fr -DNO_ASM -D__32BIT__ -DZSTD_DISABLE_DEPRECATE_WARNINGS -I=$root/vendor/bzip2 $opt"
+common="-bt=os2 -ei -3r -mf -zp1 -zq -fr -DNO_ASM -D__32BIT__ -DZSTD_DISABLE_DEPRECATE_WARNINGS -I=$root/vendor/bzip2 $opt $iz_sde_flags"
 build="$root/build-os2"
 out="$root/os2"
 mkdir -p "$build" "$out"

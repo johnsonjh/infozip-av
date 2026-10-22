@@ -340,6 +340,9 @@ int main(argc, argv)
 
     char **args;               /* copy of argv that can be freed */
 
+    if (!iz_sde_init())
+      return ZE_PARMS;
+
 #ifdef THEOS
     setlocale(LC_CTYPE, "I");
 #endif
@@ -604,6 +607,10 @@ int main(argc, argv)
         ziperr(ZE_NONE, decrypt ? "no encrypted files"
                        : "all files encrypted already");
     }
+
+    if (iz_sde_active && !decrypt && !iz_sde_insecure)
+      ziperr(ZE_PARMS,
+             "reproducible encryption requires nonempty SOURCE_DATE_EPOCH_INSECURE");
 
     /* Before we get carried away, make sure zip file is writeable */
     if ((inzip = fopen(zipfile, "a")) == NULL) ziperr(ZE_CREAT, zipfile);

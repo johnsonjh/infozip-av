@@ -14,6 +14,9 @@
 #endif /* if !defined( _POSIX_C_SOURCE ) */
 
 #include "writer.h"
+#define XTR_SDE_NEED_DOS 1
+#define XTR_SDE_NEED_EXTRAS 1
+#include "../xtrmeta/source_epoch_times.h"
 
 #include <fcntl.h>
 #include <signal.h>
@@ -513,6 +516,7 @@ zo_writer_add (zo_writer *w, zo_u64 idx, FILE *payload, unsigned method,
   o->csize = csize;
   o->method = method;
   o->flags = flags;
+  o->normalize_timestamp = w->sde_active && (payload != NULL || w->fwkcs_requested);
   o->version = ver = zo_need_version (method);
   z64 = e->usize >= ZO32MAX || csize >= ZO32MAX;
 
@@ -534,6 +538,13 @@ zo_writer_add (zo_writer *w, zo_u64 idx, FILE *payload, unsigned method,
       return 0;
     }
 
+  if (o->normalize_timestamp
+      && !xtr_sde_clip_extras(extra,nx,w->sde_epoch))
+    {
+      free(extra);
+      return 0;
+    }
+
   if (z64 && nx > 65535 - 20)
     {
       free (extra);
@@ -550,8 +561,13 @@ zo_writer_add (zo_writer *w, zo_u64 idx, FILE *payload, unsigned method,
   {
     unsigned char stamp[4];
 
-    if (!zo_archive_at (w->source, e->local_offset + 10, stamp, 4)
-        || !zo_write (w, stamp, 4))
+    if (!zo_archive_at (w->source, e->local_offset + 10, stamp, 4))
+      {
+        goto fail;
+      }
+    if (o->normalize_timestamp)
+      xtr_sde_clip_dos(stamp,xtr_sde_dos(w->sde_epoch));
+    if (!zo_write (w, stamp, 4))
       {
         goto fail;
       }
@@ -634,6 +650,16 @@ zo_writer_complete (zo_writer *w)
                            e->central_extra_len, &extra, &nx))
         {
           return 0;
+        }
+
+      if (o->normalize_timestamp)
+        {
+          xtr_sde_clip_dos(cen + 12,xtr_sde_dos(w->sde_epoch));
+          if (!xtr_sde_clip_extras(extra,nx,w->sde_epoch))
+            {
+              free(extra);
+              return 0;
+            }
         }
 
       zsz = o->usize >= ZO32MAX;

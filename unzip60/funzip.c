@@ -120,6 +120,8 @@
 #include "crc32.h"
 #include "crypt.h"
 #include "ttyio.h"
+#include "../xtrmeta/source_epoch.h"
+#include <time.h>
 
 #ifdef EBCDIC
 #  undef EBCDIC                 /* don't need ebcdic[] */
@@ -296,6 +298,36 @@ char **argv;
   char *s = "";
 #endif /* ?CRYPT */
   CONSTRUCTGLOBALS();
+
+  {
+    const char *epoch_string = getenv("SOURCE_DATE_EPOCH");
+
+    if (epoch_string != NULL) {
+      unsigned long epoch;
+      time_t native_time;
+
+      if (!xtr_source_epoch_parse(epoch_string, &epoch)) {
+        fputs("funzip: invalid SOURCE_DATE_EPOCH (315532800..2147483647)\n",
+              stderr);
+
+        return PK_PARAM;
+      }
+
+      native_time = (time_t)epoch;
+
+      if ((unsigned long)native_time != epoch || gmtime(&native_time) == NULL) {
+        fputs("funzip: SOURCE_DATE_EPOCH not representable by time_t\n",stderr);
+
+        return PK_PARAM;
+      }
+
+      epoch_string = getenv("SOURCE_DATE_EPOCH_INSECURE");
+
+      if (epoch_string != NULL && *epoch_string != '\0')
+        fputs("WARNING: SOURCE_DATE_EPOCH_INSECURE permits deterministic, "
+              "CRYPTOGRAPHICALLY INSECURE encryption randomness!\n",stderr);
+    }
+  }
 
   /* skip executable name */
   argc--;

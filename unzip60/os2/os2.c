@@ -2750,7 +2750,7 @@ void version(__G)
 #endif
 
 #ifdef __DATE__
-      " on ", __DATE__
+      " on ", IZ_BUILD_DATE
 #else
       "", ""
 #endif

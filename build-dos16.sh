@@ -3,6 +3,7 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+iz_sde_flags=$(sh "$root/tests/source-date-epoch-build.sh" flags) || exit 2
 
 watcom=${WATCOM:-/opt/watcom}
 if [ ! -d "$watcom" ]; then
@@ -75,7 +76,7 @@ case " ${LOCAL_DOS16_CFLAGS:-} " in
   ;;
 esac
 
-common='-bt=DOS -0 -d0 -zt -zq -ot -oe -ob -oc -oh -oi -ok -ol -ol+ -om -or -s'
+common="-bt=DOS -0 -d0 -zt -zq -ot -oe -ob -oc -oh -oi -ok -ol -ol+ -om -or -s $iz_sde_flags"
 log="$build/build.log"
 : > "$log"
 compile()

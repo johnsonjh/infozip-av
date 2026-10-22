@@ -2727,7 +2727,7 @@ void version(__G)
       "\nWindows", IZ_WIN_BITNESS,
 
 #ifdef __DATE__
-      " on ", __DATE__
+      " on ", IZ_BUILD_DATE
 #else
       "", ""
 #endif

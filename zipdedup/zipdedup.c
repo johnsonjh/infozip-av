@@ -52,6 +52,10 @@ extern unsigned long crc32 (unsigned long, const unsigned char *, size_t);
 #include "../xtrmeta/xtrrewrite.h"
 #include "../xtrmeta/xtrv1.h"
 #include "../xtrmeta/xtrverify_inline.h"
+#include "../xtrmeta/source_epoch.h"
+#define XTR_SDE_NEED_DOS 1
+#define XTR_SDE_NEED_EXTRAS 1
+#include "../xtrmeta/source_epoch_times.h"
 #include <time.h>
 #ifdef _WIN32
 # include <io.h>
@@ -138,6 +142,35 @@ struct zd_archive
 
 static const char *zd_error;
 static int zd_verbose;
+static int zd_sde_active;
+static unsigned long zd_sde_epoch;
+
+static int
+zd_sde_init (void)
+{
+  const char *s = getenv ("SOURCE_DATE_EPOCH");
+  time_t converted;
+  if (s == NULL)
+    return 1;
+  if (!xtr_source_epoch_parse (s, &zd_sde_epoch))
+    {
+      fputs ("zipdedup: invalid SOURCE_DATE_EPOCH (required range "
+             "315532800..2147483647)\n", stderr);
+      return 0;
+    }
+  converted = (time_t)zd_sde_epoch;
+  if ((unsigned long)converted != zd_sde_epoch || gmtime (&converted) == NULL)
+    {
+      fputs ("zipdedup: SOURCE_DATE_EPOCH not supported by time_t\n", stderr);
+      return 0;
+    }
+  zd_sde_active = 1;
+  s = getenv ("SOURCE_DATE_EPOCH_INSECURE");
+  if (s != NULL && *s != '\0')
+    fputs ("WARNING: SOURCE_DATE_EPOCH_INSECURE permits deterministic, "
+           "CRYPTOGRAPHICALLY INSECURE encryption randomness!\n", stderr);
+  return 1;
+}
 
 /*
  * Reject oversized in-core structures before any narrowing
@@ -1461,10 +1494,65 @@ zd_supported (unsigned m)
 }
 
 static int
-zd_random_uuid (unsigned char b[16])
+zd_random_uuid (struct zd_archive *a, struct zd_entry *source,
+                unsigned char b[16])
 {
-  FILE *f = fopen ("/dev/urandom", "rb");
+  FILE *f;
   size_t n = 0;
+
+  if (zd_sde_active)
+    {
+      unsigned long attempt;
+      for (attempt = 0; attempt < 65536UL; attempt++)
+        {
+          iz_sha1 state;
+          unsigned char digest[20], number[8];
+          unsigned long j;
+          unsigned i;
+          int collision = 0;
+          unsigned long values[2];
+
+          values[0] = zd_sde_epoch;
+          values[1] = attempt;
+          for (i = 0; i < 2; i++)
+            {
+              unsigned k;
+              for (k = 0; k < 4; k++)
+                {
+                  number[i * 4U + k] = (unsigned char)(values[i] & 255UL);
+                  values[i] >>= 8;
+                }
+            }
+          iz_sha1_init (&state);
+          iz_sha1_update (&state,
+                          (const unsigned char *)"XtroZip:RefPtr:v1", 17);
+          iz_sha1_update (&state, number, sizeof (number));
+          iz_sha1_update (&state, source->sha1, 20);
+          iz_sha1_update (&state, (const unsigned char *)source->name,
+                          strlen (source->name));
+          iz_sha1_finish (&state, digest);
+          memcpy (b, digest, 16);
+          b[6] = (unsigned char)((b[6] & 15U) | 64U);
+          b[8] = (unsigned char)((b[8] & 63U) | 128U);
+
+          for (j = 0; j < a->count; j++)
+            {
+              struct zd_entry *e = &a->members[j];
+              if ((e->is_source || e->has_ref)
+                  && memcmp (b, e->uuid, 16) == 0)
+                {
+                  collision = 1;
+                  break;
+                }
+            }
+          if (!collision)
+            return 1;
+        }
+      zd_fail ("deterministic RefPtr UUID collision limit exceeded");
+      return 0;
+    }
+
+  f = fopen ("/dev/urandom", "rb");
 
   if (f)
     {
@@ -1554,7 +1642,7 @@ zd_plan (struct zd_archive *a, unsigned long *number, unsigned long *saved)
 
           if (!src->is_source && !src->has_ref)
             {
-              if (!zd_random_uuid (src->uuid))
+              if (!zd_random_uuid (a, src, src->uuid))
                 {
                   return 0;
                 }
@@ -2072,6 +2160,36 @@ zd_emit (struct zd_archive *a, FILE *out)
   unsigned long i, at, cdstart, cdlen, limit;
   int zip64 = 0, ok = 1;
 
+  /* Only members explicitly changed by deduplication/FWKCS may acquire
+   * normalized timestamps. Every other member keeps its original fields. */
+  if (zd_sde_active)
+    for (i = 0; i < a->count; i++)
+      {
+        struct zd_entry *e = a->members + i;
+        unsigned char *c, *l;
+        unsigned cn, cx, ln, lx;
+        unsigned long cutoff;
+        if (!e->selected && !e->is_source && !e->add_md5)
+          continue;
+        cn = zd_u16(e->cen + 28);
+        cx = zd_u16(e->cen + 30);
+        ln = zd_u16(e->loc + 26);
+        lx = zd_u16(e->loc + 28);
+        c = e->cen + 46UL + cn;
+        l = e->loc + 30UL + ln;
+        cutoff = xtr_sde_dos(zd_sde_epoch);
+        xtr_sde_clip_dos(e->cen + 12,cutoff);
+        xtr_sde_clip_dos(e->loc + 10,cutoff);
+        e->dostime = zd_u16(e->cen + 12);
+        e->dosdate = zd_u16(e->cen + 14);
+        if (!xtr_sde_clip_extras(c,cx,zd_sde_epoch) ||
+            !xtr_sde_clip_extras(l,lx,zd_sde_epoch))
+          {
+            zd_fail("malformed timestamp extra in replaced member");
+            return 0;
+          }
+      }
+
   limit = a->count ? a->members[a->order[0]].off : a->cd_off;
   if (limit && !zd_copy (a->in, out, 0, limit))
     {
@@ -2090,7 +2208,7 @@ zd_emit (struct zd_archive *a, FILE *out)
 
       at = (unsigned long)ftell (out);
       e->new_off = at;
-      if (e->selected || e->is_source)
+      if (e->selected || e->is_source || (zd_sde_active && e->add_md5))
         {
           if (!zd_rewrite_local (e, out))
             {
@@ -2215,6 +2333,9 @@ main (int argc, char **argv)
   char *tmp = NULL;
   FILE *out = NULL;
   int fd = -1;
+
+  if (!zd_sde_init ())
+    return 2;
 
   memset (&a, 0, sizeof (a));
 

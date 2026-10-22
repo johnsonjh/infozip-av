@@ -40,6 +40,11 @@
 #include "zip.h"
 #include "crypt.h"
 #include "ttyio.h"
+#ifdef UTIL
+#define XTR_SDE_NEED_DOS 1
+#define XTR_SDE_NEED_EXTRAS 1
+#include "../xtrmeta/source_epoch_times.h"
+#endif
 #ifndef NO_AES
 #include "wzaes.h"
 #if defined(ZIP) && !defined(UTIL)
@@ -233,13 +238,18 @@ void crypthead(passwd, crc)
      * output of rand() to get less predictability, since rand() is
      * often poorly implemented.
      */
-    if (++calls == 1) {
-        srand((unsigned)time(NULL) ^ ZCR_SEED2);
-    }
-    init_keys(passwd);
-    for (n = 0; n < RAND_HEAD_LEN-2; n++) {
-        c = (rand() >> 7) & 0xff;
-        header[n] = (uch)zencode(c, t);
+    if (iz_sde_active && iz_sde_insecure) {
+        iz_sde_random(header, RAND_HEAD_LEN-2, "ZipCrypto",
+                      iz_sde_current_member);
+    } else {
+        if (++calls == 1) {
+            srand((unsigned)time(NULL) ^ ZCR_SEED2);
+        }
+        init_keys(passwd);
+        for (n = 0; n < RAND_HEAD_LEN-2; n++) {
+            c = (rand() >> 7) & 0xff;
+            header[n] = (uch)zencode(c, t);
+        }
     }
     /* Encrypt random header (last two bytes is high word of crc) */
     init_keys(passwd);
@@ -253,6 +263,27 @@ void crypthead(passwd, crc)
 
 
 #ifdef UTIL
+
+/* ZipCloak explicitly rewrites only the entries it encrypts/decrypts.
+ * Normalize both new headers there, leaving copied entries untouched. */
+static int iz_sde_cloak_timestamp(z, localz)
+    struct zlist far *z;
+    struct zlist far *localz;
+{
+    unsigned long cutoff;
+    if (!iz_sde_active) return ZE_OK;
+    cutoff = xtr_sde_dos((unsigned long)iz_sde_epoch);
+    if (z->tim > cutoff) z->tim = cutoff;
+    if (localz->tim > cutoff) localz->tim = cutoff;
+    if (!xtr_sde_clip_extras((uch *)z->extra,z->ext,
+                             (unsigned long)iz_sde_epoch) ||
+        !xtr_sde_clip_extras((uch *)z->cextra,z->cext,
+                             (unsigned long)iz_sde_epoch) ||
+        !xtr_sde_clip_extras((uch *)localz->extra,localz->ext,
+                             (unsigned long)iz_sde_epoch))
+      return ZE_FORM;
+    return ZE_OK;
+}
 
 /***********************************************************************
  * Encrypt the zip entry described by z from file in_file to file y
@@ -291,10 +322,13 @@ int zipcloak(z, passwd)
     localz->siz += RAND_HEAD_LEN;
     z->siz = localz->siz;
 
+    if ((res = iz_sde_cloak_timestamp(z,localz)) != ZE_OK) return res;
+
     /* Put the local header */
     if ((res = putlocal(localz, PUTLOCAL_WRITE)) != ZE_OK) return res;
 
     /* Initialize keys with password and write random header */
+    iz_sde_current_member = z->iname;
     crypthead(passwd, localz->crc);
 
     /* Encrypt data */
@@ -414,6 +448,8 @@ int zipbare(z, passwd)
 
     localz->flg = z->flg &= ~9;
     z->lflg = localz->lflg &= ~9;
+
+    if ((res = iz_sde_cloak_timestamp(z,localz)) != ZE_OK) return res;
 
     if ((res = putlocal(localz, PUTLOCAL_WRITE)) != ZE_OK) return res;
 

@@ -153,7 +153,14 @@ int xtr_zip_capture(struct zlist far *z,int isdir,int issym,int encrypted,int or
     stage=tmpfile();
     if(!stage){r=ZE_TEMP;goto done;}
     for(i=0;i<16;i++)id[i]=0;
-    for(i=0;i<12;i++)if(xtr_random_id(id)&&!xtr_id_exists(id))break;
+    for(i=0;i<12;i++){
+        int generated;
+        if(iz_sde_active){
+            iz_sde_random(id,16U,"XtroOwner",z->iname);
+            generated=1;
+        }else generated=xtr_random_id(id);
+        if(generated&&!xtr_id_exists(id))break;
+    }
     if(i==12){r=ZE_TEMP;goto done;}
     r=xtr_linux_capture_fd(fd,id,stage,encrypted,&dig);
     if(r!=XTR_OK){r=ZE_TEMP;goto done;}

@@ -78,6 +78,19 @@ freely, subject to the above disclaimer and the following restrictions:
 #ifndef __unzip_h   /* prevent multiple inclusions */
 #define __unzip_h
 
+#define IZ_SDE_STRING_INNER(x) #x
+#define IZ_SDE_STRING(x) IZ_SDE_STRING_INNER(x)
+#if defined(IZ_BUILD_YEAR) && defined(IZ_BUILD_MONTH) && defined(IZ_BUILD_DAY)
+# define IZ_BUILD_DATE IZ_SDE_STRING(IZ_BUILD_YEAR) "-" IZ_SDE_STRING(IZ_BUILD_MONTH) "-" IZ_SDE_STRING(IZ_BUILD_DAY)
+#else
+# define IZ_BUILD_DATE __DATE__
+#endif
+#if defined(IZ_BUILD_HOUR) && defined(IZ_BUILD_MINUTE) && defined(IZ_BUILD_SECOND)
+# define IZ_BUILD_TIME IZ_SDE_STRING(IZ_BUILD_HOUR) ":" IZ_SDE_STRING(IZ_BUILD_MINUTE) ":" IZ_SDE_STRING(IZ_BUILD_SECOND)
+#else
+# define IZ_BUILD_TIME __TIME__
+#endif
+
 /*---------------------------------------------------------------------------
     Predefined, machine-specific macros.
   ---------------------------------------------------------------------------*/

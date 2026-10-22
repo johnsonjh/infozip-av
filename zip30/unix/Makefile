@@ -19,6 +19,18 @@ list:   all
 #MAKE = make -f unix/Makefile
 MAKEF = -f unix/Makefile
 SHELL = /bin/sh
+# A make command-line assignment is not reliably exported to $(shell) when
+# these immediate variables are expanded. Reject it rather than silently
+# building with the wrong date or interpolating untrusted text into a shell.
+# Supply SOURCE_DATE_EPOCH in the environment instead.
+ifeq ($(origin SOURCE_DATE_EPOCH),command line)
+$(error Export SOURCE_DATE_EPOCH in the environment (make command-line assignment unsupported for safe validation))
+endif
+IZ_SDE_CHECK := $(shell LC_ALL=C sh ../tests/source-date-epoch-build.sh validate >/dev/null 2>&1 || printf invalid)
+ifneq ($(IZ_SDE_CHECK),)
+$(error Invalid SOURCE_DATE_EPOCH (expected decimal UTC seconds 315532800..2147483647))
+endif
+IZ_SDE_FLAGS := $(shell LC_ALL=C sh ../tests/source-date-epoch-build.sh flags)
 LN = ln -s
 
 # (to use the GNU compiler, change cc to gcc in CC)
@@ -60,7 +72,7 @@ IZ_OUR_BZIP2_DIR = bzip2
 #   CFLAGS    flags for C compile
 #   LFLAGS1   flags after output file spec, before obj file list
 #   LFLAGS2   flags after obj file list (libraries, etc)
-CFLAGS_NOOPT = -I. -DUNIX $(LOCAL_ZIP)
+CFLAGS_NOOPT = -I. -DUNIX $(LOCAL_ZIP) $(IZ_SDE_FLAGS)
 CFLAGS = -O2 $(CFLAGS_NOOPT)
 LFLAGS1 =
 LFLAGS2 = -s

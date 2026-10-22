@@ -54,6 +54,7 @@ fail()
 }
 
 SOURCE_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P) || exit 1
+IZ_SDE_FLAGS=$(sh "$SOURCE_ROOT/tests/source-date-epoch-build.sh" flags) || exit 2
 TARGET=${MINGW_TARGET:-i686-w64-mingw32}
 
 case "$TARGET" in
@@ -365,8 +366,8 @@ fi
 
 # The MinGW SFX rules suppress LZMA, BZip2, WavPack and Zstd by default;
 # pass those feature macros to all normal source objects, never enable DLLs.
-ZIP_FLAGS="${LOCAL_ZIP:-} ${EXTERNAL_ZLIB:-} $ZIP_FEATURES $ZIP_INC -std=gnu89"
-UNZIP_FLAGS="${LOCAL_UNZIP:-} ${EXTERNAL_ZLIB:-} $UZ_FEATURES $UNZIP_INC -std=gnu89"
+ZIP_FLAGS="${LOCAL_ZIP:-} ${EXTERNAL_ZLIB:-} $ZIP_FEATURES $ZIP_INC -std=gnu89 $IZ_SDE_FLAGS"
+UNZIP_FLAGS="${LOCAL_UNZIP:-} ${EXTERNAL_ZLIB:-} $UZ_FEATURES $UNZIP_INC -std=gnu89 $IZ_SDE_FLAGS"
 
 # The legacy Windows makefiles put objects next to sources. Copying the two
 # component trees prevents reuse of Unix, Win32 or Win64 objects and leaves
