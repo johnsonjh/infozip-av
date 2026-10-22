@@ -74,7 +74,7 @@ check_os2_codec()
     explicit=${OS2_WAVPACK_DIR+x}
     ;;
   OS2_LIBDEFLATE)
-    mode=${OS2_LIBDEFLATE:-off}
+    mode=${OS2_LIBDEFLATE:-auto}
     prefix=${OS2_LIBDEFLATE_DIR:-$defdir}
     explicit=${OS2_LIBDEFLATE_DIR+x}
     ;;
@@ -138,12 +138,6 @@ check_os2_codec()
 check_os2_codec lzma OS2_LZMA "$root/build-os2-libs/lzma/install" lzma.h liblzma.lib
 check_os2_codec zstd OS2_ZSTD "$root/build-os2-libs/zstd/install" zstd.h libzstd.lib
 check_os2_codec wavpack OS2_WAVPACK "$root/build-os2-libs/wavpack/install" wavpack/wavpack.h libwavpack.lib
-case "${OS2_LIBDEFLATE:-off}" in
-off | on) ;;
-*)
-  echo 'ERROR: OS2_LIBDEFLATE must be off or on' >&2; exit 2
-  ;;
-esac
 check_os2_codec libdeflate OS2_LIBDEFLATE "$root/build-os2-libs/libdeflate/install" libdeflate.h libdeflate.lib
 common="$common $extra_include_flags"
 compile()

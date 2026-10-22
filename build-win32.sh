@@ -34,7 +34,7 @@ Environment variables:
   WIN32_WAVPACK      auto (default), on, off
   WIN32_ZSTD         auto (default), on, off
   WIN32_ZLIB         auto (default), on, off (only with -DUSE_ZLIB)
-  WIN32_LIBDEFLATE   off (default) or on (require static libdeflate)
+  WIN32_LIBDEFLATE   auto (default), on (require), off
   MINGW_AR           Target archiver, for static import-library detection
   MINGW_NM           Target symbol scanner, for static import-library detection
 HELP
@@ -358,10 +358,6 @@ check_codec bzip2 bzlib.h libbz2.a WIN32_BZIP2 WIN32_BZIP2_DIR
 check_codec lzma lzma.h liblzma.a WIN32_LZMA WIN32_LZMA_DIR
 check_codec zstd zstd.h libzstd.a WIN32_ZSTD WIN32_ZSTD_DIR
 check_codec wavpack wavpack/wavpack.h libwavpack.a WIN32_WAVPACK WIN32_WAVPACK_DIR
-case "${WIN32_LIBDEFLATE:-off}" in
-off | on) ;;
-*) fail 'WIN32_LIBDEFLATE must be off or on' ;;
-esac
 check_codec libdeflate libdeflate.h libdeflate.a WIN32_LIBDEFLATE WIN32_LIBDEFLATE_DIR
 
 if [ "$REQUEST_ZLIB" = yes ]; then

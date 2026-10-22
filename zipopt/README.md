@@ -84,9 +84,11 @@ Changing backends regenerates the codec adapter and relinks the executable;
 flags. The embedded UnZip decoder continues to use its internal Deflate
 implementation independently of the selected compression backend.
 
-Optional libdeflate support is built **only** with `ZO_LIBDEFLATE=on` and
-linkable headers/library (override with `ZO_LIBDEFLATE_CFLAGS` and
-`ZO_LIBDEFLATE_LIBS`); `build-unix.sh` requests this when `USE_LIBDEFLATE=1`.
+Optional libdeflate support is automatically enabled when its header and
+library pass a compiler/linker probe (override discovery with
+`ZO_LIBDEFLATE_CFLAGS` and `ZO_LIBDEFLATE_LIBS`). Standalone builds may use
+`ZO_LIBDEFLATE=off` to disable it or `ZO_LIBDEFLATE=on` to require it;
+`build-unix.sh` forwards the result of its own detection.
 When compiled, the separate `libdeflate` candidate is available immediately,
 even if Zopfli is also selected. It never replaces the existing `deflate`
 candidate. `--methods=libdeflate` selects only this candidate, and

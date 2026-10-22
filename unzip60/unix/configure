@@ -884,8 +884,16 @@ if test -n "${ZNG_LINK_LIBS:-}"; then
   esac
 fi
 
+# libdeflate is used by regular UnZip's bounded method-8 decoder, never by
+# UnZipSFX or fUnZip.  Keep its link flags out of both smaller executables;
+# preserve all the pre-existing platform and optional zlib-ng link flags.
+FUNZIP_LFLAGS2="${LFLAGS2}"
+if test -n "${IZ_LIBDEFLATE_LIBS:-}"; then
+  LFLAGS2="${LFLAGS2} ${IZ_LIBDEFLATE_LIBS}"
+fi
+
 echo CC=\"${CC}\" CF=\"${CFLAGSR} ${D_USE_BZ2} ${D_USE_LZMA} ${D_USE_ZSTD} ${D_USE_WAVPACK}\" CRCA_O=\"${CRC32OA}\" \
-       AS=\"${CC} -c\" LFLAGS1=\"${LFLAGS1}\" LF2=\"${LFLAGS2}\" SL2=\"${SFX_LFLAGS2}\" \
+       AS=\"${CC} -c\" LFLAGS1=\"${LFLAGS1}\" LF2=\"${LFLAGS2}\" SL2=\"${SFX_LFLAGS2}\" FL2=\"${FUNZIP_LFLAGS2}\" \
        CC_BZ=\"${CC_BZ}\" CFLAGS_BZ=\"${CFLAGS_BZ}\" \
        IZ_BZIP2=\"${IZ_BZIP2}\" D_USE_BZ2=\"${D_USE_BZ2}\" \
        L_BZ2=\"${L_BZ2}\" LIBBZ2=\"${LIBBZ2}\" \

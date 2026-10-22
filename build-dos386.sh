@@ -20,7 +20,7 @@ Environment:
   DOS386_LZMA          auto (default), on (require), off
   DOS386_WAVPACK       auto (default), on (require), off
   DOS386_ZSTD          auto (default), on (require), off
-  DOS386_LIBDEFLATE    off (default) or on (require optional static library)
+  DOS386_LIBDEFLATE    auto (default), on (require), off
   DOS386_BZIP2_DIR     Prefix containing bzlib.h and libbz2.a
                        (default: build-dos386/bzip2)
   DOS386_LZMA_DIR      Prefix with include/lzma.h and lib/liblzma.a
@@ -313,10 +313,6 @@ if [ "$DOS_FOUND" = yes ]; then
   DOS_ZIP_LIBS="$DOS_ZIP_LIBS $DOS_ARCHIVE"
   DOS_UNZIP_LIBS="$DOS_UNZIP_LIBS $DOS_ARCHIVE"
 fi
-case "${DOS386_LIBDEFLATE:-off}" in
-off | on) ;;
-*) fail 'DOS386_LIBDEFLATE must be off or on' ;;
-esac
 probe_dos_library libdeflate DOS386_LIBDEFLATE "${DOS386_LIBDEFLATE_DIR:-$ROOT/libdeflate/install}" libdeflate.h libdeflate.a
 if [ "$DOS_FOUND" = yes ]; then
   DOS_ZIP_FLAGS="$DOS_ZIP_FLAGS -DUSE_LIBDEFLATE $DOS_INCLUDE"

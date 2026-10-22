@@ -105,11 +105,13 @@ test "${PREFIX:?}" = "/build" && {
 
 mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
 
-# Never auto-enable this optional codec.  A successful compile+link test is
-# mandatory only when the builder explicitly requests it.
-case "${USE_LIBDEFLATE:-0}" in
-0) ZO_LD_REQUEST=off ;;
-1)
+# libdeflate is optional at build time and remains opt-in for Zip's runtime
+# compressor.  Detect only through a real header+link probe; 1 requires the
+# library, 0 disables it, and the default auto mode skips absent libraries.
+XLD_LINK_LIBS=
+case "${USE_LIBDEFLATE:-auto}" in
+0 | off) ZO_LD_REQUEST=off ;;
+auto | 1 | on)
   xld_probe="$PREFIX/.libdeflate-probe-$$"
   LIBDEFLATE_CFLAGS="${LIBDEFLATE_CFLAGS:-$(pkg-config --cflags libdeflate 2> /dev/null || :)}"
   LIBDEFLATE_LIBS="${LIBDEFLATE_LIBS:-$(pkg-config --libs libdeflate 2> /dev/null || printf '%s' '-ldeflate')}"
@@ -122,23 +124,30 @@ int main(void) {
   return 0;
 }
 XTR_LD_PROBE
-  if ! "$BUILD_CC" ${LOCAL_ZIP:-} ${LOCAL_UNZIP:-} \
+  if "$BUILD_CC" ${LOCAL_ZIP:-} ${LOCAL_UNZIP:-} \
     $LIBDEFLATE_CFLAGS "$xld_probe.c" -o "$xld_probe" \
     ${LOCAL_GLDFLAGS:-} $LIBDEFLATE_LIBS \
     > "$PREFIX/libdeflate-probe.log" 2>&1; then
-    echo 'ERROR: USE_LIBDEFLATE=1 but libdeflate headers/library cannot link' >&2
-    tail -30 "$PREFIX/libdeflate-probe.log" >&2
-    exit 1
+    LOCAL_ZIP="${LOCAL_ZIP:-} $LIBDEFLATE_CFLAGS -DUSE_LIBDEFLATE"
+    LOCAL_UNZIP="${LOCAL_UNZIP:-} $LIBDEFLATE_CFLAGS -DUSE_LIBDEFLATE"
+    XLD_LINK_LIBS=$LIBDEFLATE_LIBS
+    ZO_LD_REQUEST=on
+    echo 'build-unix: libdeflate detected and enabled'
+  else
+    case "${USE_LIBDEFLATE:-auto}" in
+    1 | on)
+      echo 'ERROR: USE_LIBDEFLATE=1 but libdeflate headers/library cannot link' >&2
+      tail -30 "$PREFIX/libdeflate-probe.log" >&2
+      exit 1
+      ;;
+    esac
+    ZO_LD_REQUEST=off
+    echo 'build-unix: libdeflate unavailable; using existing codecs'
   fi
   rm -f "$xld_probe" "$xld_probe.c"
-  LOCAL_ZIP="${LOCAL_ZIP:-} $LIBDEFLATE_CFLAGS -DUSE_LIBDEFLATE"
-  LOCAL_UNZIP="${LOCAL_UNZIP:-} $LIBDEFLATE_CFLAGS -DUSE_LIBDEFLATE"
-  LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-} $LIBDEFLATE_LIBS"
-  ZO_LD_REQUEST=on
-  echo 'build-unix: explicitly enabled libdeflate'
   ;;
 *)
-  echo 'ERROR: USE_LIBDEFLATE must be 0 or 1' >&2; exit 2
+  echo 'ERROR: USE_LIBDEFLATE must be auto, 0/off, or 1/on' >&2; exit 2
   ;;
 esac
 
@@ -266,6 +275,7 @@ fi
       $BZIP2_UNZIP_MAKE_ARG \
       LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
       LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
+      IZ_LIBDEFLATE_LIBS="$XLD_LINK_LIBS" \
       EXTERNAL_ZLIB="${EXTERNAL_ZLIB:-}" \
       MAKE="${MAKE:-make}" \
       PREFIX="${PREFIX:?}"
@@ -279,7 +289,7 @@ fi
       LFLAGS2="${GLDFLAGS}" \
       $BZIP2_ZIP_MAKE_ARG \
       LOCAL_ZIP="${LOCAL_ZIP:-}" \
-      LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
+      LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-} $XLD_LINK_LIBS" \
       EXTERNAL_ZLIB="${EXTERNAL_ZLIB:-}" \
       MAKE="${MAKE:-make}" \
       PREFIX="${PREFIX:?}"
@@ -310,7 +320,7 @@ fi
       CC="${BUILD_CC}" \
       ZD_BACKEND="${ZD_ZLIB_BACKEND}" \
       LOCAL_UNZIP="${LOCAL_UNZIP:-}" \
-      LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
+      LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-} $XLD_LINK_LIBS" \
       MAKE="${MAKE:-make}" \
     && cp -p "zipdedup" "${PREFIX:?}/bin/zipdedup" \
     && cp -p "man/zipdedup.1" "${PREFIX:?}/man1/zipdedup.1"
