@@ -10,7 +10,7 @@
 #  include <arm_neon.h>
 #  define IZ_ARM_TARGET __attribute__ ((target ("+crypto"), noinline))
 
-#  ifndef NO_ARM_AES
+#  if !defined(NO_ARM_AES) && !defined(IZ_SHA256_ONLY)
 #   define IZ_ARM_AES_ENABLED 1
 static IZ_ARM_TARGET __attribute__ ((unused)) void
 iz_arm_aes_block (const unsigned char *keys, unsigned rounds,
@@ -31,7 +31,7 @@ iz_arm_aes_block (const unsigned char *keys, unsigned rounds,
 }
 #  endif /* ifndef NO_ARM_AES */
 
-#  ifndef NO_ARM_SHA1
+#  if !defined(NO_ARM_SHA1) && !defined(IZ_SHA256_ONLY)
 #   define IZ_ARM_SHA1_ENABLED 1
 /* SHA1 SHA1C/SHA1P/SHA1M and SHA1SU0/SHA1SU1. */
 static IZ_ARM_TARGET __attribute__ ((unused)) void
@@ -172,7 +172,7 @@ iz_arm_sha256_block (unsigned long h[8], const unsigned char *p,
 }
 #  endif /* ifndef NO_ARM_SHA256 */
 
-#  ifndef NO_ARM_PMULL
+#  if !defined(NO_ARM_PMULL) && !defined(IZ_SHA256_ONLY)
 #   define IZ_ARM_PMULL_ENABLED 1
 /* Polynomial multiplication in little-endian coefficient order. */
 static IZ_ARM_TARGET __attribute__ ((unused)) void

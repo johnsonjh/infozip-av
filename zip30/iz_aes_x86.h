@@ -9,10 +9,10 @@
 # define IZ_AES_X86_BASE 1
 # include <cpuid.h>
 # include <immintrin.h>
-# if !defined(NO_AES_NI)
+# if !defined(NO_AES_NI) && !defined(IZ_SHA256_ONLY)
 #  define IZ_AES_NI_ENABLED 1
 # endif
-# if !defined(NO_GHASH_PCLMUL)
+# if !defined(NO_GHASH_PCLMUL) && !defined(IZ_SHA256_ONLY)
 #  define IZ_GHASH_PCLMUL_ENABLED 1
 # endif
 # if !defined(NO_SHA256_NI)

@@ -1,6 +1,18 @@
 /* MIT-0. Self-contained SHA-256 (FIPS 180-4), C89, 32/64-bit long. */
 #include "xtrsha.h"
 #include <string.h>
+/* SHA-NI/ARM SHA-2 compressors shared with AE-3.  Leave the software
+ * compressor and all SFX builds untouched when acceleration is absent. */
+#ifndef SFX
+#define IZ_SHA256_ONLY 1
+#ifndef NO_SHA256_NI
+#include "../zip30/iz_aes_x86.h"
+#endif
+#ifndef NO_ARM_SHA256
+#include "../zip30/iz_arm_crypto.h"
+#endif
+#undef IZ_SHA256_ONLY
+#endif
 #define M 0xffffffffUL
 #define R(x, n) (((x) >> (n)) | (((x) << (32 - (n))) & M))
 static const unsigned long k[64]
@@ -36,6 +48,20 @@ transform (xtr_sha256 *s)
 {
   unsigned long w[64], a, b, c, d, e, f, g, h, t1, t2;
   unsigned i;
+#ifdef IZ_SHA256_NI_ENABLED
+  if (iz_sha256_ni_available ())
+    {
+      iz_sha256_ni_block (s->h, s->block, k);
+      return;
+    }
+#endif
+#ifdef IZ_ARM_SHA256_ENABLED
+  if (iz_arm_has (IZ_ARM_SHA2_BIT))
+    {
+      iz_arm_sha256_block (s->h, s->block, k);
+      return;
+    }
+#endif
 
   for (i = 0; i < 16; i++)
     {
