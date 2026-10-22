@@ -14,6 +14,7 @@
 #define __ZIP_C
 
 #include "zip.h"
+#define XLD_ENABLE_AUTO 1
 #include "../common/xtrlibdeflate_size.h"
 #if defined(UNIX) && defined(UNICODE_SUPPORT)
 # include "unix/utf8_locale.h"
@@ -1749,7 +1750,7 @@ local void help_extended()
 "  --disable-store-fallback[-]      disable/enable automatic store fallback",
 #ifdef USE_LIBDEFLATE
 "  --use-libdeflate[-]              enable/disable bounded libdeflate (method 8)",
-"  --libdeflate-size n              libdeflate size limit (default is '1MiB')",
+"  --libdeflate-size n|auto         libdeflate memory limit (default is '1MiB')",
 #endif
 #ifdef LPAQ8_ENCODE_SUPPORT
 "  --lpaq8-l2-enable                LPAQ8 l2 processing (PAQZIP incompatible!)",
@@ -2079,6 +2080,9 @@ local void version_info()
 #endif
 #ifdef IMPLODE_SUPPORT
     "ZIP-Implode          (ZIP method 6; Implode LZSS-Shannon-Fano supported)",
+#endif
+#ifdef USE_LIBDEFLATE
+    "libdeflate           (ZIP method 8; libdeflate compression)",
 #endif
 #ifdef DEFLATE64_SUPPORT
     "Deflate64            (ZIP method 9; Deflate64(tm) supported)",
@@ -4522,9 +4526,24 @@ char **argv;            /* command line tokens */
           xld_zip_enabled = !negated;
           break;
         case o_libdeflate_size:
-          if (!xld_parse_limit(value, &xld_zip_limit)) {
+          if (strcmp(value, "auto") == 0) {
+            /* Memory pressure varies between builds.  In reproducible mode
+             * the selected backend must not depend on the host's RAM. */
+            if (getenv("SOURCE_DATE_EPOCH") != NULL) {
+              free(value);
+              ZIPERR(ZE_PARMS, "--libdeflate-size auto is incompatible with SOURCE_DATE_EPOCH");
+            }
+            if (!xld_auto_supported()) {
+              free(value);
+              ZIPERR(ZE_PARMS, "--libdeflate-size auto is not supported on this platform");
+            }
+            if (!xld_auto_limit(&xld_zip_limit)) {
+              free(value);
+              ZIPERR(ZE_PARMS, "--libdeflate-size auto: cannot determine available memory");
+            }
+          } else if (!xld_parse_limit(value, &xld_zip_limit)) {
             free(value);
-            ZIPERR(ZE_PARMS, "invalid --libdeflate-size (expected positive bytes or K/M/G/T units)");
+            ZIPERR(ZE_PARMS, "invalid --libdeflate-size (expected positive bytes, K/M/G/T units, or auto)");
           }
           xld_size_set = 1;
           free(value);

@@ -51,7 +51,7 @@ case "${OS2_LIBS_FETCH:-1}" in 0 | 1) ;; *)
   echo 'ERROR: OS2_LIBS_FETCH must be 0 or 1' >&2; exit 2
   ;;
 esac
-case "${OS2_LIBS:-lzma zstd wavpack}" in
+case "${OS2_LIBS:-lzma zstd wavpack libdeflate}" in
 *'/'* | *'..'*)
   echo 'ERROR: invalid OS2_LIBS' >&2; exit 2
   ;;
@@ -140,6 +140,12 @@ build_codec()
     bc_cmake=.
     bc_opts='-DHAVE___BUILTIN_CLZ:INTERNAL=0 -DWAVPACK_BUILD_PROGRAMS=OFF -DWAVPACK_BUILD_COOLEDIT_PLUGIN=OFF -DWAVPACK_BUILD_WINAMP_PLUGIN=OFF -DWAVPACK_ENABLE_ASM=OFF -DWAVPACK_ENABLE_THREADS=OFF -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF'
     ;;
+  libdeflate)
+    bc_url=https://github.com/ebiggers/libdeflate
+    bc_target=libdeflate_static
+    bc_cmake=.
+    bc_opts='-DLIBDEFLATE_BUILD_STATIC_LIB=ON -DLIBDEFLATE_BUILD_SHARED_LIB=OFF -DLIBDEFLATE_BUILD_GZIP=OFF -DLIBDEFLATE_BUILD_TESTS=OFF -DLIBDEFLATE_INSTALL=OFF -DCMAKE_C_FLAGS_RELEASE:STRING='
+    ;;
   *)
     echo "ERROR: unknown codec $bc_name" >&2; return 2
     ;;
@@ -186,7 +192,11 @@ build_codec()
     tail -45 "$bc_log" >&2
     rm -rf "$bc_install"; return 1
   fi
-  bc_archive=$(find_archive "$bc_build" "$bc_name")
+  # Upstream libdeflate calls its static archive deflate.lib, but our
+  # staged installation uses libdeflate.lib for unambiguous detection.
+  bc_archive_name=$bc_name
+  [ "$bc_name" != libdeflate ] || bc_archive_name=deflate
+  bc_archive=$(find_archive "$bc_build" "$bc_archive_name")
   if [ -z "$bc_archive" ]; then
     echo "ERROR: $bc_name static archive not found (build may have changed target naming)" >&2
     rm -rf "$bc_install"; return 1
@@ -213,6 +223,13 @@ build_codec()
     fi
     bc_name_out=libwavpack.lib
     ;;
+  libdeflate)
+    [ -s "$bc_src/libdeflate.h" ] || {
+      echo 'ERROR: libdeflate public header missing' >&2; return 1
+    }
+    cp "$bc_src/libdeflate.h" "$bc_install/include/"
+    bc_name_out=libdeflate.lib
+    ;;
   esac
   cp "$bc_archive" "$bc_install/lib/$bc_name_out"
   if ! probe_os2_library "$bc_name" "$bc_install" "$bc_root/probe" "$root"; then
@@ -224,8 +241,8 @@ build_codec()
 }
 
 bad=0
-for lib in ${OS2_LIBS:-lzma zstd wavpack}; do
-  case "$lib" in lzma | zstd | wavpack) ;; *)
+for lib in ${OS2_LIBS:-lzma zstd wavpack libdeflate}; do
+  case "$lib" in lzma | zstd | wavpack | libdeflate) ;; *)
     echo "ERROR: unknown OS2_LIBS item '$lib'" >&2; exit 2
     ;;
   esac

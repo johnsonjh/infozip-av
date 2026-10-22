@@ -12,12 +12,32 @@
 #include "archive.h"
 #include "codec.h"
 #ifdef ZO_WITH_LIBDEFLATE
+# define XLD_ENABLE_AUTO 1
 # include "../common/xtrlibdeflate_size.h"
 #endif
 #include "display.h"
 #include "extract.h"
 #ifdef ZO_WITH_LIBDEFLATE
 extern const char *zo_unzip_libdeflate_size_arg;
+/* The embedded UnZip accepts numeric limits, so pass the *resolved* value
+ * when zipopt's limit came from auto. */
+static char zo_auto_limit_decimal[3 * sizeof (size_t) + 2];
+
+static void
+zo_format_auto_limit (size_t value)
+{
+  char reversed[3 * sizeof (size_t) + 2];
+  unsigned n = 0, i;
+  do
+    {
+      reversed[n++] = (char)('0' + (unsigned)(value % 10U));
+      value /= 10U;
+    }
+  while (value != 0U);
+  for (i = 0; i < n; i++)
+    zo_auto_limit_decimal[i] = reversed[n - i - 1U];
+  zo_auto_limit_decimal[n] = '\0';
+}
 #endif
 #include "fwkcs_md5.h"
 
@@ -286,7 +306,7 @@ zo_usage (void)
         "  --disable-zopfli               ordinary Deflate instead of Zopfli\n"
         "  --huffman-optimize-extra       run expensive Huffman header optimizations\n"
         "  --zopfli-iterations=N          Zopfli passes (1..10000; default 15)\n"
-        "  --libdeflate-size=N            libdeflate size limit (default is '1MiB')\n"
+        "  --libdeflate-size=N|auto       libdeflate cap (default 1MiB; auto where supported)\n"
         "  -v, --verbose                  verbose output display mode\n"
         "  -V, --version                  display version and acceleration\n"
         "  -h, --help                     display this help text");
@@ -296,7 +316,7 @@ zo_usage (void)
 static void
 zo_methods_help (void)
 {
-  unsigned i;
+  unsigned i, j, best, previous;
 
   puts ("zipopt --methods=list: valid compression candidates:");
   puts ("  all                      all available candidates (default)");
@@ -304,12 +324,32 @@ zo_methods_help (void)
   puts ("  reduce                   all four ZIP-Reduce variants");
   puts ("  dcl-implode              both DCL-Implode modes");
 
-  for (i = 0; i < zo_candidate_count; i++)
+  /* Sort only the help output by ZIP method number.  Keep the internal
+   * registry indices unchanged: candidate selection uses those indices. */
+  previous = zo_candidate_count;
+  for (j = 0; j < zo_candidate_count; j++)
     {
-      if (!zo_candidate_available (i))
-        continue;
-      printf ("  %-24s (ZIP method %u)\n", zo_candidates[i].name,
-              zo_candidates[i].method);
+      best = zo_candidate_count;
+      for (i = 0; i < zo_candidate_count; i++)
+        {
+          if (!zo_candidate_available (i))
+            continue;
+          if (previous != zo_candidate_count
+              && (zo_candidates[i].method < zo_candidates[previous].method
+                  || (zo_candidates[i].method == zo_candidates[previous].method
+                      && i <= previous)))
+            continue;
+          if (best == zo_candidate_count
+              || zo_candidates[i].method < zo_candidates[best].method
+              || (zo_candidates[i].method == zo_candidates[best].method
+                  && i < best))
+            best = i;
+        }
+      if (best == zo_candidate_count)
+        break;
+      printf ("  %-24s (ZIP method %u)\n", zo_candidates[best].name,
+              zo_candidates[best].method);
+      previous = best;
     }
 
   puts ("Separate multiple methods with commas; for example:");
@@ -947,13 +987,34 @@ main (int argc, char **argv)
           const char *size_arg = !strncmp (arg, "--libdeflate-size=", 18)
                                  ? arg + 18
                                  : (j + 1 < argc ? argv[++j] : "");
-          if (!xld_parse_limit(size_arg, &settings.libdeflate_limit))
+          if (!strcmp (size_arg, "auto"))
+            {
+              if (getenv ("SOURCE_DATE_EPOCH") != NULL)
+                {
+                  fprintf (stderr, "zipopt: --libdeflate-size auto is incompatible with SOURCE_DATE_EPOCH\n");
+                  return 2;
+                }
+              if (!xld_auto_supported ())
+                {
+                  fprintf (stderr, "zipopt: --libdeflate-size auto is not supported on this platform\n");
+                  return 2;
+                }
+              if (!xld_auto_limit (&settings.libdeflate_limit))
+                {
+                  fprintf (stderr, "zipopt: --libdeflate-size auto: cannot determine available memory\n");
+                  return 2;
+                }
+              zo_format_auto_limit (settings.libdeflate_limit);
+              zo_unzip_libdeflate_size_arg = zo_auto_limit_decimal;
+            }
+          else if (!xld_parse_limit(size_arg, &settings.libdeflate_limit))
             {
               fprintf (stderr, "zipopt: invalid --libdeflate-size: %s\n",
                        size_arg);
               return 2;
             }
-          zo_unzip_libdeflate_size_arg = size_arg;
+          else
+            zo_unzip_libdeflate_size_arg = size_arg;
 #endif
         }
       else if (!strcmp (arg, "--huffman-optimize-extra"))

@@ -94,6 +94,14 @@ candidate. `--methods=libdeflate` selects only this candidate, and
 libdeflate level 12. The maximum uncompressed member size is 1MiB by default,
 configurable via `--libdeflate-size=N` using positive binary byte units
 (`1M`, `1MiB`, `1mb`, etc.). Larger members skip *only* this candidate.
+On Linux, Windows XP or later, and DJGPP/DPMI hosts reporting usable free
+memory, `--libdeflate-size=auto` instead uses half the available memory at
+option parsing time. A failed or unsupported memory query is a fatal error;
+OS/2 and other platforms require an explicit numeric limit. The calculated
+limit is also passed numerically to zipopt's embedded UnZip decoder.
+
+For reproducible archives, `SOURCE_DATE_EPOCH` and `auto` are incompatible:
+the same limit must be chosen explicitly to avoid host-dependent output.
 The same cap also enables the private libdeflate decompressor for method-8
 input members **only when both their compressed and declared uncompressed
 lengths fit**; other members use the pre-existing streaming decoder.

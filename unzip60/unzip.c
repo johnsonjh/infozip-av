@@ -542,6 +542,10 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
      static ZCONST char Far UseBZip2[] =
      "bzip2 (ZIP method 12; using bzip2 v%s)";
 #  endif
+#  if defined(USE_LIBDEFLATE) && !defined(SFX)
+     static ZCONST char Far UseLibdeflate[] =
+     "libdeflate (ZIP method 8; libdeflate decompression)";
+#  endif
 #  ifdef USE_LZMA
      static ZCONST char Far UseLZMA[] =
      "LZMA (ZIP method 14; using liblzma v%s)";
@@ -2839,6 +2843,11 @@ static void show_version_info(__G)
           BZ2_bzlibVersion());
         Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
           (char *)(slide+256)));
+        ++numopts;
+#endif
+#if defined(USE_LIBDEFLATE) && !defined(SFX)
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+          LoadFarStringSmall(UseLibdeflate)));
         ++numopts;
 #endif
 #ifdef USE_LZMA

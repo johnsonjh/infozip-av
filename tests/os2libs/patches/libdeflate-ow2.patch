@@ -1,0 +1,11 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -81,5 +81,7 @@
+ endif()
+ set(CMAKE_C_STANDARD 11)
+-if(NOT MSVC)
++# Open Watcom uses its own warning switches; -Wall is not recognized.
++# Keep this adjustment in OS/2's disposable staged copy only.
++if(NOT MSVC AND NOT CMAKE_C_COMPILER_ID STREQUAL "OpenWatcom")
+     check_c_compiler_flag(-Wdeclaration-after-statement HAVE_WDECLARATION_AFTER_STATEMENT)
+     check_c_compiler_flag(-Wimplicit-fallthrough HAVE_WIMPLICIT_FALLTHROUGH)
