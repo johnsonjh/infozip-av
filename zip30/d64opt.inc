@@ -135,9 +135,12 @@ d64_opt_discover (d64_encoder *e, d64_opt_workspace *o, unsigned long start,
   max_match = e->level == 8 ? D64_OPT_MAX8 :
               e->level == 9 ? D64_OPT_MAX9 : D64_OPT_MAX11;
 
+  /* Discovery temporarily owns the shared hash table.  A failed
+   * discovery must invalidate it; a completed one may be reused. */
+  e->dictionary_valid = 0;
   for (i = 0U; i < D64_HASH_SIZE; ++i)
     {
-      e->head[i] = D64_NIL;
+      e->head[i] = D64_CHAIN_NIL;
     }
 
   for (pos = 0UL; pos < start; ++pos)
@@ -149,7 +152,7 @@ d64_opt_discover (d64_encoder *e, d64_opt_workspace *o, unsigned long start,
     {
       unsigned long maxlen;
       unsigned h;
-      int cand;
+      d64_chain_pos cand;
       unsigned remaining;
       d64_opt_match *slot;
       slot = o->matches + (size_t)(pos - start) * D64_OPT_CLASSES;
@@ -170,7 +173,7 @@ d64_opt_discover (d64_encoder *e, d64_opt_workspace *o, unsigned long start,
       cand = e->head[h];
       remaining = chain_limit;
 
-      while (cand != D64_NIL && remaining-- != 0U)
+      while (cand != D64_CHAIN_NIL && remaining-- != 0U)
         {
           unsigned long c;
           unsigned long d;
@@ -178,19 +181,12 @@ d64_opt_discover (d64_encoder *e, d64_opt_workspace *o, unsigned long start,
           unsigned code;
           unsigned extra;
           unsigned bits;
-          c = (unsigned long)cand;
-
-          if (c >= pos)
+          d = (e->absolute_base + pos) - cand;
+          if (d == 0UL || d > D64_HISTORY || d > pos)
             {
               break;
             }
-
-          d = pos - c;
-
-          if (d > D64_HISTORY)
-            {
-              break;
-            }
+          c = pos - d;
 
           if (e->in[c] == e->in[pos] && e->in[c + 1UL] == e->in[pos + 1UL]
               && e->in[c + 2UL] == e->in[pos + 2UL])
@@ -222,12 +218,13 @@ d64_opt_discover (d64_encoder *e, d64_opt_workspace *o, unsigned long start,
                 }
             }
 
-          cand = e->prev[c];
+          cand = e->prev[cand & (D64_HISTORY - 1UL)];
         }
 
       d64_insert (e, pos);
     }
 
+  e->dictionary_valid = 1;
   return 1;
 }
 

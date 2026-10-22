@@ -24,6 +24,15 @@
 #define D64_DIST_CODES 32U
 #define D64_BL_CODES 19U
 #define D64_NIL (-1)
+/* Use 32-bit indices on conventional targets; retain ANSI C89 support. */
+#if UINT_MAX >= 0xffffffffUL
+typedef unsigned int d64_chain_pos;
+# define D64_CHAIN_MAX UINT_MAX
+#else
+typedef unsigned long d64_chain_pos;
+# define D64_CHAIN_MAX ULONG_MAX
+#endif
+#define D64_CHAIN_NIL D64_CHAIN_MAX
 
 #define D64_OK 0
 #define D64_MEM_ERROR 1
@@ -69,11 +78,13 @@ typedef struct d64_encoder
   void *opaque;
   int level;
   unsigned char *in;
-  int *head;
-  int *prev;
+  d64_chain_pos *head;
+  d64_chain_pos *prev;
   d64_token *tokens;
   unsigned long in_len;
   unsigned long hist;
+  d64_chain_pos absolute_base;
+  int dictionary_valid;
   int eof;
   d64_writer bw;
   d64_stats stats;
@@ -256,8 +267,11 @@ d64_insert (d64_encoder *e, unsigned long pos)
     }
 
   h = d64_hash3 (e->in + pos);
-  e->prev[pos] = e->head[h];
-  e->head[h] = (int)pos;
+  {
+    d64_chain_pos absolute_pos = (d64_chain_pos)(e->absolute_base + pos);
+    e->prev[absolute_pos & (D64_HISTORY - 1UL)] = e->head[h];
+    e->head[h] = absolute_pos;
+  }
 }
 
 static unsigned long
@@ -268,7 +282,7 @@ d64_find_match (d64_encoder *e, unsigned long pos, unsigned long *dist_out)
   unsigned long max_len;
   unsigned long best_len;
   unsigned long best_dist;
-  int cand;
+  d64_chain_pos cand;
   unsigned chain;
   unsigned h;
 
@@ -294,25 +308,18 @@ d64_find_match (d64_encoder *e, unsigned long pos, unsigned long *dist_out)
   best_dist = 0UL;
   chain = cfg->max_chain;
 
-  while (cand != D64_NIL && chain-- != 0U)
+  while (cand != D64_CHAIN_NIL && chain-- != 0U)
     {
       unsigned long c;
       unsigned long dist;
       unsigned long n;
 
-      c = (unsigned long)cand;
-
-      if (c >= pos)
+      dist = (e->absolute_base + pos) - cand;
+      if (dist == 0UL || dist > D64_HISTORY || dist > pos)
         {
           break;
         }
-
-      dist = pos - c;
-
-      if (dist > D64_HISTORY)
-        {
-          break;
-        }
+      c = pos - dist;
 
       if (best_len < max_len && e->in[c] == e->in[pos]
           && e->in[c + 1UL] == e->in[pos + 1UL]
@@ -344,7 +351,7 @@ d64_find_match (d64_encoder *e, unsigned long pos, unsigned long *dist_out)
             }
         }
 
-      cand = e->prev[c];
+      cand = e->prev[cand & (D64_HISTORY - 1UL)];
     }
 
   if (best_len >= 3UL)
@@ -433,19 +440,19 @@ d64_tokenize (d64_encoder *e, unsigned long start, unsigned long *end_out,
   memset (litfreq, 0, D64_LIT_CODES * sizeof (litfreq[0]));
   memset (distfreq, 0, D64_DIST_CODES * sizeof (distfreq[0]));
 
-  for (i = 0U; i < D64_HASH_SIZE; ++i)
+  if (!e->dictionary_valid)
     {
-      e->head[i] = D64_NIL;
-    }
+      for (i = 0U; i < D64_HASH_SIZE; ++i)
+        {
+          e->head[i] = D64_CHAIN_NIL;
+        }
 
-  for (pos = 0UL; pos < e->hist; ++pos)
-    {
-      e->prev[pos] = D64_NIL;
-    }
+      for (pos = 0UL; pos < e->hist; ++pos)
+        {
+          d64_insert (e, pos);
+        }
 
-  for (pos = 0UL; pos < e->hist; ++pos)
-    {
-      d64_insert (e, pos);
+      e->dictionary_valid = 1;
     }
 
   cfg = &d64_levels[e->level == 11 ? 8 : e->level - 1];
@@ -1536,6 +1543,20 @@ d64_slide (d64_encoder *e, unsigned long consumed)
 
   e->hist = consumed - keep_start;
   e->in_len = keep_len;
+
+  /* Absolute indices need no adjustment when the byte buffer slides.
+   * Restart the dictionary before its index type can wrap to the
+   * reserved D64_CHAIN_NIL value. */
+  if ((unsigned long)e->absolute_base >
+      (unsigned long)D64_CHAIN_MAX - D64_IN_CAP - keep_start)
+    {
+      e->absolute_base = 0UL;
+      e->dictionary_valid = 0;
+    }
+  else
+    {
+      e->absolute_base = (d64_chain_pos)(e->absolute_base + keep_start);
+    }
 }
 
 int
@@ -1557,8 +1578,8 @@ d64_encode (d64_read_func read_cb, d64_write_func write_cb, void *opaque,
   e.opaque = opaque;
   e.level = level;
   e.in = (unsigned char *)malloc ((size_t)D64_IN_CAP);
-  e.head = (int *)malloc ((size_t)D64_HASH_SIZE * sizeof (e.head[0]));
-  e.prev = (int *)malloc ((size_t)D64_IN_CAP * sizeof (e.prev[0]));
+  e.head = (d64_chain_pos *)malloc ((size_t)D64_HASH_SIZE * sizeof (e.head[0]));
+  e.prev = (d64_chain_pos *)malloc ((size_t)D64_HISTORY * sizeof (e.prev[0]));
   e.tokens
       = (d64_token *)malloc ((size_t)D64_MAX_TOKENS * sizeof (e.tokens[0]));
 
