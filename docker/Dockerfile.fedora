@@ -137,7 +137,9 @@ RUN set -x && \
   /opt/djgpp/bin/i586-pc-msdosdjgpp-gcc --version && \
   (cd /tmp && git clone https://github.com/johnsonjh/cwsdpmi-novcpi && cp -ax cwsdpmi-novcpi/cwsdpmi7.nvc /opt/cwsdpmi && cd && rm -rf /tmp/cwsdpmi-novcpi) && \
   (cd /tmp && git clone https://github.com/pts/apack1p && cd apack1p && ./compile.sh && cp apack1p /usr/bin && cd .. && rm -rf apack1p) && \
-  (mkdir -p /opt/watcom && cd /opt/watcom && wget https://github.com/open-watcom/open-watcom-v2/releases/download/Last-CI-build/ow-snapshot.tar.xz && tar axf ow-snapshot.tar.xz && rm -f ow-snapshot.tar.xz)
+  (cd /tmp && git clone https://github.com/ebiggers/libdeflate && cd libdeflate && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_C_FLAGS="-O3 -flto=auto" -DLIBDEFLATE_BUILD_STATIC_LIB=ON -DLIBDEFLATE_BUILD_SHARED_LIB=OFF && cd build && make -j $(nproc) && make install && cd ../.. && rm -rf libdeflate) && \
+  (mkdir -p /opt/watcom && cd /opt/watcom && wget https://github.com/open-watcom/open-watcom-v2/releases/download/Last-CI-build/ow-snapshot.tar.xz && tar axf ow-snapshot.tar.xz && rm -f ow-snapshot.tar.xz) && \
+  (cd /opt && curl -fsSL http://www.ibaug.de/vbcc/vbcc_linux_x64.tar.gz | pigz -dc | tar xf -)
 
 RUN touch /.OK
 
