@@ -43,29 +43,42 @@ put32 (unsigned char *p, unsigned long v)
   p[2] = (unsigned char)(v >> 8);
   p[3] = (unsigned char)v;
 }
+/* Keep the original one-argument software compressor in small SFX builds. */
+#ifdef SFX
+#define XTR_SHA_BLOCK(s, p) transform (s)
+#else
+#define XTR_SHA_BLOCK(s, p) transform (s, p)
+#endif
 static void
+#ifdef SFX
 transform (xtr_sha256 *s)
+#else
+transform (xtr_sha256 *s, const unsigned char *block)
+#endif
 {
   unsigned long w[64], a, b, c, d, e, f, g, h, t1, t2;
   unsigned i;
+#ifdef SFX
+  const unsigned char *block = s->block;
+#endif
 #ifdef IZ_SHA256_NI_ENABLED
   if (iz_sha256_ni_available ())
     {
-      iz_sha256_ni_block (s->h, s->block, k);
+      iz_sha256_ni_block (s->h, block, k);
       return;
     }
 #endif
 #ifdef IZ_ARM_SHA256_ENABLED
   if (iz_arm_has (IZ_ARM_SHA2_BIT))
     {
-      iz_arm_sha256_block (s->h, s->block, k);
+      iz_arm_sha256_block (s->h, block, k);
       return;
     }
 #endif
 
   for (i = 0; i < 16; i++)
     {
-      w[i] = load32 (s->block + 4 * i);
+      w[i] = load32 (block + 4 * i);
     }
 
   for (i = 16; i < 64; i++)
@@ -133,7 +146,20 @@ xtr_sha256_update (xtr_sha256 *s, const unsigned char *p, size_t n)
       return;
     }
 
-  /* Each iteration uses <=64 bytes, works with 16/32/64-bit size_t. */
+#ifndef SFX
+  /* Process whole input blocks directly when the staging buffer is empty.
+   * Keep the original copy path for partial blocks and tail bytes. */
+  if (s->used == 0)
+    {
+      while (n >= 64U)
+        {
+          XTR_SHA_BLOCK (s, p);
+          p += 64U;
+          n -= 64U;
+        }
+    }
+#endif
+  /* Each fallback iteration uses <=64 bytes, works with 16/32/64-bit size_t. */
   while (n)
     {
       take = 64U - s->used;
@@ -148,7 +174,7 @@ xtr_sha256_update (xtr_sha256 *s, const unsigned char *p, size_t n)
       n -= take;
       if (s->used == 64)
         {
-          transform (s);
+          XTR_SHA_BLOCK (s, s->block);
           s->used = 0;
         }
     }
@@ -182,14 +208,14 @@ xtr_sha256_final (xtr_sha256 *s, unsigned char digest[32])
   if (s->used > 56)
     {
       memset (s->block + s->used, 0, 64 - s->used);
-      transform (s);
+      XTR_SHA_BLOCK (s, s->block);
       s->used = 0;
     }
 
   memset (s->block + s->used, 0, 56 - s->used);
   put32 (s->block + 56, bits_hi);
   put32 (s->block + 60, bits_lo);
-  transform (s);
+  XTR_SHA_BLOCK (s, s->block);
   for (i = 0; i < 8; i++)
     {
       put32 (digest + 4 * i, s->h[i]);
