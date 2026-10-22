@@ -175,7 +175,7 @@ link_target()
   target=$1
   response="$build/$target.lnk"
   {
-    printf 'system os2v2\noption map\noption stack=131072\nname %s\n' "$out/$target.exe"
+    printf 'system os2v2\noption map\noption eliminate\noption alignment=4096\noption stack=131072\nname %s\n' "$out/$target.exe"
     printf '%b' "$objs" | while IFS= read -r obj; do
       [ -n "$obj" ] && printf 'file %s\n' "$obj"
     done

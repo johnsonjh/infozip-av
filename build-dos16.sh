@@ -161,7 +161,7 @@ link_target()
   *) stack_bytes=4096 ;;
   esac
 
-  printf 'system dos\noption map\noption stack=%s\nname %s\n' \
+  printf 'system dos\noption map\noption eliminate\noption stack=%s\nname %s\n' \
     "$stack_bytes" "$out/$target.exe" > "$response"
   printf '%b' "$objs" | while IFS= read -r obj; do
     [ -n "$obj" ] && printf 'file %s\n' "$obj"
