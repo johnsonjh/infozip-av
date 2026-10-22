@@ -122,7 +122,7 @@ the **DEFLATE** (using a custom
 | **`96`** | WZ‑JPEG<sup>3</sup>                                   |       ✅      |             |
 | **`97`** | WavPack<sup>8</sup>                                   |       ✅      |      ✅     |
 | **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;(8)&nbsp;Rev&nbsp;1     |       ✅      |      ✅     |
-| **`99`** | <code style="color : red">text</code>LZFSE</code><sup>9</sup>                                     |       ✅      |      ✅     |
+| **`99`** | <code style="color : red">LZFSE</code><sup>9</sup>                                     |       ✅      |      ✅     |
 
 > [!NOTE]
 > Methods 1 through 6 are *legacy algorithms* and are no longer
