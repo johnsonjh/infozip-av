@@ -129,11 +129,13 @@ RUN set -x && \
   (curl -fsSL https://github.com/andrewwutw/build-djgpp/pull/59.diff | patch -p1 -l) && \
   export DJGPP_PREFIX=/opt/djgpp && \
   mkdir -p download && \
-  wget https://www.mirrorservice.org/sites/ftp.gnu.org/gnu/gcc/gcc-14.3.0/gcc-14.3.0.tar.xz -O download/gcc-14.3.0.tar.xz && \
+  wget https://www.mirrorservice.org/sites/ftp.gnu.org/gnu/gcc/gcc-14.4.0/gcc-14.4.0.tar.xz -O download/gcc-14.4.0.tar.xz && \
   wget https://www.mirrorservice.org/sites/ftp.delorie.com/pub/djgpp/rpms/djcross-gcc-14.2.0/djcross-gcc-14.2.0.tar.bz2 -O download/djcross-gcc-14.2.0.tar.bz2 && \
-  sed -i 's|${MAKE} j=4 "PATH=$BUILDDIR/tmpinst/bin:$PATH" \|\| exit 1|${MAKE} j=4 "PATH=$BUILDDIR/tmpinst/bin:$PATH" "CXXFLAGS=-g -O2 -std=gnu++11" \|\| exit 1|' script/14.3.0 && \
-  sed -i '\|CFLAGS="-O2 -g \$CFLAGS -std=gnu11"|a CXXFLAGS="CXXFLAGS=-g -O2 -std=gnu++11"' script/14.3.0 && \
-  env ENABLE_LANGUAGES=c ./build-djgpp.sh 14.3.0 && \
+  cp script/14.3.0 script/14.4.0 && \
+  sed -i 's/14\.3/14\.4/g' script/14.4.0 && \
+  sed -i 's|${MAKE} j=4 "PATH=$BUILDDIR/tmpinst/bin:$PATH" \|\| exit 1|${MAKE} j=4 "PATH=$BUILDDIR/tmpinst/bin:$PATH" "CXXFLAGS=-g -O2 -std=gnu++11" \|\| exit 1|' script/14.4.0 && \
+  sed -i '\|CFLAGS="-O2 -g \$CFLAGS -std=gnu11"|a CXXFLAGS="CXXFLAGS=-g -O2 -std=gnu++11"' script/14.4.0 && \
+  env ENABLE_LANGUAGES=c ./build-djgpp.sh 14.4.0 && \
   /opt/djgpp/bin/i586-pc-msdosdjgpp-gcc --version && \
   (cd /tmp && git clone https://github.com/johnsonjh/cwsdpmi-novcpi && cp -ax cwsdpmi-novcpi/cwsdpmi7.nvc /opt/cwsdpmi && cd && rm -rf /tmp/cwsdpmi-novcpi) && \
   (cd /tmp && git clone https://github.com/pts/apack1p && cd apack1p && ./compile.sh && cp apack1p /usr/bin && cd .. && rm -rf apack1p) && \
