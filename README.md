@@ -200,8 +200,9 @@ or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav).
 
 * Use “`./build-os2.sh`” for OS/2 32‑bit builds using
   [Open Watcom V2.0](https://github.com/open-watcom/open-watcom-v2).
-  * *Optionally*, use “`./build-os2-libs.sh`” ***before*** starting the build
-  to compile additional OS/2 libraries (LZMA, Zstandard, WavPack).
+  * *Optionally*, use “`./build-os2-libs.sh`” ***before*** starting the
+    build to compile additional OS/2 libraries (LZMA, Zstandard,
+    WavPack, libdeflate).
 
 > To make “reproducible” builds, see
 > [`SOURCE_DATE_EPOCH` and (security policy)](docs/SOURCE_DATE_EPOCH.md).
