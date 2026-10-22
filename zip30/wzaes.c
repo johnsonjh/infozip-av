@@ -213,6 +213,17 @@ sha_update (iz_sha1 *s, const unsigned char *p, size_t n)
     }
 
   s->high = M32 (s->high + ((unsigned long)n >> 29));
+  /* The SHA-1 compressor accepts caller blocks directly; avoid copying
+   * complete 64-byte blocks while preserving buffered partial updates. */
+  if (s->used == 0)
+    {
+      while (n >= 64U)
+        {
+          sha_transform (s, p);
+          p += 64U;
+          n -= 64U;
+        }
+    }
   while (n)
     {
       i = 64U - s->used;

@@ -139,6 +139,19 @@ iz_sha1_update (iz_sha1 *s, const unsigned char *p, size_t n)
     }
 
   s->high = IZ_SHA1_M32 (s->high + ((unsigned long)n >> 29));
+#ifndef SFX
+  /* The compressor accepts unaligned input; bypass the staging buffer for
+   * complete blocks while keeping partial-block semantics unchanged. */
+  if (s->used == 0)
+    {
+      while (n >= 64U)
+        {
+          iz_sha1_transform (s, p);
+          p += 64U;
+          n -= 64U;
+        }
+    }
+#endif
   while (n)
     {
       i = 64U - s->used;
