@@ -143,9 +143,9 @@ the **DEFLATE** (using a custom
 > <sup>**3**</sup>&nbsp;LZMA, XZ/LZMA2, and WZ‑JPEG support requires
 > [`liblzma`](https://tukaani.org/xz/).
 >
-> <sup>**4**</sup>&nbsp;BWT is a non‑standard Xceed extension that shares
+> <sup>**4**</sup>&nbsp;BWT is a **non‑standard** Xceed extension that shares
 > method `18` with “IBM TERSE”; Xtro‑ZIP automatically determines the proper
-> format by identifying valid BWT data.  While IBM‑specific TERSE and LZ77
+> format by identifying valid BWT data.  While the IBM‑specific TERSE and LZ77
 > compression technologies referenced in the
 > [PKWARE `APPNOTE.TXT`](https://www.pkware.com/documents/casestudies/APPNOTE.TXT)
 > unquestionably exist, because there is *no evidence* of formal specifications
@@ -153,9 +153,10 @@ the **DEFLATE** (using a custom
 > table, as are other specifically reserved (`7`, `11`, `13`, `15`, `17`, etc.)
 > identifiers.
 >
-> <sup>**5**</sup>&nbsp;LPAQ8 is a non‑standard PAQZIP extension that shares
-> method `20` with the (deprecated) Zstandard (now method&nbsp;93); Xtro‑ZIP
-> automatically determines the proper format by analyzing the data stream.
+> <sup>**5**</sup>&nbsp;LPAQ8 is a **non‑standard** PAQZIP extension that
+> shares method `20` with the (deprecated) Zstandard (now method&nbsp;93);
+> Xtro‑ZIP automatically determines the proper format by analyzing the
+> data stream.
 >
 > <sup>**6**</sup>&nbsp;De‑duplicated archive creation supported via
 > [`zipdedup`](#de-duplication-zipdedup).
@@ -167,7 +168,7 @@ the **DEFLATE** (using a custom
 > [`libwavpack`](https://www.wavpack.com/); compression supported via
 > [`zipopt`](#optimization-zipopt).
 >
-> <sup>**9**</sup>&nbsp;LZFSE is a non‑standard Apple extension that shares
+> <sup>**9**</sup>&nbsp;LZFSE is a **non‑standard** Apple extension that shares
 > method `99` with WinZip AES; Xtro‑ZIP automatically determines the proper
 > format using metadata analysis.
 
@@ -199,11 +200,11 @@ or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav).
 
 * Use “`./build-os2.sh`” for OS/2 32‑bit builds using
   [Open Watcom V2.0](https://github.com/open-watcom/open-watcom-v2).
-  *Optionally*, use “`./build-os2-libs.sh`” **before** starting the build to
-  compile additional OS/2 libraries (LZMA, Zstandard, WavPack).
+  * *Optionally*, use “`./build-os2-libs.sh`” ***before*** starting the build
+  to compile additional OS/2 libraries (LZMA, Zstandard, WavPack).
 
-* To make “reproducible” builds, see
-  [`SOURCE_DATE_EPOCH` and security policy](docs/SOURCE_DATE_EPOCH.md).
+> To make “reproducible” builds, see
+> [`SOURCE_DATE_EPOCH` and (security policy)](docs/SOURCE_DATE_EPOCH.md).
 
 > [!IMPORTANT]
 > Examine the actual build scripts (and the “`build-all.sh`” script the
