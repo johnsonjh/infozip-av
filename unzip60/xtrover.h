@@ -6,9 +6,9 @@
 #ifndef XTRO_UNZIP_RELEASE_H
 # define XTRO_UNZIP_RELEASE_H 1
 
-# define XTRO_VER "0.5"
+# define XTRO_VER "0.6"
 
-# define XTRO_DATE "2026-10-21"
+# define XTRO_DATE "2026-10-22"
 
 # define XTRO_URL "https://github.com/johnsonjh/infozip-av"
 

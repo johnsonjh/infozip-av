@@ -4,10 +4,10 @@
  */
 
 #undef ZO_VER
-#define ZO_VER "0.5"
+#define ZO_VER "0.6"
 
 #undef ZO_DATE
-#define ZO_DATE "2026-10-21"
+#define ZO_DATE "2026-10-22"
 
 #include "archive.h"
 #include "codec.h"
