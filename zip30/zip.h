@@ -402,11 +402,12 @@ extern int scanimage;           /* Scan through image files */
 # define LPAQ8_ENCODE_SUPPORT
 #endif
 
-/* LZFSE requires flat memory and a 64-bit integer type (native LP64 or
- * GCC/Clang extension on ILP32/LLP64), but not a 64-bit unsigned long. */
+/* LZFSE requires flat memory and a 64-bit integer type (native LP64,
+ * GCC/Clang long long, or Open Watcom C/386 __int64). */
 #include <limits.h>
 #if !defined(NO_LZFSE) && !defined(MEMORY16) && \
-    (ULONG_MAX > 0xffffffffUL || defined(__GNUC__) || defined(__clang__))
+    (ULONG_MAX > 0xffffffffUL || defined(__GNUC__) || defined(__clang__) || \
+     (defined(__WATCOMC__) && defined(__386__)))
 # define LZFSE_SUPPORT
 #endif
 

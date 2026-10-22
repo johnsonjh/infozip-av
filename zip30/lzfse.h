@@ -75,9 +75,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #  include <stddef.h>
 /* The wire format requires 64-bit arithmetic, not a 64-bit C long.
  * Windows (including Win64) uses 32-bit long.  ISO C89 has no portable
- * 64-bit integer type; GCC/Clang provide one in their C89 language mode.
- * Keep that unavoidable extension in these two declarations.  Compiling
- * with -std=c89 -pedantic-errors remains possible on both data models.
+ * 64-bit integer type; GCC/Clang and Open Watcom C/386 provide one in their
+ * C89 language modes.  Keep that unavoidable extension in these two declarations.
+ * Compiling with -std=c89 -pedantic-errors remains possible on both data models.
  * IZ_LZFSE_TEST_LLONG exercises the LLP64 integer path on LP64 CI hosts.
  */
 #  if CHAR_BIT != 8 || UINT_MAX != 0xffffffffU || USHRT_MAX != 0xffffU
@@ -92,11 +92,14 @@ typedef signed int izl_s32;
 #  if ULONG_MAX > 0xffffffffUL && !defined(IZ_LZFSE_TEST_LLONG)
 typedef unsigned long izl_u64;
 typedef signed long izl_s64;
+#  elif defined(__WATCOMC__) && defined(__386__)
+typedef unsigned __int64 izl_u64;
+typedef signed __int64 izl_s64;
 #  elif defined(__GNUC__) || defined(__clang__)
 __extension__ typedef unsigned long long izl_u64;
 __extension__ typedef signed long long izl_s64;
 #  else
-#   error "LZFSE needs a 64-bit C integer (GCC/Clang on 32-bit-long targets)"
+#   error "LZFSE needs a 64-bit C integer (GCC/Clang or Open Watcom C/386)"
 #  endif
 
 static int
