@@ -272,7 +272,7 @@ ZipCrypto or AES encryption.
 | FreeBSD         |   ✅   | Save/restore of FreeBSD [`extattr` extended attributes](https://man.freebsd.org/cgi/man.cgi?query=extattr)        |
 | NetBSD          |   ✅   | Save/restore of NetBSD [`extattr` extended attributes](https://man.netbsd.org/extattr.3)                          |
 | Windows         |   ✅   | Save/restore of NT [extended attributes and NTFS named data streams](https://learn.microsoft.com/en-us/windows/win32/fileio/file-streams) |
-| OS/2            |   ✅   | Save/restore of OS/2 [HPFS extended attributes](https://www.edm2.com/index.php/Extended_Attributes_-_what_are_they_and_how_can_you_use_them%3F) and [LAN Manager 2.0+ (HPFS386) ACLs](https://jeffpar.github.io/kbarchive/kb/061/Q61859/) |
+| OS/2            |   ✅   | Save/restore of OS/2 [HPFS extended attributes](https://www.edm2.com/index.php/Extended_Attributes_-_what_are_they_and_how_can_you_use_them%3F) and [LAN Manager 2.0+ ACLs](https://jeffpar.github.io/kbarchive/kb/061/Q61859/) |
 | macOS           |        | [Support](https://en.wikipedia.org/wiki/Extended_file_attributes#macOS) is **planned**                            |
 | AIX             |        | [Support](https://en.wikipedia.org/wiki/Extended_file_attributes#AIX) is **planned**                              |
 | Solaris/illumos |        | [Support](https://en.wikipedia.org/wiki/Extended_file_attributes#Solaris) is **planned**                          |
