@@ -3,6 +3,34 @@
 #include "xtrm.h"
 #include <limits.h>
 #include <string.h>
+/* Reuse the native CRC32/IEEE PCLMUL and ARMv8 accelerators where supported.
+ * Normal ZIP CRC and xattr CRC both use polynomial 0xedb88320. */
+#if !defined(SFX) && defined(__GNUC__)  \
+    && (defined(__x86_64__) || defined(__amd64__))
+# define ZCONST const
+# define uch unsigned char
+# define z_uint4 unsigned int
+# define extent size_t
+/* The existing assembly header has an extended string literal.  Clang
+ * rejects it under -pedantic -Werror although it is compiler-supported. */
+# if defined(__clang__)
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Woverlength-strings"
+# endif
+# include "../zip30/crc32_pclmul.h"
+# if defined(__clang__)
+#  pragma clang diagnostic pop
+# endif
+# undef extent
+# undef z_uint4
+# undef uch
+# undef ZCONST
+#endif
+#if !defined(SFX) && !defined(NO_ARM_CRC32) && !defined(USE_ZLIB) \
+    && !defined(ASM_CRC) && !defined(CRC_TABLE_ONLY) \
+    && !defined(IZ_CRC_BE_OPTIMIZ)
+#include "../zip30/crc32_arm.h"
+#endif
 
 #if CHAR_BIT != 8
 # error ZIP wire encoding requires 8-bit bytes
@@ -355,29 +383,59 @@ xtr_parse_manifest (xtr_reader *r, xtr_u64 total, xtr_manifest *m)
 
   return XTR_OK;
 }
+#ifndef SFX
+static const unsigned long xtr_crc_nib[16] = {0x00000000UL, 0x1db71064UL, 0x3b6e20c8UL, 0x26d930acUL, 0x76dc4190UL, 0x6b6b51f4UL, 0x4db26158UL, 0x5005713cUL, 0xedb88320UL, 0xf00f9344UL, 0xd6d6a3e8UL, 0xcb61b38cUL, 0x9b64c2b0UL, 0x86d3d2d4UL, 0xa00ae278UL, 0xbdbdf21cUL};
+#endif
 unsigned long
 xtr_crc32_update (unsigned long crc, const unsigned char *p, size_t n)
 {
-  unsigned long c = (crc ^ XTR_MASK) & XTR_MASK;
+  unsigned long c;
   size_t i;
-  unsigned j;
-
   if (p == NULL && n != 0)
+    return 0;
+#ifdef IZ_CRC32_PCLMUL
+  if (n >= 256U && (crc & ~XTR_MASK) == 0
+      && iz_pclmul_available ())
     {
-      return 0;
+      size_t bulk = n & ~(size_t)15U;
+      crc = iz_crc32_pclmul ((unsigned int)crc, p, bulk);
+      p += bulk;
+      n -= bulk;
     }
-
+#endif
+#ifdef IZ_ARM_CRC32_ENABLED
+  if (n >= 128U && iz_arm_has (IZ_ARM_CRC_BIT))
+    return (unsigned long)iz_arm_crc32 ((unsigned int)crc, p, n);
+#endif
+  c = (crc ^ XTR_MASK) & XTR_MASK;
+#ifdef SFX
   for (i = 0; i < n; ++i)
     {
-      c ^= (unsigned long)p[i];
+      unsigned j;
+      c ^= p[i];
       for (j = 0; j < 8; ++j)
-        {
-          c = (c & 1UL) ? ((c >> 1) ^ 0xedb88320UL) : (c >> 1);
-        }
+        c = (c & 1UL) ? ((c >> 1) ^ 0xedb88320UL) : (c >> 1);
     }
-
+#else
+# define XTR_CRC_NIB_STEP(b) do { \
+      c ^= (b); \
+      c = (c >> 4) ^ xtr_crc_nib[c & 15UL]; \
+      c = (c >> 4) ^ xtr_crc_nib[c & 15UL]; \
+    } while (0)
+  for (i = 0; n - i >= 4U; i += 4U)
+    {
+      XTR_CRC_NIB_STEP (p[i]);
+      XTR_CRC_NIB_STEP (p[i + 1]);
+      XTR_CRC_NIB_STEP (p[i + 2]);
+      XTR_CRC_NIB_STEP (p[i + 3]);
+    }
+  for (; i < n; ++i)
+    XTR_CRC_NIB_STEP (p[i]);
+# undef XTR_CRC_NIB_STEP
+#endif
   return (c ^ XTR_MASK) & XTR_MASK;
 }
+
 int
 xtr_extra_write (unsigned char out[], const xtr_extra *e, int central,
                  const unsigned char *inline_data, size_t inline_len,
