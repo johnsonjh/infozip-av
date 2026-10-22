@@ -58,6 +58,12 @@ test -d "${PREFIX:?}/bin" && {
   rmdir "${PREFIX:?}/bin"
 }
 
+"${MAKE:-make}" -C zipopt clean || :
+"${MAKE:-make}" -C zipdedup clean || :
+"${MAKE:-make}" -C unzip60 -f unix/Makefile clean || :
+"${MAKE:-make}" -C zip30 -f unix/Makefile clean || :
+
+rm -rf ./zipopt/build 2> /dev/null || :
 rm -rf ./build-win32 2> /dev/null || :
 rm -rf ./win32 2> /dev/null || :
 rm -rf ./win64 2> /dev/null || :
