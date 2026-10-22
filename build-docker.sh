@@ -72,7 +72,7 @@ zip --huffman-optimize-extra --fwkcs-md5 \
   --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 150 \
   staging/win32.zip -r win32
 
-sudo rm -f os2/zipopt-decodecheck.exe zipopt-preflight.exe
+sudo rm -f os2/zipopt-decodecheck.exe os2/zipopt-preflight.exe
 zip --huffman-optimize-extra --fwkcs-md5 -11 --zopfli-iterations 150 \
   staging/os2.zip -r os2
 
