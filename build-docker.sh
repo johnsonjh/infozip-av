@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# This script is used by the maintainer and is unlikely
+# to be useful to anyone else, at least in unmodified form.
+
 ##################################### Start ####################################
 
 set -eux

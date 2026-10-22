@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# This script is used by the maintainer and is unlikely
+# to be useful to anyone else, at least in unmodified form.
+
 # Reject a malformed reproducibility epoch before building any dependency.
 iz_sde_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 sh "$iz_sde_root/tests/source-date-epoch-build.sh" validate || exit 2
