@@ -126,6 +126,27 @@ ZO_ACCEL_FLAGS = $(filter -DNO_PCLMUL_CRC -DNO_PCLMUL_CRC32 \
     -DCRC_TABLE_ONLY -DIZ_CRC_BE_OPTIMIZ,$(LOCAL_UNZIP))
 LDLIBS += -lbz2 -llzma -lzstd $(ZO_DEFLATE_LIBS)
 
+# Explicit optional build feature.  Only a successful header+link probe
+# enables the independent method-8 libdeflate candidate.
+ZO_LIBDEFLATE ?= off
+ZO_LIBDEFLATE_CFLAGS ?= $(shell pkg-config --cflags libdeflate 2>/dev/null)
+ZO_LIBDEFLATE_LIBS ?= $(shell pkg-config --libs libdeflate 2>/dev/null)
+ifeq ($(strip $(ZO_LIBDEFLATE_LIBS)),)
+  ZO_LIBDEFLATE_LIBS = -ldeflate
+endif
+ifeq ($(ZO_LIBDEFLATE),on)
+  ZO_LIBDEFLATE_FOUND := $(shell printf '%s\n' '#include <libdeflate.h>' 'int main(void) { struct libdeflate_compressor *c=libdeflate_alloc_compressor(6); if (!c) return 1; libdeflate_free_compressor(c); return 0; }' | $(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_LIBDEFLATE_CFLAGS) -x c - -x none -o /dev/null $(LOCAL_GLDFLAGS) $(ZO_LIBDEFLATE_LIBS) >/dev/null 2>&1 && echo yes)
+  ifneq ($(ZO_LIBDEFLATE_FOUND),yes)
+    $(error ZO_LIBDEFLATE=on requires linkable libdeflate and its header)
+  endif
+  ZO_LD_FLAGS = -DZO_WITH_LIBDEFLATE $(ZO_LIBDEFLATE_CFLAGS)
+  CFLAGS += $(ZO_LD_FLAGS)
+  LDLIBS += $(ZO_LIBDEFLATE_LIBS)
+  UZFLAGS += -DUSE_LIBDEFLATE $(ZO_LIBDEFLATE_CFLAGS)
+else ifneq ($(ZO_LIBDEFLATE),off)
+  $(error ZO_LIBDEFLATE must be on or off)
+endif
+
 # Optional method-97 encoder and private decoder. Test actual headers AND a
 # linkable encoder symbol; do not make libwavpack mandatory on any platform.
 ZO_WAVPACK ?= auto
@@ -163,8 +184,8 @@ build/zo-wavpack-encoder.o: wavpack_encoder.c wavpack_encoder.h archive.h | buil
 
 # The Zip-side codec adapter is compiled separately to prevent cross-pollution
 # of LOCAL_ZIP/LOCAL_UNZIP and to preserve conditional ABI declarations.
-ZOCODEC = build/zo-codec-$(ZO_SELECTED_BACKEND)-wv$(ZO_WAVPACK_FOUND).o
-ZO_BACKEND_STAMP = build/zo-backend-$(ZO_SELECTED_BACKEND).stamp
+ZOCODEC = build/zo-codec-$(ZO_SELECTED_BACKEND)-wv$(ZO_WAVPACK_FOUND)-ld$(ZO_LIBDEFLATE).o
+ZO_BACKEND_STAMP = build/zo-backend-$(ZO_SELECTED_BACKEND)-ld$(ZO_LIBDEFLATE).stamp
 all: zipopt zipopt-preflight zipopt-decodecheck
 zipopt: $(ZO_WAVPACK_STAMP) $(ZO_BACKEND_STAMP) archive.c archive.h extract.c extract.h writer.c writer.h codec.c codec.h $(CODEC_DEPS) $(ZO_WAVPACK_SRCS) display.h fwkcs_md5.h ../zip30/fwkcs_fast_md5.inc zipopt.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) $(UZOBJS) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c zipopt.c ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
@@ -192,7 +213,7 @@ build/zo-failure-test-main.o: zipopt.c codec.h | build
 zipopt-test-candidate-failure: $(ZO_BACKEND_STAMP) archive.c extract.c writer.c build/zo-failure-test-main.o tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) $(UZOBJS) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c build/zo-failure-test-main.o ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 codec-probe: $(ZO_BACKEND_STAMP) tests/codec_probe.c codec.c codec.h archive.h $(CODEC_DEPS) $(ZO_INTERNAL_DEFLATE)
-	$(CC) $(CPPFLAGS) -O2 -std=gnu89 -I../zip30 $(LOCAL_ZIP) $(EXTERNAL_ZLIB) $(ZO_DEFLATE_FLAGS) $(ZO_WAVPACK_FLAGS) tests/codec_probe.c codec.c $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) -lbz2 -llzma -lzstd $(ZO_DEFLATE_LIBS) $(if $(filter yes,$(ZO_WAVPACK_FOUND)),$(ZO_WAVPACK_LIBS),) -lm -o $@ $(LOCAL_GLDFLAGS)
+	$(CC) $(CPPFLAGS) -O2 -std=gnu89 -I../zip30 $(LOCAL_ZIP) $(EXTERNAL_ZLIB) $(ZO_DEFLATE_FLAGS) $(ZO_WAVPACK_FLAGS) $(ZO_LD_FLAGS) tests/codec_probe.c codec.c $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) -lbz2 -llzma -lzstd $(ZO_DEFLATE_LIBS) $(if $(filter yes,$(ZO_WAVPACK_FOUND)),$(ZO_WAVPACK_LIBS),) $(if $(filter on,$(ZO_LIBDEFLATE)),$(ZO_LIBDEFLATE_LIBS),) -lm -o $@ $(LOCAL_GLDFLAGS)
 test-display: tests/test_display.c display.h archive.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_display.c -o $@ $(LOCAL_GLDFLAGS)
 test-index: tests/test_index.c archive.c extract.c $(UZOBJS)

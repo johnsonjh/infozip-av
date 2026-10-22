@@ -34,6 +34,7 @@ New configurable compression settings:
     zipopt/zipopt --zstd-level=22 --methods=zstd input.zip output.zip
     zipopt/zipopt --methods=deflate --disable-zopfli input.zip output.zip
     zipopt/zipopt --methods=deflate,deflate64 --huffman-optimize-extra input.zip output.zip
+    zipopt/zipopt --methods=deflate,libdeflate --libdeflate-size=1MiB input.zip output.zip
 
 `--compress-level=NAME=N` accepts a Zip-style level of 1..9 or 11 for
 adjustable candidates (Deflate, Deflate64, DCL Implode, bzip2, LZMA, XZ,
@@ -83,14 +84,31 @@ Changing backends regenerates the codec adapter and relinks the executable;
 flags. The embedded UnZip decoder continues to use its internal Deflate
 implementation independently of the selected compression backend.
 
+Optional libdeflate support is built **only** with `ZO_LIBDEFLATE=on` and
+linkable headers/library (override with `ZO_LIBDEFLATE_CFLAGS` and
+`ZO_LIBDEFLATE_LIBS`); `build-unix.sh` requests this when `USE_LIBDEFLATE=1`.
+When compiled, the separate `libdeflate` candidate is available immediately,
+even if Zopfli is also selected. It never replaces the existing `deflate`
+candidate. `--methods=libdeflate` selects only this candidate, and
+`--methods=all` considers both. Levels 1..9 map directly; level 11 uses
+libdeflate level 12. The maximum uncompressed member size is 1MiB by default,
+configurable via `--libdeflate-size=N` using positive binary byte units
+(`1M`, `1MiB`, `1mb`, etc.). Larger members skip *only* this candidate.
+The same cap also enables the private libdeflate decompressor for method-8
+input members **only when both their compressed and declared uncompressed
+lengths fit**; other members use the pre-existing streaming decoder.
+The size option requires compiled-in libdeflate but does not require the
+libdeflate candidate to be selected. zipopt does **not** accept Zip's
+`--use-libdeflate` toggle.
+
 `--methods=` accepts comma-separated names from the registry in `codec.c`:
 store, shrink, reduce-l1 through reduce-l4, implode-4k-2, implode-4k-3,
 implode-8k-2, implode-8k-3, deflate, deflate64, dcl-implode-binary,
 dcl-implode-ascii, bzip2, lzma, zstd, xz, and ppmd. The aliases `implode`, `reduce`,
 and `dcl-implode` expand to all corresponding variants. `--methods=help`
 prints the complete compiled-in candidate list (also printed for unknown method
-names). Default `all` runs all
-19 configurations, sequentially, for every member; this can be very slow and
+names). Default `all` runs all compiled-in configurations, sequentially,
+for every member; this can be very slow and
 temporary-file intensive, especially with Zopfli and PPMd. All codecs are
 attempted even if an existing stream is smaller. Zopfli defaults to 15
 iterations (set --zopfli-iterations to 1..10000). DCL optimal parsing is

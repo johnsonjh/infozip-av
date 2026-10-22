@@ -96,6 +96,8 @@ test -z "${PRESERVE_OS2_LIBS:-}" && {
   rm -rf ./build-os2-libs
 } || :
 
+rm -f "${PREFIX:?}/libdeflate-probe.log"
+
 test -d "${PREFIX:?}" && rmdir "${PREFIX:?}"
 
 git clean -ndx 2> /dev/null || :

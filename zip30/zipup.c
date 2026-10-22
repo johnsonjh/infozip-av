@@ -19,6 +19,11 @@
    different sizes and needless to say leads to segmentation faults.  Putting
    zip.h first seems to fix this.  8/14/04 EG */
 #include "zip.h"
+#ifdef USE_LIBDEFLATE
+# include <libdeflate.h>
+extern int xld_zip_enabled;
+extern size_t xld_zip_limit;
+#endif
 #define XTR_SDE_NEED_EXTRAS 1
 #include "../xtrmeta/source_epoch_times.h"
 /* On MinGW-w64, optional codec headers (including some bzlib.h builds)
@@ -245,6 +250,10 @@ local unsigned file_read OF((char *buf, unsigned size));
 
 /* zip64 support 08/29/2003 R.Nausedat */
 local zoff_t filecompress OF((struct zlist far *z_entry, int *cmpr_method));
+#ifdef USE_LIBDEFLATE
+local zoff_t xld_filecompress OF((struct zlist far *z_entry,
+                                 int *cmpr_method, size_t expected));
+#endif
 #ifdef SHRINK_SUPPORT
 local zoff_t shrinkfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
@@ -1547,6 +1556,18 @@ struct zlist far *z;    /* zip entry to compress */
     }
 #endif /* ZSTD_SUPPORT */
     else {
+#ifdef USE_LIBDEFLATE
+      if (xld_zip_enabled && m == DEFLATE && level > 0 &&
+          q >= 0 && !translate_eol &&
+          (uzoff_t)q <= (uzoff_t)xld_zip_limit
+#if defined(MMAP) || defined(BIG_MEM)
+          && remain == (ulg)-1L
+#endif
+          ) {
+        s = xld_filecompress(z, &m, (size_t)q);
+        if (s == (zoff_t)-1) s = filecompress(z, &m);
+      } else
+#endif
       s = filecompress(z, &m);
     }
 #ifndef PGP
@@ -2385,6 +2406,95 @@ local zoff_t small_store_finish(s, cmpr_method, cmpr_size)
     small_store_discard(s);
     return result;
 }
+
+#ifdef USE_LIBDEFLATE
+/* An allocation failure before the first read permits the original streaming
+ * backend to run.  After consuming input we must never restart the reader:
+ * file_read() also updates CRC, PKAV and FWKCS state. */
+local zoff_t xld_filecompress(z_entry, cmpr_method, expected)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+    size_t expected;
+{
+    struct libdeflate_compressor *ctx;
+    uch *src, *dst;
+    size_t bound, used, produced, pos;
+    unsigned want, got;
+    uch probe[2];
+
+    src = (uch *)malloc(expected ? expected : 1U);
+    if (!src) return (zoff_t)-1;
+    ctx = libdeflate_alloc_compressor(level == 11 ? 12 : level);
+    if (!ctx) {
+        free(src);
+        return (zoff_t)-1;
+    }
+    bound = libdeflate_deflate_compress_bound(ctx, expected);
+    if (!bound) {
+        libdeflate_free_compressor(ctx);
+        free(src);
+        return (zoff_t)-1;
+    }
+    dst = (uch *)malloc(bound);
+    if (!dst) {
+        libdeflate_free_compressor(ctx);
+        free(src);
+        return (zoff_t)-1;
+    }
+
+    used = 0;
+    while (used < expected) {
+        want = (unsigned)((expected - used) > 16384U ?
+                          16384U : expected - used);
+        got = file_read((char *)src + used, want);
+        if (got == 0 || got == (unsigned)EOF) break;
+        if (!file_binary_final && !is_text_buf((char *)src + used, got))
+            file_binary_final = 1;
+        used += got;
+    }
+    if (used != expected)
+        ziperr(ZE_READ, "input became shorter during libdeflate compression");
+    if (used == expected) {
+        got = file_read((char *)probe, (unsigned)sizeof(probe));
+        if (got != 0 && got != (unsigned)EOF)
+            ziperr(ZE_READ, "input changed size during libdeflate compression");
+    }
+    produced = libdeflate_deflate_compress(ctx, src, used, dst, bound);
+    if (!produced) ziperr(ZE_LOGIC, "libdeflate compression failed");
+
+    if (z_entry->att == (ush)UNKNOWN)
+        z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    if (level <= 2) z_entry->flg |= 4;
+    else if (level >= 8) z_entry->flg |= 2;
+
+    if (!disable_store_fallback && !use_descriptors && fseekable(y) &&
+        used <= (size_t)SBSZ && produced >= used) {
+        *cmpr_method = STORE;
+        z_entry->flg &= ~6;
+        pos = 0;
+        while (pos < used) {
+            want = (unsigned)((used - pos) > 16384U ? 16384U : used - pos);
+            if (zfwrite(src + pos, 1, (extent)want) != (extent)want)
+                ziperr(ZE_TEMP, "writing stored libdeflate candidate");
+            pos += want;
+        }
+        produced = used;
+    } else {
+        pos = 0;
+        while (pos < produced) {
+            want = (unsigned)((produced - pos) > 16384U ?
+                              16384U : produced - pos);
+            if (zfwrite(dst + pos, 1, (extent)want) != (extent)want)
+                ziperr(ZE_TEMP, "writing libdeflate candidate");
+            pos += want;
+        }
+    }
+    libdeflate_free_compressor(ctx);
+    free(src);
+    free(dst);
+    return (zoff_t)produced;
+}
+#endif
 
 struct dcl_zip_state {
     zoff_t output_size;

@@ -65,6 +65,11 @@
 #include "xtrover.h"
 
 #include "unzip.h"      /* includes, typedefs, macros, prototypes, etc. */
+#ifndef SFX
+# include "../common/xtrlibdeflate_size.h"
+int xld_unzip_enabled = 0;
+size_t xld_unzip_limit = (size_t)1048576UL;
+#endif
 #include "crypt.h"
 #include "unzvers.h"
 #if defined(XTR_WIN_UTF8_ACTIVE) && defined(WIN32)
@@ -1428,9 +1433,16 @@ int uz_opts(__G__ pargc, pargv)
 {
     char **argv, *s, *zipbomb_envar;
     int argc, c, error=FALSE, negative=0, showhelp=0;
+#ifndef SFX
+    int xld_size_set = 0;
+#endif
 
     argc = *pargc;
     argv = *pargv;
+#ifndef SFX
+    xld_unzip_enabled = 0;
+    xld_unzip_limit = XLD_DEFAULT_LIMIT;
+#endif
 
 #ifdef UNIX
     extern char OEM_CP[MAX_CP_NAME];
@@ -1438,6 +1450,38 @@ int uz_opts(__G__ pargc, pargv)
 #endif
     
     while (++argv, (--argc > 0 && *argv != NULL && **argv == '-')) {
+#ifndef SFX
+        if (strcmp(*argv, "--use-libdeflate-") == 0) {
+            xld_unzip_enabled = 0;
+            continue;
+        }
+        if (strcmp(*argv, "--use-libdeflate") == 0) {
+            xld_unzip_enabled = 1;
+            continue;
+        }
+        if (strncmp(*argv, "--libdeflate-size=", 18) == 0 ||
+            strcmp(*argv, "--libdeflate-size") == 0) {
+            const char *limit;
+            if (strncmp(*argv, "--libdeflate-size=", 18) == 0)
+                limit = *argv + 18;
+            else {
+                if (argc <= 1 || argv[1] == NULL) {
+                    error = TRUE;
+                    break;
+                }
+                limit = *++argv;
+                --argc;
+            }
+            if (!xld_parse_limit(limit, &xld_unzip_limit)) {
+                Info(slide, 0x401, ((char *)slide,
+                     "error: invalid --libdeflate-size value: %s\n", limit));
+                error = TRUE;
+                break;
+            }
+            xld_size_set = 1;
+            continue;
+        }
+#endif
 #if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
         if (strcmp(*argv,"--xattrs") == 0) {
             xtr_unzip_xattrs = 1;
@@ -2030,6 +2074,21 @@ int uz_opts(__G__ pargc, pargv)
         } /* end while (not end of argument string) */
     } /* end while (not done with switches) */
 
+#ifndef SFX
+    if (xld_size_set && !xld_unzip_enabled) {
+        Info(slide, 0x401, ((char *)slide,
+             "error: --libdeflate-size requires --use-libdeflate\n"));
+        error = TRUE;
+    }
+# ifndef USE_LIBDEFLATE
+    if (xld_unzip_enabled) {
+        Info(slide, 0x401, ((char *)slide,
+             "error: libdeflate support not compiled in\n"));
+        error = TRUE;
+    }
+# endif
+#endif
+
 /*---------------------------------------------------------------------------
     Check for nonsensical combinations of options.
   ---------------------------------------------------------------------------*/
@@ -2361,6 +2420,8 @@ static void help_extended(__G)
   "  --no-streams       Disable optional NTFS stream restoration.",
 #endif
 #endif
+  "  --use-libdeflate[-]  Enable/disable bounded libdeflate for method 8.",
+  "  --libdeflate-size N  Maximum compressed and uncompressed size (1MiB).",
   "  --list-fwkcs-md5  Show stored FWKCS MD5 values in -l/-v listings.",
 #ifdef PKAV_SUPPORT
   "  --show-avextra-on-fail  Show unverified PKAV AVEXTRA after failure.",

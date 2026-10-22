@@ -20,6 +20,7 @@ Environment:
   DOS386_LZMA          auto (default), on (require), off
   DOS386_WAVPACK       auto (default), on (require), off
   DOS386_ZSTD          auto (default), on (require), off
+  DOS386_LIBDEFLATE    off (default) or on (require optional static library)
   DOS386_BZIP2_DIR     Prefix containing bzlib.h and libbz2.a
                        (default: build-dos386/bzip2)
   DOS386_LZMA_DIR      Prefix with include/lzma.h and lib/liblzma.a
@@ -28,6 +29,8 @@ Environment:
                        (default: build-dos386/wavpack/install)
   DOS386_ZSTD_DIR      Prefix with include/zstd.h and lib/libzstd.a
                        (default: build-dos386/zstd/install)
+  DOS386_LIBDEFLATE_DIR Prefix with include/libdeflate.h and lib/libdeflate.a
+                       (default: build-dos386/libdeflate/install)
   DOS386_CWSDSTUB      DPMI stub (default: /opt/cwsdpmi/cwsdstub.exe)
   DOS386_EXE2COFF      Path to host exe2coff utility (optional override)
   DOS386_EMBED_STUB    auto (default), on, or off; auto embeds when stub exists
@@ -160,10 +163,10 @@ DOS_CODEC_FLAGS=
 DOS_CODEC_INC=
 DOS_ZIP_LIBS=
 DOS_UNZIP_LIBS=
-for setting in DOS386_BZIP2_DIR DOS386_LZMA_DIR DOS386_WAVPACK_DIR DOS386_ZSTD_DIR; do
+for setting in DOS386_BZIP2_DIR DOS386_LZMA_DIR DOS386_WAVPACK_DIR DOS386_ZSTD_DIR DOS386_LIBDEFLATE_DIR; do
   eval 'val=${'"$setting"'-}'
   case "$val" in
-    *' '* | *'	'* | *'
+  *' '* | *'	'* | *'
 '*) fail "$setting contains whitespace; use a path without whitespace" ;;
   esac
 done
@@ -207,6 +210,16 @@ int main(void) {
     return ZSTD_versionNumber() == 0;
 }
 PROBE
+cat > "$STAGE/probe-libdeflate.c" << 'PROBE'
+#include <libdeflate.h>
+int main(void) {
+    struct libdeflate_compressor *c = libdeflate_alloc_compressor(6);
+    struct libdeflate_decompressor *d = libdeflate_alloc_decompressor();
+    if (c) libdeflate_free_compressor(c);
+    if (d) libdeflate_free_decompressor(d);
+    return (c == 0 || d == 0);
+}
+PROBE
 
 # $1 name; $2 mode setting; $3 prefix; $4 header; $5 archive.
 probe_dos_library()
@@ -218,13 +231,15 @@ probe_dos_library()
   archive=$5
   eval 'mode=${'"$setting"':-auto}'
   case "$mode" in
-    auto | on | off) ;;
-    *) fail "$setting must be auto, on or off" ;;
+  auto | on | off) ;;
+  *) fail "$setting must be auto, on or off" ;;
   esac
   DOS_FOUND=no
-  [ "$mode" != off ] || { printf 'build-dos386: %s disabled\n' "$libname"; return 0; }
+  [ "$mode" != off ] || {
+    printf 'build-dos386: %s disabled\n' "$libname"; return 0
+  }
   case "$prefix" in
-    *' '* | *'	'* | *'
+  *' '* | *'	'* | *'
 '*) fail "$libname library prefix contains whitespace" ;;
   esac
   incdir=$prefix/include
@@ -237,8 +252,8 @@ probe_dos_library()
     # We need the full paths for reliable ordering, not -l<name> discovery.
     if "$CC" -std=gnu89 -I"$incdir" "$STAGE/probe-$libname.c" \
       "$libdir/$archive" -lm -o "$STAGE/probe-$libname.exe" \
-      > "$STAGE/probe-$libname.log" 2>&1 && \
-      [ -s "$STAGE/probe-$libname.exe" ]; then
+      > "$STAGE/probe-$libname.log" 2>&1 \
+      && [ -s "$STAGE/probe-$libname.exe" ]; then
       DOS_FOUND=yes
       DOS_INCLUDE=-I$incdir
       DOS_ARCHIVE=$libdir/$archive
@@ -298,6 +313,19 @@ if [ "$DOS_FOUND" = yes ]; then
   DOS_ZIP_LIBS="$DOS_ZIP_LIBS $DOS_ARCHIVE"
   DOS_UNZIP_LIBS="$DOS_UNZIP_LIBS $DOS_ARCHIVE"
 fi
+case "${DOS386_LIBDEFLATE:-off}" in
+off | on) ;;
+*) fail 'DOS386_LIBDEFLATE must be off or on' ;;
+esac
+probe_dos_library libdeflate DOS386_LIBDEFLATE "${DOS386_LIBDEFLATE_DIR:-$ROOT/libdeflate/install}" libdeflate.h libdeflate.a
+if [ "$DOS_FOUND" = yes ]; then
+  DOS_ZIP_FLAGS="$DOS_ZIP_FLAGS -DUSE_LIBDEFLATE $DOS_INCLUDE"
+  DOS_UNZIP_FLAGS="$DOS_UNZIP_FLAGS -DUSE_LIBDEFLATE $DOS_INCLUDE"
+  DOS_CODEC_FLAGS="$DOS_CODEC_FLAGS -DZO_WITH_LIBDEFLATE"
+  DOS_CODEC_INC="$DOS_CODEC_INC $DOS_INCLUDE"
+  DOS_ZIP_LIBS="$DOS_ZIP_LIBS $DOS_ARCHIVE"
+  DOS_UNZIP_LIBS="$DOS_UNZIP_LIBS $DOS_ARCHIVE"
+fi
 # A single set of compile flags drives each private UnZip decoder build.
 # WavPack has no ZipOpt compression candidate; it is used for decoding only.
 DOS_ZO_LIBS="$DOS_UNZIP_LIBS"
@@ -307,6 +335,7 @@ cp -R "$SOURCE_ROOT/zip30" "$STAGE/src/zip30"
 cp -R "$SOURCE_ROOT/unzip60" "$STAGE/src/unzip60"
 cp -R "$SOURCE_ROOT/zipopt" "$STAGE/src/zipopt"
 cp -R "$SOURCE_ROOT/zipdedup" "$STAGE/src/zipdedup"
+cp "$SOURCE_ROOT/common/xtrlibdeflate_size.h" "$STAGE/src/xtrlibdeflate_size.h"
 # ZipOpt and ZipDedup compile Xtro's portable metadata core from the
 # staged source tree.  Keep this sibling directory alongside both tools.
 sh "$SOURCE_ROOT/xtrmeta/stage-cross.sh" \

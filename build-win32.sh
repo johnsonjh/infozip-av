@@ -27,12 +27,14 @@ Environment variables:
   WIN32_WAVPACK_DIR  Prefix with include/wavpack/wavpack.h and lib/libwavpack.a
   WIN32_ZSTD_DIR     Prefix with include/zstd.h and lib/libzstd.a
   WIN32_ZLIB_DIR     Prefix with include/zlib.h and lib/libz.a
+  WIN32_LIBDEFLATE_DIR Prefix with include/libdeflate.h and lib/libdeflate.a
   WIN32_BZIP2        auto (default), on (require), off
   WIN32_LZMA         auto (default), on, off
   WIN32_ZLIBNG       auto (default), on, off
   WIN32_WAVPACK      auto (default), on, off
   WIN32_ZSTD         auto (default), on, off
   WIN32_ZLIB         auto (default), on, off (only with -DUSE_ZLIB)
+  WIN32_LIBDEFLATE   off (default) or on (require static libdeflate)
   MINGW_AR           Target archiver, for static import-library detection
   MINGW_NM           Target symbol scanner, for static import-library detection
 HELP
@@ -156,7 +158,7 @@ fi
 # directories have precedence. Empty common prefixes are not errors, but a
 # requested codec or a per-codec directory that cannot link is an error.
 # No path with whitespace can be passed reliably via the historical makefiles.
-for var in WIN32_DEPS_DIR WIN32_BZIP2_DIR WIN32_LZMA_DIR WIN32_ZLIBNG_DIR WIN32_ZLIB_DIR WIN32_ZSTD_DIR WIN32_WAVPACK_DIR; do
+for var in WIN32_DEPS_DIR WIN32_BZIP2_DIR WIN32_LZMA_DIR WIN32_ZLIBNG_DIR WIN32_ZLIB_DIR WIN32_ZSTD_DIR WIN32_WAVPACK_DIR WIN32_LIBDEFLATE_DIR; do
   eval 'val=${'"$var"'-}'
   case "$val" in
   *' '* | *'	'* | *'
@@ -273,6 +275,10 @@ cat > "$STAGE/probe-zstd.c" << 'PROBE'
 #include <zstd.h>
 int main(void) { ZSTD_CStream *c = ZSTD_createCStream(); ZSTD_DStream *d = ZSTD_createDStream(); ZSTD_freeCStream(c); ZSTD_freeDStream(d); return ZSTD_versionNumber() == 0; }
 PROBE
+cat > "$STAGE/probe-libdeflate.c" << 'PROBE'
+#include <libdeflate.h>
+int main(void) { struct libdeflate_compressor *c = libdeflate_alloc_compressor(6); struct libdeflate_decompressor *d = libdeflate_alloc_decompressor(); if (c) libdeflate_free_compressor(c); if (d) libdeflate_free_decompressor(d); return c == 0 || d == 0; }
+PROBE
 
 WIN_STATIC_LIBS=
 ZIP_INC=
@@ -318,6 +324,11 @@ check_codec()
     wavpack)
       UZ_FEATURES="$UZ_FEATURES -DUSE_WAVP"
       ;;
+    libdeflate)
+      ZIP_FEATURES="$ZIP_FEATURES -DUSE_LIBDEFLATE"
+      UZ_FEATURES="$UZ_FEATURES -DUSE_LIBDEFLATE"
+      WIN_ZIPOPT_CPPFLAGS="$WIN_ZIPOPT_CPPFLAGS -DZO_WITH_LIBDEFLATE"
+      ;;
     zlibng)
       ZIP_FEATURES="$ZIP_FEATURES -DUSE_ZLIB_NG"
       UZ_FEATURES="$UZ_FEATURES -DUSE_ZLIB_NG"
@@ -347,6 +358,11 @@ check_codec bzip2 bzlib.h libbz2.a WIN32_BZIP2 WIN32_BZIP2_DIR
 check_codec lzma lzma.h liblzma.a WIN32_LZMA WIN32_LZMA_DIR
 check_codec zstd zstd.h libzstd.a WIN32_ZSTD WIN32_ZSTD_DIR
 check_codec wavpack wavpack/wavpack.h libwavpack.a WIN32_WAVPACK WIN32_WAVPACK_DIR
+case "${WIN32_LIBDEFLATE:-off}" in
+off | on) ;;
+*) fail 'WIN32_LIBDEFLATE must be off or on' ;;
+esac
+check_codec libdeflate libdeflate.h libdeflate.a WIN32_LIBDEFLATE WIN32_LIBDEFLATE_DIR
 
 if [ "$REQUEST_ZLIB" = yes ]; then
   check_codec zlib zlib.h libz.a WIN32_ZLIB WIN32_ZLIB_DIR
@@ -378,6 +394,7 @@ cp -R "$SOURCE_ROOT/zip30" "$STAGE/src/zip30"
 cp -R "$SOURCE_ROOT/unzip60" "$STAGE/src/unzip60"
 cp -R "$SOURCE_ROOT/zipopt" "$STAGE/src/zipopt"
 cp -R "$SOURCE_ROOT/zipdedup" "$STAGE/src/zipdedup"
+cp "$SOURCE_ROOT/common/xtrlibdeflate_size.h" "$STAGE/src/xtrlibdeflate_size.h"
 # ZipOpt and ZipDedup compile Xtro's portable metadata core from the
 # staged source tree.  Keep this sibling directory alongside both tools.
 sh "$SOURCE_ROOT/xtrmeta/stage-cross.sh" \
@@ -390,21 +407,21 @@ sh "$SOURCE_ROOT/xtrmeta/stage-cross.sh" \
 case " $ZIP_FLAGS $UNZIP_FLAGS " in
 *' -DXTR_WIN_NATIVE '*)
   for name in xtrwin_ea.c xtrwin_ea.h xtrwin_txn.c xtrwin_txn.h \
-              xtrwin_nt.c xtrwin_nt.h xtrwin_nt_abi.h \
-              xtrwin_mixed.c xtrwin_mixed.h \
-              xtrwin_ads.c xtrwin_ads.h \
-              xtrwin_ads_native.c xtrwin_ads_native.h \
-              xtrwin_ads_stream.c xtrwin_ads_stream.h \
-              xtrwin_ads_record.c xtrwin_ads_record.h \
-              xtrwin_ads_write.c xtrwin_ads_write.h \
-              xtrwin_mixed_verify.c xtrwin_mixed_verify.h \
-              xtrwin_restore_plan.c xtrwin_restore_plan.h \
-              xtrwin_ads_txn.c xtrwin_ads_txn.h \
-              xtrwin_ads_restore.c xtrwin_ads_restore.h \
-              xtrwin_utf8path.c xtrwin_utf8path.h \
-              xtrwin_utf8argv.c xtrwin_utf8argv.h; do
-    test -f "$SOURCE_ROOT/xtrmeta/$name" || \
-      fail "missing Windows native metadata source $name"
+    xtrwin_nt.c xtrwin_nt.h xtrwin_nt_abi.h \
+    xtrwin_mixed.c xtrwin_mixed.h \
+    xtrwin_ads.c xtrwin_ads.h \
+    xtrwin_ads_native.c xtrwin_ads_native.h \
+    xtrwin_ads_stream.c xtrwin_ads_stream.h \
+    xtrwin_ads_record.c xtrwin_ads_record.h \
+    xtrwin_ads_write.c xtrwin_ads_write.h \
+    xtrwin_mixed_verify.c xtrwin_mixed_verify.h \
+    xtrwin_restore_plan.c xtrwin_restore_plan.h \
+    xtrwin_ads_txn.c xtrwin_ads_txn.h \
+    xtrwin_ads_restore.c xtrwin_ads_restore.h \
+    xtrwin_utf8path.c xtrwin_utf8path.h \
+    xtrwin_utf8argv.c xtrwin_utf8argv.h; do
+    test -f "$SOURCE_ROOT/xtrmeta/$name" \
+      || fail "missing Windows native metadata source $name"
     cp "$SOURCE_ROOT/xtrmeta/$name" "$STAGE/src/xtrmeta/$name"
   done
   ;;

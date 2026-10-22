@@ -11,8 +11,14 @@
 
 #include "archive.h"
 #include "codec.h"
+#ifdef ZO_WITH_LIBDEFLATE
+# include "../common/xtrlibdeflate_size.h"
+#endif
 #include "display.h"
 #include "extract.h"
+#ifdef ZO_WITH_LIBDEFLATE
+extern const char *zo_unzip_libdeflate_size_arg;
+#endif
 #include "fwkcs_md5.h"
 
 #include "../xtrmeta/xtrv1.h"
@@ -280,6 +286,7 @@ zo_usage (void)
         "  --disable-zopfli               ordinary Deflate instead of Zopfli\n"
         "  --huffman-optimize-extra       run expensive Huffman header optimizations\n"
         "  --zopfli-iterations=N          Zopfli passes (1..10000; default 15)\n"
+        "  --libdeflate-size=N            libdeflate size limit (default is '1MiB')\n"
         "  -v, --verbose                  verbose output display mode\n"
         "  -V, --version                  display version and acceleration\n"
         "  -h, --help                     display this help text");
@@ -879,6 +886,9 @@ main (int argc, char **argv)
   memset (requested, 0, sizeof (requested));
 
   settings.zopfli_iterations = 15U;
+#ifdef ZO_WITH_LIBDEFLATE
+  settings.libdeflate_limit = XLD_DEFAULT_LIMIT;
+#endif
   settings.wavpack_level = 4U;
   settings.wavpack_extra_level = 6U;
 
@@ -926,6 +936,25 @@ main (int argc, char **argv)
       else if (!strncmp (arg, "--methods=", 10))
         {
           method_arg = arg + 10;
+        }
+      else if (!strncmp (arg, "--libdeflate-size=", 18)
+               || !strcmp (arg, "--libdeflate-size"))
+        {
+#ifndef ZO_WITH_LIBDEFLATE
+          fprintf (stderr, "zipopt: libdeflate support not compiled in\n");
+          return 2;
+#else
+          const char *size_arg = !strncmp (arg, "--libdeflate-size=", 18)
+                                 ? arg + 18
+                                 : (j + 1 < argc ? argv[++j] : "");
+          if (!xld_parse_limit(size_arg, &settings.libdeflate_limit))
+            {
+              fprintf (stderr, "zipopt: invalid --libdeflate-size: %s\n",
+                       size_arg);
+              return 2;
+            }
+          zo_unzip_libdeflate_size_arg = size_arg;
+#endif
         }
       else if (!strcmp (arg, "--huffman-optimize-extra"))
         {
@@ -1149,8 +1178,7 @@ main (int argc, char **argv)
 
       for (k = 0; k < zo_candidate_count; k++)
         {
-          if (enabled[k] && (zo_candidates[k].method == 8U
-                             || zo_candidates[k].method == 9U))
+          if (enabled[k] && (k == 10U || k == 11U))
             {
               huffman_method_present = 1;
               break;
@@ -1181,7 +1209,7 @@ main (int argc, char **argv)
 
       for (k = 0; k < zo_candidate_count; k++)
         {
-          if (enabled[k] && zo_candidates[k].method == 8U)
+          if (enabled[k] && k == 10U)
             {
               deflate_present = 1;
             }
@@ -1461,6 +1489,13 @@ main (int argc, char **argv)
             {
               continue;
             }
+
+#ifdef ZO_WITH_LIBDEFLATE
+          /* This is a distinct best-of-many candidate, not an alias for
+           * the existing streaming Deflate/Zopfli implementation. */
+          if (k == 20U && e->usize > (zo_u64)settings.libdeflate_limit)
+            continue;
+#endif
 
           candidate = tmpfile ();
 

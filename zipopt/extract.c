@@ -12,6 +12,12 @@
 #define ZIPOPT_EMBED 1
 
 #include "../unzip60/unzip.h"
+
+#ifdef ZO_WITH_LIBDEFLATE
+/* The private UnZip parser resets its decoder settings on *every* invocation.
+ * Carry zipopt's last size argument through to each indexed extraction. */
+const char *zo_unzip_libdeflate_size_arg;
+#endif
 #include "extract.h"
 
 #include <limits.h>
@@ -103,7 +109,8 @@ zo_extract_index (const zo_archive *a, zo_u64 i, FILE *out)
 {
   UzpInit init;
   struct zo_sink sink;
-  char *args[4];
+  char *args[7];
+  int argc;
   int rc;
 
   if (!a || !out || i >= a->count || i > (zo_u64)ULONG_MAX || zo_active_sink)
@@ -118,11 +125,20 @@ zo_extract_index (const zo_archive *a, zo_u64 i, FILE *out)
   sink.file = out;
   sink.crc = 0xffffffffUL;
   zo_active_sink = &sink;
-  args[0] = "unzip";
-  args[1] = "-p";
-  args[2] = (char *)a->path;
-  args[3] = NULL;
-  rc = UzpAltMainIndex (3, args, &init, (unsigned long)i);
+  argc = 0;
+  args[argc++] = "unzip";
+  args[argc++] = "-p";
+#ifdef ZO_WITH_LIBDEFLATE
+  args[argc++] = "--use-libdeflate";
+  if (zo_unzip_libdeflate_size_arg)
+    {
+      args[argc++] = "--libdeflate-size";
+      args[argc++] = (char *)zo_unzip_libdeflate_size_arg;
+    }
+#endif
+  args[argc++] = (char *)a->path;
+  args[argc] = NULL;
+  rc = UzpAltMainIndex (argc, args, &init, (unsigned long)i);
   zo_active_sink = NULL;
 
   if (rc != 0 || sink.failed || sink.count != a->entries[(size_t)i].usize

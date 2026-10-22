@@ -131,8 +131,10 @@ the **DEFLATE** (using a custom
 > <sup>**1**</sup>&nbsp;CRC/SHA/AES/compression hardware acceleration is
 > automatically detected at runtime and is currently supported on AMD64 and
 > ARM64 systems running Linux, FreeBSD, OpenBSD, macOS, and Windows.
-> Additional hardware acceleration is provided via the (*optional*)
-> [`zlib‑ng`](https://github.com/zlib-ng/zlib-ng) library where available.
+> Additional hardware acceleration may be provided via the (*optional*)
+> [`zlib‑ng`](https://github.com/zlib-ng/zlib-ng) or
+> [`libdeflate`](https://github.com/ebiggers/libdeflate) libraries where
+> available.
 >
 > <sup>**2**</sup>&nbsp;bzip2 support requires
 > [`libbz2`](https://sourceware.org/bzip2/);
@@ -200,8 +202,8 @@ or [GitLab](https://gitlab.com/johnsonjh/infozip-av/-/compare/fedora..pkav).
   *Optionally*, use “`./build-os2-libs.sh`” **before** starting the build to
   compile additional OS/2 libraries (LZMA, Zstandard, WavPack).
 
-* To make “reproducible” (deterministic) builds, see
-  [SOURCE_DATE_EPOCH usage and security policy](docs/SOURCE_DATE_EPOCH.md).
+* To make “reproducible” builds, see
+  [`SOURCE_DATE_EPOCH` and security policy](docs/SOURCE_DATE_EPOCH.md).
 
 > [!IMPORTANT]
 > Examine the actual build scripts (and the “`build-all.sh`” script the

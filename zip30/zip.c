@@ -14,6 +14,7 @@
 #define __ZIP_C
 
 #include "zip.h"
+#include "../common/xtrlibdeflate_size.h"
 #if defined(UNIX) && defined(UNICODE_SUPPORT)
 # include "unix/utf8_locale.h"
 #endif
@@ -1746,6 +1747,10 @@ local void help_extended()
 "",
 "Compression tuning:",
 "  --disable-store-fallback[-]      disable/enable automatic store fallback",
+#ifdef USE_LIBDEFLATE
+"  --use-libdeflate[-]              enable/disable bounded libdeflate (method 8)",
+"  --libdeflate-size n              libdeflate size limit (default is '1MiB')",
+#endif
 #ifdef LPAQ8_ENCODE_SUPPORT
 "  --lpaq8-l2-enable                LPAQ8 l2 processing (PAQZIP incompatible!)",
 #endif
@@ -3000,6 +3005,8 @@ int set_filetype(out_path)
 #define o_fwkcs_md5     0x14b
 #define o_11            0x14c
 #define o_huffman_extra 0x180
+#define o_use_libdeflate 0x181
+#define o_libdeflate_size 0x182
 #define o_zopfli_iter   0x14d
 #define o_dcl_mode      0x14e
 #define o_dcl_dict      0x14f
@@ -3039,6 +3046,8 @@ int set_filetype(out_path)
 
 int xtr_zip_xattrs = 0; /* explicit, optional, native-platform capture */
 int xtr_zip_streams = 0; /* independent Windows ADS capture */
+int xld_zip_enabled = 0;
+size_t xld_zip_limit = (size_t)1048576UL;
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || defined(XTR_WIN_NATIVE) || defined(XTR_OS2_NATIVE)
 #ifdef XTR_WIN_NATIVE
 extern int xtr_zip_next_companion(char source[512],char member[52]);
@@ -3091,6 +3100,8 @@ struct option_struct far options[] = {
     {"0",  "store",       o_NO_VALUE,       o_NOT_NEGATABLE, '0',  "store"},
     {"1",  "compress-1",  o_NO_VALUE,       o_NOT_NEGATABLE, '1',  "compress 1"},
     {"11", "compress-11", o_NO_VALUE,       o_NOT_NEGATABLE, o_11, "Zopfli deflate"},
+    {"", "use-libdeflate", o_NO_VALUE, o_NEGATABLE, o_use_libdeflate, "Use bounded libdeflate for Deflate"},
+    {"", "libdeflate-size", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_libdeflate_size, "Maximum libdeflate member size"},
     {"2",  "compress-2",  o_NO_VALUE,       o_NOT_NEGATABLE, '2',  "compress 2"},
     {"3",  "compress-3",  o_NO_VALUE,       o_NOT_NEGATABLE, '3',  "compress 3"},
     {"4",  "compress-4",  o_NO_VALUE,       o_NOT_NEGATABLE, '4',  "compress 4"},
@@ -3336,6 +3347,7 @@ char **argv;            /* command line tokens */
   int key_needed = 0;   /* prompt for encryption key */
   int have_out = 0;     /* if set in_path and out_path different archive */
   int zopfli_iterations_set = 0; /* --zopfli-iterations was specified */
+  int xld_size_set = 0;
   int dcl_mode_set = 0;          /* --dcl-implode-mode was specified */
   int dcl_dict_set = 0;          /* --dcl-implode-dict was specified */
   int dcl_optimal_set = 0;       /* explicit --dcl-implode-optimal[-] */
@@ -4506,6 +4518,17 @@ char **argv;            /* command line tokens */
         case o_huffman_extra:
           huffman_optimize_extra = 1;
           break;
+        case o_use_libdeflate:
+          xld_zip_enabled = !negated;
+          break;
+        case o_libdeflate_size:
+          if (!xld_parse_limit(value, &xld_zip_limit)) {
+            free(value);
+            ZIPERR(ZE_PARMS, "invalid --libdeflate-size (expected positive bytes or K/M/G/T units)");
+          }
+          xld_size_set = 1;
+          free(value);
+          break;
         case o_zopfli_iter:
           {
             char *endp;
@@ -5121,6 +5144,13 @@ char **argv;            /* command line tokens */
   }
   if (lpaq8_l2_enable && method != LPAQ8)
     ZIPERR(ZE_PARMS, "--lpaq8-l2-enable requires -Z lpaq8");
+
+  if (xld_size_set && !xld_zip_enabled)
+    ZIPERR(ZE_PARMS, "--libdeflate-size requires --use-libdeflate");
+#ifndef USE_LIBDEFLATE
+  if (xld_zip_enabled)
+    ZIPERR(ZE_PARMS, "libdeflate support not compiled in");
+#endif
 
   /* -11 enables optimal DCL parsing unless overridden */
   /* Resolved here AFTER option parsing so the negated form wins! */

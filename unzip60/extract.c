@@ -54,6 +54,71 @@
 #include "crc32.h"
 #include "crypt.h"
 
+#if defined(USE_LIBDEFLATE) && !defined(SFX)
+# include <libdeflate.h>
+extern int xld_unzip_enabled;
+extern size_t xld_unzip_limit;
+
+/* -1 means decline before input is consumed.  Once reading starts, a
+ * truncated or malformed member must fail, not be retried using a decoder
+ * with different input/decryption state.  flush() preserves the existing
+ * CRC, FWKCS, text conversion, test mode and output accounting. */
+static int xld_unzip_inflate(__G)
+    __GDEF
+{
+    size_t insize, outsize, actual_in, actual_out, i, step;
+    unsigned char *in, *out;
+    struct libdeflate_decompressor *ctx;
+    enum libdeflate_result result;
+    int ch, rc;
+
+    /* Check *before* adding to avoid signed zoff_t overflow on malformed
+     * archives.  NEXTBYTE consumes G.incnt's buffered bytes plus G.csize. */
+    if (G.csize < 0 || G.incnt < 0 ||
+        (zusz_t)G.csize > (zusz_t)xld_unzip_limit ||
+        (size_t)G.incnt > xld_unzip_limit - (size_t)G.csize ||
+        G.lrec.ucsize > (zusz_t)xld_unzip_limit ||
+        G.lrec.ucsize > (zusz_t)(size_t)-1)
+        return -1;
+    insize = (size_t)G.csize + (size_t)G.incnt;
+    outsize = (size_t)G.lrec.ucsize;
+    in = (unsigned char *)malloc(insize ? insize : 1U);
+    if (!in) return -1;
+    out = (unsigned char *)malloc(outsize ? outsize : 1U);
+    if (!out) { free(in); return -1; }
+    ctx = libdeflate_alloc_decompressor();
+    if (!ctx) { free(in); free(out); return -1; }
+
+    for (i = 0; i < insize; i++) {
+        ch = NEXTBYTE;
+        if (ch == EOF) {
+            libdeflate_free_decompressor(ctx);
+            free(in); free(out);
+            return PK_ERR;
+        }
+        in[i] = (unsigned char)ch;
+    }
+    actual_in = actual_out = 0;
+    result = libdeflate_deflate_decompress_ex(ctx, in, insize,
+                 out, outsize, &actual_in, &actual_out);
+    libdeflate_free_decompressor(ctx);
+    free(in);
+    if (result != LIBDEFLATE_SUCCESS || actual_in != insize ||
+        actual_out != outsize) {
+        free(out);
+        return PK_ERR;
+    }
+    rc = PK_COOL;
+    for (i = 0; i < outsize; i += step) {
+        step = outsize - i > 16384U ? 16384U : outsize - i;
+        rc = flush(__G__ out + i, (ulg)step, 0);
+        if (rc != PK_COOL || G.disk_full) break;
+    }
+    free(out);
+    return rc;
+}
+#endif
+
 /* PAQZIP LPAQ8 decoder: enabled by unzpriv.h on capable targets */
 #ifdef IZ_LPAQ8_ENABLED
 # include "lpaq8dec.h"
@@ -4826,8 +4891,17 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 #ifndef USE_ZLIB  /* zlib's function is called inflate(), too */
 #  define UZinflate inflate
 #endif
-            if ((r = UZinflate(__G__
-                               (G.lrec.compression_method == ENHDEFLATED)))
+            if ((r =
+#if defined(USE_LIBDEFLATE) && !defined(SFX)
+                 (xld_unzip_enabled && G.lrec.compression_method == DEFLATED)
+                    ? xld_unzip_inflate(__G) : -1
+#else
+                 -1
+#endif
+                 ) == -1)
+                r = UZinflate(__G__
+                             (G.lrec.compression_method == ENHDEFLATED));
+            if (r
                 != 0) {
                 if (r < PK_DISK) {
                     if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))

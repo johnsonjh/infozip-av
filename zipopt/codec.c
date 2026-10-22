@@ -16,6 +16,9 @@
 #include "../zip30/zopfli.h"
 
 #include "codec.h"
+#ifdef ZO_WITH_LIBDEFLATE
+# include <libdeflate.h>
+#endif
 
 extern int zo_legacy_huffman_optimize_extra;
 
@@ -84,7 +87,11 @@ const zo_candidate zo_candidates[] = { { "store",              0,  0,    0 },
                                        { "zstd",               93, 22,   0 },
                                        { "xz",                 95, 9,    0 },
                                        { "ppmd",               98, 9,    0 },
-                                       { "wavpack",            97, 0,    0 } };
+                                       { "wavpack",            97, 0,    0 }
+#ifdef ZO_WITH_LIBDEFLATE
+                                      ,{ "libdeflate",         8,  11,   2 }
+#endif
+                                     };
 const unsigned zo_candidate_count
     = sizeof (zo_candidates) / sizeof (zo_candidates[0]);
 
@@ -760,6 +767,61 @@ zo_zopfli (struct zo_io *s, unsigned iterations)
   return ok && !s->failed;
 }
 
+#ifdef ZO_WITH_LIBDEFLATE
+static int zo_libdeflate(struct zo_io *s, unsigned level, size_t limit)
+{
+  struct libdeflate_compressor *ctx;
+  unsigned char *src, *dst;
+  size_t size, bound, output, pos;
+  long length;
+
+  if (fseek(s->in, 0L, SEEK_END) != 0) {
+    s->io_failed = 1;
+    return 0;
+  }
+  length = ftell(s->in);
+  if (length < 0 || fseek(s->in, 0L, SEEK_SET) != 0) {
+    s->io_failed = 1;
+    return 0;
+  }
+  if ((unsigned long)length > limit) return 0;
+  size = (size_t)length;
+  src = (unsigned char *)malloc(size ? size : 1U);
+  if (!src) return 0;
+  ctx = libdeflate_alloc_compressor(level == 11U ? 12 : (int)level);
+  if (!ctx) { free(src); return 0; }
+  bound = libdeflate_deflate_compress_bound(ctx, size);
+  dst = bound ? (unsigned char *)malloc(bound) : NULL;
+  if (!dst) {
+    libdeflate_free_compressor(ctx);
+    free(src);
+    return 0;
+  }
+  if (fread(src, 1, size, s->in) != size) {
+    s->io_failed = 1;
+    free(src); free(dst);
+    libdeflate_free_compressor(ctx);
+    return 0;
+  }
+  output = libdeflate_deflate_compress(ctx, src, size, dst, bound);
+  libdeflate_free_compressor(ctx);
+  free(src);
+  if (!output) { free(dst); return 0; }
+  pos = 0;
+  while (pos < output) {
+    unsigned step = (unsigned)(output - pos > 16384U ?
+                                16384U : output - pos);
+    if (zo_wr(s, dst + pos, step)) {
+      free(dst);
+      return 0;
+    }
+    pos += step;
+  }
+  free(dst);
+  return !s->failed;
+}
+#endif
+
 int
 zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
              const zo_settings *settings)
@@ -797,9 +859,16 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
         }
     }
   else if ((id == 10U || id == 11U || id == 14U || id == 15U || id == 17U
+#ifdef ZO_WITH_LIBDEFLATE
+            || id == 20U
+#endif
             || id == 18U)
            && (settings->levels[id] < 1U
-               || settings->levels[id] > (id == 10U || id == 11U ? 11U : 9U)))
+               || settings->levels[id] > (id == 10U || id == 11U
+#ifdef ZO_WITH_LIBDEFLATE
+                                           || id == 20U
+#endif
+                                           ? 11U : 9U)))
     {
       return 0;
     }
@@ -931,6 +1000,13 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
       rc = 0;
 #endif
       break;
+
+#ifdef ZO_WITH_LIBDEFLATE
+    case 20:
+      rc = zo_libdeflate(&s, settings->levels[id],
+                         settings->libdeflate_limit);
+      break;
+#endif
 
     default:
       rc = 0;

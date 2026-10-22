@@ -25,6 +25,7 @@ int zo_candidate_available (unsigned);
 
 typedef struct zo_settings
 {
+  size_t libdeflate_limit;            /* decoded input size cap; 1 MiB default */
   unsigned wavpack_level;             /* 1..4, default extra (4) */
   unsigned wavpack_extra_level;       /* 0..6, default 6 */
   unsigned zopfli_iterations;         /* 1..10000, default 15 */

@@ -90,8 +90,10 @@ ZIPOPTDIR="zipopt"
 # explicitly requested.  Do not alter the flat bzlib.h/libbz2.a lookup used by
 # build-win32.sh, build-all.sh, or build-dos386.sh.
 case "${BZIP2_BACKEND:-auto}" in
-  auto | system | vendored) ;;
-  *) echo 'ERROR: BZIP2_BACKEND must be auto, system, or vendored' >&2; exit 2 ;;
+auto | system | vendored) ;;
+*)
+  echo 'ERROR: BZIP2_BACKEND must be auto, system, or vendored' >&2; exit 2
+  ;;
 esac
 
 PREFIX="$(pwd -P 2> /dev/null && :)/build"
@@ -103,13 +105,50 @@ test "${PREFIX:?}" = "/build" && {
 
 mkdir -p "${PREFIX:?}/bin" "${PREFIX:?}/man1"
 
+# Never auto-enable this optional codec.  A successful compile+link test is
+# mandatory only when the builder explicitly requests it.
+case "${USE_LIBDEFLATE:-0}" in
+0) ZO_LD_REQUEST=off ;;
+1)
+  xld_probe="$PREFIX/.libdeflate-probe-$$"
+  LIBDEFLATE_CFLAGS="${LIBDEFLATE_CFLAGS:-$(pkg-config --cflags libdeflate 2> /dev/null || :)}"
+  LIBDEFLATE_LIBS="${LIBDEFLATE_LIBS:-$(pkg-config --libs libdeflate 2> /dev/null || printf '%s' '-ldeflate')}"
+  cat > "$xld_probe.c" << 'XTR_LD_PROBE'
+#include <libdeflate.h>
+int main(void) {
+  struct libdeflate_compressor *c = libdeflate_alloc_compressor(6);
+  if (!c) return 1;
+  libdeflate_free_compressor(c);
+  return 0;
+}
+XTR_LD_PROBE
+  if ! "$BUILD_CC" ${LOCAL_ZIP:-} ${LOCAL_UNZIP:-} \
+    $LIBDEFLATE_CFLAGS "$xld_probe.c" -o "$xld_probe" \
+    ${LOCAL_GLDFLAGS:-} $LIBDEFLATE_LIBS \
+    > "$PREFIX/libdeflate-probe.log" 2>&1; then
+    echo 'ERROR: USE_LIBDEFLATE=1 but libdeflate headers/library cannot link' >&2
+    tail -30 "$PREFIX/libdeflate-probe.log" >&2
+    exit 1
+  fi
+  rm -f "$xld_probe" "$xld_probe.c"
+  LOCAL_ZIP="${LOCAL_ZIP:-} $LIBDEFLATE_CFLAGS -DUSE_LIBDEFLATE"
+  LOCAL_UNZIP="${LOCAL_UNZIP:-} $LIBDEFLATE_CFLAGS -DUSE_LIBDEFLATE"
+  LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-} $LIBDEFLATE_LIBS"
+  ZO_LD_REQUEST=on
+  echo 'build-unix: explicitly enabled libdeflate'
+  ;;
+*)
+  echo 'ERROR: USE_LIBDEFLATE must be 0 or 1' >&2; exit 2
+  ;;
+esac
+
 # Use a real link test, not merely existence of bzlib.h or an archive.
 # Extra flags supplied by the caller participate in both probes.  Keep the
 # original external-library directory conventions otherwise unchanged.
 BZIP2_CHOICE=${BZIP2_BACKEND:-auto}
 if [ "$BZIP2_CHOICE" != vendored ]; then
   bzprobe="$PREFIX/.bz2-probe-$$"
-  cat > "$bzprobe.c" <<'XTR_BZ_PROBE'
+  cat > "$bzprobe.c" << 'XTR_BZ_PROBE'
 #include <bzlib.h>
 int main(void)
 {
@@ -124,7 +163,7 @@ int main(void)
     return BZ2_bzlibVersion() == 0;
 }
 XTR_BZ_PROBE
-  if "$BUILD_CC" ${LOCAL_ZIP:-} ${LOCAL_UNZIP:-}  \
+  if "$BUILD_CC" ${LOCAL_ZIP:-} ${LOCAL_UNZIP:-} \
     "$bzprobe.c" ${LOCAL_GLDFLAGS:-} -lbz2 \
     -o "$bzprobe" > "$PREFIX/bzip2-system-probe.log" 2>&1; then
     BZIP2_CHOICE=system
@@ -176,7 +215,7 @@ fi
 # The SFX build must not require WavPack when it is unavailable.  Existing
 # normal UnZip codec detection is independent of this executable's options.
 wprobe="$PREFIX/.wavpack-probe-$$"
-cat > "$wprobe.c" <<'XTR_WV_PROBE'
+cat > "$wprobe.c" << 'XTR_WV_PROBE'
 #include <wavpack/wavpack.h>
 int main(void) { return WavpackGetLibraryVersion() == 0; }
 XTR_WV_PROBE
@@ -194,19 +233,19 @@ rm -f "$wprobe" "$wprobe.c"
 # rebuilt when changing backend.  Force a complete reconfigure when the
 # selection changes, including the first run after an older build.
 backend_stamp="$PREFIX/.bzip2-backend"
-if [ ! -f "$backend_stamp" ] ||
-   [ "$(cat "$backend_stamp")" != "$BZIP2_CHOICE" ]; then
+if [ ! -f "$backend_stamp" ] \
+  || [ "$(cat "$backend_stamp")" != "$BZIP2_CHOICE" ]; then
   for source_dir in "$UNZIPDIR" "$ZIPDIR" "$ZIPDEDUPDIR" "$ZIPOPTDIR"; do
     case "$source_dir" in
-      "$UNZIPDIR" | "$ZIPDIR") clean_makefile='-f unix/Makefile' ;;
-      *) clean_makefile= ;;
+    "$UNZIPDIR" | "$ZIPDIR") clean_makefile='-f unix/Makefile' ;;
+    *) clean_makefile= ;;
     esac
     (cd "$source_dir" && "$MAKE" $clean_makefile clean) \
       > "$PREFIX/bzip2-clean-$source_dir.log" 2>&1 || {
-        echo "ERROR: cleaning $source_dir before backend switch failed" >&2
-        tail -30 "$PREFIX/bzip2-clean-$source_dir.log" >&2
-        exit 1
-      }
+      echo "ERROR: cleaning $source_dir before backend switch failed" >&2
+      tail -30 "$PREFIX/bzip2-clean-$source_dir.log" >&2
+      exit 1
+    }
   done
 fi
 
@@ -285,6 +324,9 @@ fi
       LOCAL_ZIP="${LOCAL_ZIP:-}" \
       LOCAL_GLDFLAGS="${LOCAL_GLDFLAGS:-}" \
       EXTERNAL_ZLIB="${EXTERNAL_ZLIB:-}" \
+      ZO_LIBDEFLATE="${ZO_LD_REQUEST}" \
+      ZO_LIBDEFLATE_CFLAGS="${LIBDEFLATE_CFLAGS:-}" \
+      ZO_LIBDEFLATE_LIBS="${LIBDEFLATE_LIBS:-}" \
       MAKE="${MAKE:-make}" \
     && cp -p "zipopt" "${PREFIX:?}/bin/zipopt" \
     && cp -p "man/zipopt.1" "${PREFIX:?}/man1/zipopt.1"

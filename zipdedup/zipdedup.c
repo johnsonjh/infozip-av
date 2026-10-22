@@ -25,6 +25,7 @@
 #include "../unzip60/izsha1.h"
 #include "fwkcs_md5.h"
 #include "../unzip60/unzip.h"
+#include "../common/xtrlibdeflate_size.h"
 
 #if defined(USE_ZLIB_NG)
 # include "../unzip60/iz_native_zlibng.h"
@@ -142,6 +143,27 @@ struct zd_archive
 
 static const char *zd_error;
 static int zd_verbose;
+static int zd_xld_enabled;
+static const char *zd_xld_size_arg;
+
+/* Every internal UnZip API invocation receives the same opt-in.  Do not
+ * preserve an UnZip global across calls: uz_opts() resets it per invocation. */
+static int zd_unzip_arguments(char *args[8], const char *archive,
+                              const char *member)
+{
+  int argc = 0;
+  args[argc++] = "unzip";
+  args[argc++] = "-p";
+  if (zd_xld_enabled) args[argc++] = "--use-libdeflate";
+  if (zd_xld_size_arg) {
+    args[argc++] = "--libdeflate-size";
+    args[argc++] = (char *)zd_xld_size_arg;
+  }
+  args[argc++] = (char *)archive;
+  args[argc++] = (char *)member;
+  args[argc] = NULL;
+  return argc;
+}
 static int zd_sde_active;
 static unsigned long zd_sde_epoch;
 
@@ -1033,7 +1055,7 @@ zd_md5_member (struct zd_archive *a, unsigned long idx,
 {
   struct zd_entry *e = &a->members[idx];
   UzpInit u;
-  char *argv[5];
+  char *argv[8];
   unsigned long j;
   int rc;
 
@@ -1074,16 +1096,11 @@ zd_md5_member (struct zd_archive *a, unsigned long idx,
   memset (&u, 0, sizeof (u));
   u.structlen = sizeof (u);
   u.msgfn = zd_md5_cb;
-  argv[0] = "unzip";
-  argv[1] = "-p";
-  argv[2] = (char *)a->input;
-  argv[3] = e->name;
-  argv[4] = NULL;
   zd_md5_failed = 0;
   zd_md5_bytes = 0;
   zd_md5_crc = 0xffffffffUL;
   xm_md5_init (&zd_md5_state);
-  rc = UzpAltMain (4, argv, &u);
+  rc = UzpAltMain (zd_unzip_arguments(argv, a->input, e->name), argv, &u);
 
   if (rc != 0 || zd_md5_failed || zd_md5_bytes != e->usize
       || (zd_md5_crc ^ 0xffffffffUL) != e->crc)
@@ -1232,7 +1249,7 @@ static int
 zd_verify_xtr(struct zd_archive *a,struct zd_entry *e)
 {
   UzpInit u;
-  char *args[5];
+  char *args[8];
   unsigned long j;
   xtr_extra outer;
   xtr1_policy policy;
@@ -1254,10 +1271,8 @@ zd_verify_xtr(struct zd_archive *a,struct zd_entry *e)
   zd_xtr_stage=tmpfile();
   if (!zd_xtr_stage) {zd_fail("cannot stage Xtro metadata");return 0;}
   memset(&u,0,sizeof(u));u.structlen=sizeof(u);u.msgfn=zd_xtr_cb;
-  args[0]="unzip";args[1]="-p";
-  args[2]=(char *)a->input;args[3]=e->name;args[4]=NULL;
   zd_xtr_bytes=0;zd_xtr_failed=0;
-  code=UzpAltMain(4,args,&u);
+  code=UzpAltMain(zd_unzip_arguments(args,a->input,e->name),args,&u);
   valid=(code==0 && !zd_xtr_failed && zd_xtr_bytes==e->usize &&
          !fseek(zd_xtr_stage,0,SEEK_SET));
   if (valid) {
@@ -1303,7 +1318,7 @@ static int
 zd_hash_file (struct zd_archive *a, struct zd_entry *e)
 {
   UzpInit u;
-  char *argv[5];
+  char *argv[8];
   int rc;
 
   if (e->method == ZD_REFPTR || e->name[0] == '\0')
@@ -1321,16 +1336,11 @@ zd_hash_file (struct zd_archive *a, struct zd_entry *e)
   memset (&u, 0, sizeof (u));
   u.structlen = sizeof (u);
   u.msgfn = zd_unzip_cb;
-  argv[0] = "unzip";
-  argv[1] = "-p";
-  argv[2] = (char *)a->input;
-  argv[3] = e->name;
-  argv[4] = NULL;
   zd_hash_failed = 0;
   zd_hash_bytes = 0;
   zd_hash_crc = 0xffffffffUL;
   iz_sha1_init (&zd_hash_state);
-  rc = UzpAltMain (4, argv, &u);
+  rc = UzpAltMain (zd_unzip_arguments(argv, a->input, e->name), argv, &u);
   iz_sha1_finish (&zd_hash_state, e->sha1);
   if (rc != 0 || zd_hash_failed || zd_hash_bytes != e->usize
       || (zd_hash_crc ^ 0xffffffffUL) != e->crc)
@@ -2315,6 +2325,8 @@ zd_usage (FILE *out)
 "Usage: zipdedup [option(s)...] <in.zip> <out.zip>\n"
 "  -f, --force          allow dangerous operations\n"
 "  -5, --fwkcs-md5      write FWKCS MD5 metadata to output\n"
+"  --use-libdeflate[-]  optional small-member Deflate decoder\n"
+"  --libdeflate-size N  maximum compressed/uncompressed member size (1MiB)\n"
 "  -q, --quiet          suppress non-essential output\n"
 "  -v, --verbose        verbose output display mode\n"
 "  -V, --version        display version information\n"
@@ -2345,6 +2357,25 @@ main (int argc, char **argv)
         {
           a.fwkcs_md5 = 1;
 
+          continue;
+        }
+
+      if (!strcmp(argv[i], "--use-libdeflate") ||
+          !strcmp(argv[i], "--use-libdeflate-"))
+        {
+          zd_xld_enabled = argv[i][strlen(argv[i])-1] != '-';
+          continue;
+        }
+      if (!strncmp(argv[i], "--libdeflate-size=", 18) ||
+          !strcmp(argv[i], "--libdeflate-size"))
+        {
+          size_t size;
+          zd_xld_size_arg = !strncmp(argv[i], "--libdeflate-size=", 18)
+                            ? argv[i]+18 : (i+1 < argc ? argv[++i] : "");
+          if (!xld_parse_limit(zd_xld_size_arg, &size)) {
+            fprintf(stderr,"zipdedup: invalid --libdeflate-size\n");
+            return 2;
+          }
           continue;
         }
 
@@ -2405,6 +2436,17 @@ main (int argc, char **argv)
 
       return 2;
     }
+
+  if (zd_xld_size_arg && !zd_xld_enabled) {
+    fprintf(stderr,"zipdedup: --libdeflate-size requires --use-libdeflate\n");
+    return 2;
+  }
+#ifndef USE_LIBDEFLATE
+  if (zd_xld_enabled) {
+    fprintf(stderr,"zipdedup: libdeflate support not compiled in\n");
+    return 2;
+  }
+#endif
 
   a.input = paths[0];
   a.output = paths[1];
