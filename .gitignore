@@ -33,6 +33,7 @@ pvsreport/
 /unzip60/*.o
 /unzip60/unzip
 /unzip60/unzipsfx
+/.v0.sed
 /win32/
 /win64/
 /win64ucrt/
