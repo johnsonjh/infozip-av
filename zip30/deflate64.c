@@ -321,6 +321,12 @@ d64_find_match (d64_encoder *e, unsigned long pos, unsigned long *dist_out)
         {
           n = 3UL;
 
+          while (max_len - n >= 16UL &&
+                 memcmp(e->in + c + n, e->in + pos + n, 16U) == 0)
+            {
+              n += 16UL;
+            }
+
           while (n < max_len && e->in[c + n] == e->in[pos + n])
             {
               ++n;
