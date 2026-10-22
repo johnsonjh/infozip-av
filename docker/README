@@ -1,6 +1,6 @@
--------------------------------------------------------------------
----- DOS386, Win32, Win64, Win64ucrt build
--------------------------------------------------------------------
+-----------------------------------------------------
+---- DOS386, Win32, Win64, Win64ucrt, OS/2 build ----
+-----------------------------------------------------
 
 1) From the top level of the repository (the parent directory of this file),
 build the docker image to be used for the build.  The non-BuildKit method is
@@ -13,70 +13,18 @@ env DOCKER_BUILDKIT=0 docker build --rm=true -t xtro-zip-build-fedora:latest -f 
   [... or ...]
 docker build --progress=plain --rm=true -t xtro-zip-build-fedora:latest -f docker/Dockerfile.fedora .
 
-2) Run the build using the container:
-
-mkdir -p staging
-sudo ./clean.sh && docker run -it -h xtro-zip-build-fedora -v "$(pwd -P)":/work -w /work xtro-zip-build-fedora ./build-all.sh
-
-zip --huffman-optimize-extra --fwkcs-md5 --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 150 dos386.zip -r dos386
-cat dos386/unzipsfx.exe dos386.zip > dos386.exe
-zip -A dos386.exe
-mv dos386.exe staging
-
-zip --huffman-optimize-extra --fwkcs-md5 --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 150 dos16.zip -r dos16
-cat dos16/unzipsfx.exe dos16.zip > dos16.exe
-zip -A dos16.exe
-mv dos16.exe staging
-
-zip --huffman-optimize-extra --fwkcs-md5 --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 150 win64.zip -r win64
-mv win64.zip staging
-
-zip --huffman-optimize-extra --fwkcs-md5 --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 150 win64ucrt.zip -r win64ucrt
-mv win64ucrt.zip staging
-
-zip --huffman-optimize-extra --fwkcs-md5 --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 --zopfli-iterations 150 win32.zip -r win32
-mv win32.zip staging
-
-
-
-
-
--------------------------------------------------------------------
----- Linux x86_64 static build
--------------------------------------------------------------------
-
-1) Make container:
+-----------------------------------
+---- Linux x86_64 static build ----
+-----------------------------------
 
 env DOCKER_BUILDKIT=0 docker build --rm=true -t xtro-zip-build-alpine:latest -f docker/Dockerfile.alpine .
   [... or ...]
 docker build --progress=plain --rm=true -t xtro-zip-build-alpine:latest -f docker/Dockerfile.alpine .
 
-2) Build:
-
-mkdir -p staging
-sudo ./clean.sh && docker run -it -h xtro-zip-build-alpine -v "$(pwd -P)":/work -w /work xtro-zip-build-alpine sh -xc 'export LOCAL_ZIP="-O3 -flto=auto"; export LOCAL_UNZIP="-O3 -flto=auto"; export LOCAL_GLDFLAGS="-s -static -flto=auto"; ./build-unix.sh'
-sudo rm -vf build/*.log build/.bzip2-backend
-zip --huffman-optimize-extra --fwkcs-md5 -11 --zopfli-iterations 150 linux64.zip -r build
-mv linux64.zip staging
-
-
-
-
-
--------------------------------------------------------------------
----- Linux 32-bit static build
--------------------------------------------------------------------
-
-1) Make container:
+-----------------------------------
+---- Linux 32-bit static build ----
+-----------------------------------
 
 env DOCKER_BUILDKIT=0 docker build --rm=true -t xtro-zip-build-alpine32:latest -f docker/Dockerfile.alpine32 .
   [... or ...]
 docker build --progress=plain --rm=true -t xtro-zip-build-alpine32:latest -f docker/Dockerfile.alpine32 .
-
-2) Build:
-
-mkdir -p staging
-sudo ./clean.sh && docker run -it -h xtro-zip-build-alpine32 -v "$(pwd -P)":/work -w /work xtro-zip-build-alpine32 sh -xc 'export LOCAL_ZIP="-D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -O3 -flto=auto"; export LOCAL_UNZIP="-D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -O3 -flto=auto"; export LOCAL_GLDFLAGS="-s -static -flto=auto"; ./build-unix.sh'
-sudo rm -vf build/*.log build/.bzip2-backend
-zip --huffman-optimize-extra --fwkcs-md5 -11 --zopfli-iterations 150 linux32.zip -r build
-mv linux32.zip staging
