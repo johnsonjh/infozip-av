@@ -1,0 +1,22 @@
+--- a/lib/x86/cpu_features.c
++++ b/lib/x86/cpu_features.c
+@@ -139,6 +139,11 @@
+ /* Initialize libdeflate_x86_cpu_features. */
+ void libdeflate_init_x86_cpu_features(void)
+ {
++#ifdef LIBDEFLATE_PORTABLE_X86
++	/* CPUID is not available on an 80386 or early 80486.  Use the scalar
++	 * implementations, but keep the intrinsic declarations for compilation. */
++	libdeflate_x86_cpu_features = X86_CPU_FEATURES_KNOWN;
++#else
+ 	u32 max_leaf;
+ 	u32 manufacturer[3];
+ 	u32 family, model;
+@@ -208,6 +213,7 @@
+ 					 ARRAY_LEN(x86_cpu_feature_table));
+ 
+ 	libdeflate_x86_cpu_features = features | X86_CPU_FEATURES_KNOWN;
++#endif
+ }
+ 
+ #endif /* X86_CPU_FEATURES_KNOWN */

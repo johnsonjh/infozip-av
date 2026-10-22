@@ -1,0 +1,32 @@
+--- a/common_defs.h
++++ b/common_defs.h
+@@ -91,6 +91,16 @@
+ #  endif
+ #endif
+ 
++/* DJGPP/80386 builds need scalar implementations throughout.  Selecting
++ * scalar functions at runtime is not enough: libdeflate otherwise still
++ * compiles SSE/AVX code, whose alignment is unsupported by DJGPP and whose
++ * instructions are unavailable on the 80386.  Windows builds do not set
++ * this flag and retain all accelerated paths. */
++#ifdef LIBDEFLATE_PORTABLE_X86
++#  undef ARCH_X86_32
++#  undef ARCH_X86_64
++#endif
++
+ /* ========================================================================== */
+ /*                              Type definitions                              */
+ /* ========================================================================== */
+--- a/lib/matchfinder_common.h
++++ b/lib/matchfinder_common.h
+@@ -63,6 +63,10 @@
+  * Currently the maximum memory address alignment required is 32 bytes, needed
+  * by the AVX-2 matchfinder functions.
+  */
++#ifdef LIBDEFLATE_PORTABLE_X86
++#  define MATCHFINDER_MEM_ALIGNMENT 16
++#else
+ #define MATCHFINDER_MEM_ALIGNMENT	32
++#endif
+ 
+ /*
