@@ -299,14 +299,14 @@ zo_usage (void)
         "  --dcl-implode-optimal          enable DCL-Implode optimal parser");
   puts (
         "  --compress-level=algo=LEVEL    set encoder compress level (1..9, 11)\n"
-        "  --zstd-level=N                 native Zstd compress level (1..22)\n"
-        "  --wavpack-level=N              native Wavpack level (1..4; default 4)\n"
-        "  --wavpack-extra-level=N        WavPack extra level (0..6; default 6)\n"
+        "  --zstd-level=n                 native Zstd compress level (1..22)\n"
+        "  --wavpack-level=n              native Wavpack level (1..4; default 4)\n"
+        "  --wavpack-extra-level=n        WavPack extra level (0..6; default 6)\n"
         "  --wavpack-compat-reencode      do not retain WavPack V5 streams\n"
         "  --disable-zopfli               ordinary Deflate instead of Zopfli\n"
         "  --huffman-optimize-extra       run expensive Huffman header optimizations\n"
-        "  --zopfli-iterations=N          Zopfli passes (1..10000; default 15)\n"
-        "  --libdeflate-size=N|auto       libdeflate cap (default 1MiB; auto where supported)\n"
+        "  --zopfli-iterations=n          Zopfli passes (1..10000; default 15)\n"
+        "  --libdeflate-size=n|auto       libdeflate memory limit (default '1MiB')\n"
         "  -v, --verbose                  verbose output display mode\n"
         "  -V, --version                  display version and acceleration\n"
         "  -h, --help                     display this help text");
