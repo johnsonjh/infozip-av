@@ -331,6 +331,7 @@ static ZCONST char Far efPKSZ64[] = "PKWARE 64-bit sizes";
 static ZCONST char Far efAV[] = "PKWARE AV";
 static ZCONST char Far efWZAES[] = "WinZip AES";
 static ZCONST char Far efOS2[] = "OS/2";
+static ZCONST char Far efXtro[] = "Xtro metadata";
 static ZCONST char Far efPKVMS[] = "PKWARE VMS";
 static ZCONST char Far efPKWin32[] = "PKWARE Win32";
 static ZCONST char Far efPKUnix[] = "PKWARE Unix";
@@ -1612,6 +1613,9 @@ static int zi_long(__G__ pEndprev, error_in_archive)
                     break;
                 case EF_OS2:
                     ef_fieldname = efOS2;
+                    break;
+                case EF_XTRO:
+                    ef_fieldname = efXtro;
                     break;
                 case EF_ACL:
                     ef_fieldname = efACL;

@@ -1899,6 +1899,7 @@
 #define EF_PKIBM     0x0065    /* PKWARE's IBM S/390 & AS/400 attributes */
 #define EF_PKIBM2    0x0066    /* PKWARE's IBM S/390 & AS/400 compr. attribs */
 #define EF_IZVMS     0x4d49    /* Info-ZIP's VMS ("IM") */
+#define EF_XTRO      0x5854    /* Xtro-ZIP V1 metadata ("XT") */
 #define EF_IZUNIX    0x5855    /* Info-ZIP's first Unix[1] ("UX") */
 #define EF_IZUNIX2   0x7855    /* Info-ZIP's second Unix[2] ("Ux") */
 #define EF_IZUNIX3   0x7875    /* Info-ZIP's newest Unix[3] ("ux") */

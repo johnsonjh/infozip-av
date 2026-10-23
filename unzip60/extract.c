@@ -4984,8 +4984,12 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 #else
 #if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
     if(XTR_RESTORE_ACTIVE && !uO.tflag && !uO.cflag &&
-       G.pInfo->xtr_central && xtr_pin_output(G.pInfo,G.outfile))
+       G.pInfo->xtr_central && xtr_pin_output(G.pInfo,G.outfile)) {
+#if defined(XTR_OS2_NATIVE)
+        fprintf(stderr,"unzip: OS/2 Xtro file pin failed: %s\n",G.filename);
+#endif
         error=PK_ERR;
+    }
 #endif
     if (!uO.tflag && !uO.cflag) {  /* don't close NULL file or stdout */
 #if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)

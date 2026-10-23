@@ -5,6 +5,7 @@
 # include "../xtrmeta/xtros2_decode.h"
 # include "../xtrmeta/xtros2_memory.h"
 # include "../xtrmeta/xtros2_nls.h"
+# include <errno.h>
 # include <fcntl.h>
 # include <io.h>
 # include <stdio.h>
@@ -35,6 +36,13 @@ typedef struct xtr_pending_restore
 } xtr_pending_restore;
 static xtr_pending_restore *xtr_pending_head, *xtr_active;
 static unsigned long xtr_reserved, xtr_advertised, xtr_registry_count;
+static int
+xtr_os2_error (const char *reason, const char *path)
+{
+  fprintf (stderr, "unzip: OS/2 Xtro %s%s%s\n", reason,
+           path ? ": " : "", path ? path : "");
+  return 1;
+}
 static unsigned
 xtr_transport (const min_info *in)
 {
@@ -329,17 +337,28 @@ xtr_pin_output (min_info *info, FILE *out)
 
   if (!out)
     {
-      return 1;
+      return xtr_os2_error ("cannot pin output (no open file)", NULL);
     }
 
   fd = dup (fileno (out));
   if (fd < 0)
     {
+      fprintf (stderr, "unzip: OS/2 Xtro cannot duplicate output handle "
+               "(errno=%d)\n", errno);
       return 1;
     }
 
-  if (fstat (fd, &st) != 0 || (st.st_mode & S_IFMT) != S_IFREG)
+  if (fstat (fd, &st) != 0)
     {
+      fprintf (stderr, "unzip: OS/2 Xtro cannot stat output handle "
+               "(errno=%d)\n", errno);
+      close (fd);
+      return 1;
+    }
+  if ((st.st_mode & S_IFMT) != S_IFREG)
+    {
+      fprintf (stderr, "unzip: OS/2 Xtro output is not a regular file "
+               "(mode=0%lo)\n", (unsigned long)st.st_mode);
       close (fd);
       return 1;
     }
@@ -359,12 +378,14 @@ xtr_output_ok (const char *path, int directory)
 
   if (!path || !iz_os2_link_safe_path (path))
     {
+      xtr_os2_error ("unsafe or unqueryable destination", path);
       return 0;
     }
 
   n = strlen (path);
   if (!n || n >= sizeof (name))
     {
+      xtr_os2_error ("destination pathname exceeds OS/2 limit", path);
       return 0;
     }
 
@@ -376,11 +397,18 @@ xtr_output_ok (const char *path, int directory)
 
   if (stat (name, &st) != 0)
     {
+      fprintf (stderr, "unzip: OS/2 Xtro cannot stat destination "
+               "(errno=%d): %s\n", errno, name);
       return 0;
     }
 
-  return directory ? ((st.st_mode & S_IFMT) == S_IFDIR)
-                   : ((st.st_mode & S_IFMT) == S_IFREG);
+  if ((st.st_mode & S_IFMT) != (directory ? S_IFDIR : S_IFREG))
+    {
+      xtr_os2_error ("destination type does not match archive entry", name);
+      return 0;
+    }
+
+  return 1;
 }
 /* Local headers for directory entries are not otherwise parsed by UnZip.
  * Seek/restore the archive handle with strict offset and field bounds. */
@@ -454,7 +482,12 @@ done:
 static int
 xtr_save_name (xtr_pending_restore *p, const char *name, int dir)
 {
-  if (!p || p->owner_verified || !xtr_output_ok (name, dir))
+  if (!p || p->owner_verified)
+    {
+      return xtr_os2_error ("duplicate or missing metadata owner", name);
+    }
+
+  if (!xtr_output_ok (name, dir))
     {
       return 1;
     }
@@ -462,7 +495,7 @@ xtr_save_name (xtr_pending_restore *p, const char *name, int dir)
   p->output_name = (char *)malloc (strlen (name) + 1U);
   if (!p->output_name)
     {
-      return 1;
+      return xtr_os2_error ("cannot allocate destination name", name);
     }
 
   strcpy (p->output_name, name);
@@ -479,13 +512,13 @@ xtr_set_inline (min_info *info, const char *name, const xtr_extra *outer,
   if (outer->manifest_len.hi || outer->manifest_len.lo != n
       || n > XTR_OS2_TOTAL_LIMIT - xtr_reserved)
     {
-      return 1;
+      return xtr_os2_error ("inline metadata length/quota mismatch", name);
     }
 
   p = xtr_lookup (outer->owner, 1);
   if (!p || p->has_owner || p->has_companion)
     {
-      return 1;
+      return xtr_os2_error ("duplicate inline metadata owner", name);
     }
 
   if (xtr_save_name (p, name, dir))
@@ -495,7 +528,7 @@ xtr_set_inline (min_info *info, const char *name, const xtr_extra *outer,
 
   if (xtr_os2_memory_write (&p->stage, manifest, n))
     {
-      return 1;
+      return xtr_os2_error ("cannot stage inline metadata", name);
     }
 
   p->has_owner = p->has_companion = p->companion_verified = 1;
@@ -517,7 +550,7 @@ xtr_directory_created (min_info *info, const char *name)
   if (xtr1_extra_decode (info->xtr_central, info->xtr_central_len, 1, &e, NULL)
       != XTR_OK)
     {
-      return 1;
+      return xtr_os2_error ("invalid directory Xtro header", name);
     }
 
   if (e.mode == XTR_V1_INLINE)
@@ -527,7 +560,12 @@ xtr_directory_created (min_info *info, const char *name)
     }
 
   p = xtr_lookup (e.owner, 0);
-  return !p || !p->has_owner || xtr_save_name (p, name, 1);
+  if (!p || !p->has_owner)
+    {
+      return xtr_os2_error ("directory owner was not registered", name);
+    }
+
+  return xtr_save_name (p, name, 1);
 }
 static int
 xtr_restore_verified (min_info *info, const uch *local, unsigned len,
@@ -544,13 +582,20 @@ xtr_restore_verified (min_info *info, const uch *local, unsigned len,
     }
 
   rc = xtr_locate (local, len, &v, &n);
-  if (rc || !v
-      || xtr1_check_headers (v, n, info->xtr_central, info->xtr_central_len,
-                             &e, NULL)
-             != XTR_OK
-      || e.mode != XTR_V1_INLINE || info->xtr_restore_fd < 0)
+  if (rc || !v)
     {
-      return 1;
+      return xtr_os2_error ("missing or malformed local Xtro field", name);
+    }
+
+  if (xtr1_check_headers (v, n, info->xtr_central, info->xtr_central_len,
+                          &e, NULL) != XTR_OK || e.mode != XTR_V1_INLINE)
+    {
+      return xtr_os2_error ("local/central Xtro headers disagree", name);
+    }
+
+  if (info->xtr_restore_fd < 0)
+    {
+      return xtr_os2_error ("no pinned output handle", name);
     }
 
   rc = xtr_set_inline (info, name, &e, info->xtr_central + 40,
@@ -570,14 +615,14 @@ xtr_stage_begin (min_info *info, const char *name)
       || info->uncompr_size > XTR_OS2_STAGE_LIMIT
       || info->uncompr_size > XTR_OS2_TOTAL_LIMIT - xtr_reserved)
     {
-      return 1;
+      return xtr_os2_error ("invalid companion name, state or size", name);
     }
 
   bytes = (unsigned long)info->uncompr_size;
   p = xtr_lookup (id, 0);
   if (!p || !p->has_companion || p->stage.length)
     {
-      return 1;
+      return xtr_os2_error ("companion not registered or already staged", name);
     }
 
   xtr_reserved += bytes;
@@ -592,6 +637,7 @@ xtr_stage_file (const char *name)
   if (!xtr_active || xtr_id_from_name (name, id)
       || memcmp (id, xtr_active->id, 16))
     {
+      xtr_os2_error ("companion output stream mismatch", name);
       return NULL;
     }
 
@@ -603,10 +649,15 @@ xtr_os2_stage_write (const unsigned char *b, size_t n)
 {
   if (!xtr_active)
     {
-      return 1;
+      return xtr_os2_error ("companion write without active staging", NULL);
     }
 
-  return xtr_os2_memory_write (&xtr_active->stage, b, n) ? 1 : 0;
+  if (xtr_os2_memory_write (&xtr_active->stage, b, n))
+    {
+      return xtr_os2_error ("companion metadata exceeded memory quota", NULL);
+    }
+
+  return 0;
 }
 static int
 xtr_stage_end (min_info *info, const char *name)
@@ -617,10 +668,14 @@ xtr_stage_end (min_info *info, const char *name)
   if (!xtr_active || xtr_id_from_name (name, id)
       || memcmp (id, xtr_active->id, 16))
     {
-      return 1;
+      return xtr_os2_error ("companion staging end mismatch", name);
     }
 
   bad = xtr_active->stage.length != (size_t)info->uncompr_size;
+  if (bad)
+    {
+      xtr_os2_error ("companion uncompressed length mismatch", name);
+    }
   xtr_os2_memory_rewind (&xtr_active->stage);
   xtr_active = NULL;
   return bad;
@@ -659,6 +714,8 @@ xtr_defer_owner (min_info *info, const uch *local, unsigned len,
              != XTR_OK
       || e.mode != XTR_V1_COMPANION)
     {
+      xtr_os2_error ("companion owner local header or pinned handle invalid",
+                     name);
       if (fd >= 0)
         {
           close (fd);
@@ -670,6 +727,11 @@ xtr_defer_owner (min_info *info, const uch *local, unsigned len,
   p = xtr_lookup (e.owner, 0);
   if (!p || !p->has_owner || xtr_save_name (p, name, 0))
     {
+      if (!p || !p->has_owner)
+        {
+          xtr_os2_error ("companion owner was not registered", name);
+        }
+
       close (fd);
       return 1;
     }
@@ -711,6 +773,19 @@ xtr_apply_pending (int selective)
 
       if (!p->owner_verified)
         {
+          if (!selective)
+            {
+              unsigned i;
+              fprintf (stderr, "unzip: warning: OS/2 Xtro owner was not "
+                       "extracted; metadata left unchanged (owner=");
+              for (i = 0U; i < 16U; i++)
+                {
+                  fprintf (stderr, "%02x", (unsigned)p->id[i]);
+                }
+
+              fprintf (stderr, ")\n");
+            }
+
           continue;
         }
 
@@ -721,7 +796,8 @@ xtr_apply_pending (int selective)
 
       if (p->stage.length > XTR_OS2_STAGE_LIMIT)
         {
-          return 1;
+          return xtr_os2_error ("staged metadata exceeds size limit",
+                                p->output_name);
         }
 
       rc = xtr_os2_decode_manifest (
@@ -732,7 +808,8 @@ xtr_apply_pending (int selective)
           xtr_os2_ea_native_equal, NULL, &native, &native_len);
       if (rc != XTR_OK)
         {
-          fprintf (stderr, "unzip: OS/2 Xtro manifest invalid (%d)\n", rc);
+          fprintf (stderr, "unzip: OS/2 Xtro manifest invalid "
+                   "(code=%d): %s\n", rc, p->output_name);
           return 1;
         }
 
@@ -749,6 +826,8 @@ xtr_apply_pending (int selective)
       native_len = 0U;
       if (rc != PK_OK)
         {
+          fprintf (stderr, "unzip: OS/2 Xtro native EA staging failed "
+                   "(code=%d): %s\n", rc, p->output_name);
           return 1;
         }
     }

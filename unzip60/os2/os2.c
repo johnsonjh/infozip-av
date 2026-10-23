@@ -249,12 +249,28 @@ static int iz_os2_stage_ea(const char *path,const unsigned char *raw,
     size_t n=0;
     if(!raw || length<4U || length>16UL*1024UL*1024UL ||
        xtr_os2_ea_parse_ex(raw,length,NULL,0,&n,
-                xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK)return PK_ERR;
+                xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK){
+        fprintf(stderr,"unzip: OS/2 invalid %s EA data for %s\n",
+            legacy?"legacy":"Xtro",path?path:"(null)");
+        return PK_ERR;
+    }
     p=iz_os2_ea_lookup(path);
-    if(!p)return PK_ERR;
-    if(legacy?p->legacy:p->xtro)return PK_ERR;
+    if(!p){
+        fprintf(stderr,"unzip: OS/2 cannot register %s EA destination: %s\n",
+            legacy?"legacy":"Xtro",path?path:"(null)");
+        return PK_ERR;
+    }
+    if(legacy?p->legacy:p->xtro){
+        fprintf(stderr,"unzip: OS/2 duplicate %s EA stage: %s\n",
+            legacy?"legacy":"Xtro",path);
+        return PK_ERR;
+    }
     copy=(unsigned char *)malloc(length);
-    if(!copy)return PK_MEM4;
+    if(!copy){
+        fprintf(stderr,"unzip: OS/2 cannot allocate %s EA stage: %s\n",
+            legacy?"legacy":"Xtro",path);
+        return PK_MEM4;
+    }
     memcpy(copy,raw,length);
     if(legacy){p->legacy=copy;p->legacy_size=length;}
     else{p->xtro=copy;p->xtro_size=length;}
@@ -324,29 +340,61 @@ static int iz_os2_ea_apply(const char *path,unsigned char *list,size_t len){
     FILESTATUS3 st;
     EAOP2 ea;
     if(!list || !len)return PK_OK;
-    if(!iz_os2_link_safe_path(path))return PK_ERR;
+    if(!iz_os2_link_safe_path(path)){
+        fprintf(stderr,"unzip: OS/2 unsafe or unqueryable EA destination: %s\n",path);
+        return PK_ERR;
+    }
     if(xtr_os2_ea_partition_list(list,len,&parts,
-        xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK)return PK_ERR;
+        xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK){
+        fprintf(stderr,"unzip: OS/2 cannot partition native EAs: %s\n",path);
+        return PK_ERR;
+    }
     rc=DosQueryPathInfo((PSZ)path,FIL_STANDARD,&st,sizeof(st));
-    if(rc!=NO_ERROR){err=PK_ERR;goto cleanup;}
+    if(rc!=NO_ERROR){
+        fprintf(stderr,"unzip: OS/2 EA DosQueryPathInfo rc=%lu: %s\n",
+            (unsigned long)rc,path);
+        err=PK_ERR;goto cleanup;
+    }
     if(parts.ordinary){
         ea.fpGEA2List=NULL;ea.fpFEA2List=(PFEA2LIST)parts.ordinary;
         ea.oError=0;
         if(st.attrFile&FILE_DIRECTORY){
-            if(!iz_os2_link_safe_path(path))err=PK_ERR;
-            else if(DosSetPathInfo((PSZ)path,FIL_QUERYEASIZE,
-                             &ea,sizeof(ea),0)!=NO_ERROR)err=PK_ERR;
+            if(!iz_os2_link_safe_path(path)){
+                fprintf(stderr,"unzip: OS/2 EA destination became unsafe: %s\n",path);
+                err=PK_ERR;
+            }else{
+                rc=DosSetPathInfo((PSZ)path,FIL_QUERYEASIZE,
+                             &ea,sizeof(ea),0);
+                if(rc!=NO_ERROR){
+                    fprintf(stderr,"unzip: OS/2 EA DosSetPathInfo rc=%lu: %s\n",
+                        (unsigned long)rc,path);
+                    err=PK_ERR;
+                }
+            }
         }else{
             HFILE h;
             ULONG action=0;
             rc=DosOpen((PSZ)path,&h,&action,0,FILE_NORMAL,
                 OPEN_ACTION_OPEN_IF_EXISTS|OPEN_ACTION_FAIL_IF_NEW,
                 OPEN_ACCESS_READWRITE|OPEN_SHARE_DENYWRITE,NULL);
-            if(rc!=NO_ERROR)err=PK_ERR;
+            if(rc!=NO_ERROR){
+                fprintf(stderr,"unzip: OS/2 EA DosOpen rc=%lu: %s\n",
+                    (unsigned long)rc,path);
+                err=PK_ERR;
+            }
             else{
                 rc=DosSetFileInfo(h,FIL_QUERYEASIZE,&ea,sizeof(ea));
-                if(DosClose(h)!=NO_ERROR)err=PK_ERR;
-                if(rc!=NO_ERROR)err=PK_ERR;
+                if(rc!=NO_ERROR){
+                    fprintf(stderr,"unzip: OS/2 EA DosSetFileInfo rc=%lu: %s\n",
+                        (unsigned long)rc,path);
+                    err=PK_ERR;
+                }
+                rc=DosClose(h);
+                if(rc!=NO_ERROR){
+                    fprintf(stderr,"unzip: OS/2 EA DosClose rc=%lu: %s\n",
+                        (unsigned long)rc,path);
+                    err=PK_ERR;
+                }
             }
         }
     }
@@ -365,15 +413,26 @@ int iz_os2_xtr_ea_complete(int success){
      * before changing even one native attribute. */
     for(p=iz_os2_ea_head;p;p=p->next){
         unsigned char *list=NULL;size_t length=0;
-        if(iz_os2_ea_merge(p,&list,&length)!=PK_OK ||
-           !iz_os2_link_safe_path(p->path))rc=PK_ERR;
+        if(iz_os2_ea_merge(p,&list,&length)!=PK_OK){
+            fprintf(stderr,"unzip: OS/2 legacy/Xtro EA conflict or invalid data: %s\n",
+                p->path);
+            rc=PK_ERR;
+        }else if(!iz_os2_link_safe_path(p->path)){
+            fprintf(stderr,"unzip: OS/2 unsafe or unqueryable EA destination: %s\n",
+                p->path);
+            rc=PK_ERR;
+        }
         if(list){xtr_os2_memory_wipe(list,length);free(list);}
         if(rc!=PK_OK)break;
     }
     if(rc==PK_OK){
         for(p=iz_os2_ea_head;p;p=p->next){
             unsigned char *list=NULL;size_t length=0;
-            if(iz_os2_ea_merge(p,&list,&length)!=PK_OK){rc=PK_ERR;break;}
+            if(iz_os2_ea_merge(p,&list,&length)!=PK_OK){
+                fprintf(stderr,"unzip: OS/2 EA merge failed during commit: %s\n",
+                    p->path);
+                rc=PK_ERR;break;
+            }
             rc=iz_os2_ea_apply(p->path,list,length);
             if(list){xtr_os2_memory_wipe(list,length);free(list);}
             if(rc!=PK_OK)break;
