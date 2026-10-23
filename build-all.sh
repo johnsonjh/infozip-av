@@ -123,9 +123,6 @@ test -f /opt/cwsdpmi/cwsdstub.exe || {
 
 # Windows build
 
-# libdeflate supplies a whole-buffer codec; only the static library and its
-# public header are needed.  Build in a target-specific checkout, since the
-# MinGW and DJGPP archives must never be mixed with host objects or each other.
 build_libdeflate()
 {
   ld_root="$(pwd -P)/$1"
@@ -138,9 +135,8 @@ build_libdeflate()
     return 1
   }
   if [ "$ld_system" = Generic ]; then
-    # Upstream's x86 detector invokes CPUID unconditionally. On an actual
-    # 386 or an early 486 this raises #UD. Also, merely disabling CPUID
-    # still compiles AVX/SSE routines with alignments DJGPP cannot emit.
+    # Upstream x86 detector invokes CPUID. On a 386 or early 486 this raises #UD.
+    # Disabling CPUID compiles AVX/SSE routines with alignments DJGPP cannot emit.
     # Build the scalar x86-independent implementation for DOS386 only.
     ld_flags="$ld_flags -DLIBDEFLATE_PORTABLE_X86"
   fi
@@ -260,7 +256,7 @@ winbuild()
       -DZSTD_MULTITHREAD_SUPPORT=OFF \
       -DZSTD_BUILD_STATIC=ON \
     && cmake --build build-mingw --target install \
-      --parallel $(nproc) --verbose)
+      --parallel "$(nproc)" --verbose)
 
   # libdeflate (static, no programs or DLL). The target link probe in
   # build-win32.sh must succeed; do not silently omit it from this build.
