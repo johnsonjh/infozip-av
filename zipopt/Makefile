@@ -222,7 +222,7 @@ build/uz-%.o: $(UZDIR)/%.c $(ZO_WAVPACK_STAMP) $(ZO_BACKEND_STAMP) | build
 build/zo-failure-test-main.o: zipopt.c codec.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) -Dzo_compress=zo_compress_test -c zipopt.c -o $@
 zipopt-test-candidate-failure: $(ZO_BACKEND_STAMP) archive.c extract.c writer.c build/zo-failure-test-main.o tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) $(UZOBJS) ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c ../xtrmeta/xtrrewrite.h ../xtrmeta/xtrverify_inline.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) archive.c extract.c writer.c build/zo-failure-test-main.o ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_ACCEL_FLAGS) -DZO_TEST_PPMD_VERIFY_OOM archive.c extract.c writer.c build/zo-failure-test-main.o ../xtrmeta/xtrm.c ../xtrmeta/xtrsha.c ../xtrmeta/xtrv1.c tests/candidate_failure_shim.c $(ZOCODEC) $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) $(UZOBJS) $(LDLIBS) -lm -o $@ $(LOCAL_GLDFLAGS)
 codec-probe: $(ZO_BACKEND_STAMP) tests/codec_probe.c codec.c codec.h archive.h $(CODEC_DEPS) $(ZO_INTERNAL_DEFLATE)
 	$(CC) $(CPPFLAGS) -O2 -std=gnu89 -I../zip30 $(LOCAL_ZIP) $(EXTERNAL_ZLIB) $(ZO_DEFLATE_FLAGS) $(ZO_WAVPACK_FLAGS) $(ZO_LD_FLAGS) tests/codec_probe.c codec.c $(ZO_INTERNAL_DEFLATE) $(ZO_WAVPACK_ENCODER) -lbz2 -llzma -lzstd $(ZO_DEFLATE_LIBS) $(if $(filter yes,$(ZO_WAVPACK_FOUND)),$(ZO_WAVPACK_LIBS),) $(if $(filter on,$(ZO_LIBDEFLATE_EFFECTIVE)),$(ZO_LIBDEFLATE_LIBS),) -lm -o $@ $(LOCAL_GLDFLAGS)
 test-display: tests/test_display.c display.h archive.h

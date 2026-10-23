@@ -23,6 +23,7 @@ const char *zo_unzip_libdeflate_size_arg;
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Match the CRC provider used by the private UnZip objects.  External
@@ -132,6 +133,19 @@ zo_extract_index_report (const zo_archive *a, zo_u64 i, FILE *out,
     {
       return 0;
     }
+
+#ifdef ZO_TEST_PPMD_VERIFY_OOM
+  /* Test-only fault injection: the original input is STORE, so a failure
+   * here proves that final verification rejects a PPMd candidate and
+   * retries the entire output without publishing the rejected archive. */
+  if (a->entries[(size_t)i].method == 98U
+      && getenv ("ZO_TEST_PPMD_VERIFY_OOM") != NULL)
+    {
+      if (report)
+        report->unzip_status = 6;
+      return 0;
+    }
+#endif
 
   memset (&init, 0, sizeof (init));
   init.structlen = sizeof (init);

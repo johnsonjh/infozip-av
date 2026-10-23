@@ -824,9 +824,12 @@ zo_output_decode_issue (zo_u64 i, const char *side, const zo_entry *e,
   if (r->unzip_status != 0)
     {
       fprintf (stderr,
-               "zipopt: %s member %s embedded UnZip returned status %d "
+               "zipopt: %s member %s embedded UnZip returned status %d%s "
                "(decoded %s of %s bytes; last errno=%d)\n",
                side, zo_decimal (i, member), r->unzip_status,
+               r->unzip_status == 6
+                   ? " (PK_MEM3: out of memory during decompression)"
+                   : "",
                zo_decimal (r->written, got), zo_decimal (e->usize, want),
                r->unzip_errno);
     }
@@ -864,7 +867,7 @@ zo_output_decode_issue (zo_u64 i, const char *side, const zo_entry *e,
 
 static int
 zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
-                  int wavpack_compat_reencode)
+                  int wavpack_compat_reencode, int *ppmd_decoder_oom)
 {
   zo_archive output;
   zo_u64 i;
@@ -875,6 +878,9 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
   char index_text[32], offset_text[32], count_a[32], count_b[32];
   unsigned char src[46], dst[46];
   zo_extract_report decode_report;
+
+  if (ppmd_decoder_oom)
+    *ppmd_decoder_oom = 0;
 
   if (!zo_archive_open (&output, w->temporary))
     {
@@ -1052,6 +1058,13 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
         }
       else if (!zo_extract_index_report (&output, i, b, &decode_report))
         {
+          /* UnZip status 6 is PK_MEM3, not OS/2 ERROR_INVALID_HANDLE.
+           * The PPMd decoder can be unable to allocate the large model
+           * emitted by a successful encoder.  Allow one safe retry without
+           * this candidate, while retaining full output verification. */
+          if (ppmd_decoder_oom && y->method == 98U
+              && decode_report.unzip_status == 6)
+            *ppmd_decoder_oom = 1;
           ok = zo_output_decode_issue (i, "output", y, &decode_report);
         }
       else
@@ -1104,6 +1117,7 @@ main (int argc, char **argv)
   unsigned member_width = 0;
   int rc = 1, verbose = 0, original_win, iterations_set = 0;
   int wavpack_compat_reencode = 0;
+  int ppmd_decoder_oom = 0, ppmd_retry_done = 0;
   int candidate_rc;
   int zstd_native_set = 0, disable_zopfli_set = 0;
   int dcl_group_requested = 0, dcl_explicit_option = 0;
@@ -1613,6 +1627,7 @@ main (int argc, char **argv)
   w.sde_epoch = sde_epoch;
   w.fwkcs_requested = fwkcs_md5;
 
+retry_members:
   for (i = 0; i < a.count; i++)
     {
       zo_entry *e = &a.entries[(size_t)i];
@@ -2042,8 +2057,44 @@ main (int argc, char **argv)
     }
 
   if (!zo_verify_output (&a, &w, &final_archive_size,
-                         wavpack_compat_reencode))
+                         wavpack_compat_reencode, &ppmd_decoder_oom))
     {
+      if (ppmd_decoder_oom && !ppmd_retry_done)
+        {
+          /* Do not publish a single byte of the rejected output.  Start a
+           * fresh temporary archive using the remaining codecs; its own
+           * decoded members must pass the same independent comparison. */
+          for (k = 0; k < zo_candidate_count; k++)
+            if (zo_candidates[k].method == 98U && enabled[k])
+              {
+                enabled[k] = 0;
+                --selected_count;
+                break;
+              }
+          if (k != zo_candidate_count)
+            {
+              ppmd_retry_done = 1;
+              fputs ("zipopt: PPMd verification exhausted decoder memory; "
+                     "retrying from scratch without PPMd\n", stderr);
+              zo_writer_abort (&w);
+              if (!zo_archive_unchanged (&a))
+                {
+                  fprintf (stderr, "zipopt: input changed before retry: %s\n",
+                           a.error);
+                  goto done;
+                }
+              if (!zo_writer_begin (&w, &a, output))
+                {
+                  fputs ("zipopt: cannot create retry temporary ZIP\n",
+                         stderr);
+                  goto done;
+                }
+              w.sde_active = sde_active;
+              w.sde_epoch = sde_epoch;
+              w.fwkcs_requested = fwkcs_md5;
+              goto retry_members;
+            }
+        }
       fprintf (stderr, "zipopt: refusing to publish unverified output\n");
       goto done;
     }

@@ -16,19 +16,27 @@ CONTENTS = {
 }
 
 
-def execute(source, dest, selection, *, failed=None, partial=False, fatal=False):
+def execute(source, dest, selection, *, failed=None, partial=False, fatal=False,
+            ppmd_oom=False):
     env = os.environ.copy()
     env.pop("ZO_TEST_FAIL_ID", None)
     env.pop("ZO_TEST_WRITE_PARTIAL", None)
     env.pop("ZO_TEST_FATAL", None)
+    env.pop("ZO_TEST_PPMD_VERIFY_OOM", None)
     if failed is not None:
         env["ZO_TEST_FAIL_ID"] = str(failed)
     if partial:
         env["ZO_TEST_WRITE_PARTIAL"] = "1"
     if fatal:
         env["ZO_TEST_FATAL"] = "1"
+    if ppmd_oom:
+        env["ZO_TEST_PPMD_VERIFY_OOM"] = "1"
+    args = [str(TESTER)]
+    if ppmd_oom:
+        args.append("--compress-level=ppmd=3")
+    args.extend(["--methods=" + selection, str(source), str(dest)])
     return subprocess.run(
-        [str(TESTER), "--methods=" + selection, str(source), str(dest)],
+        args,
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -101,6 +109,29 @@ def main():
         assert "I/O failure during compressor deflate" in r.stderr, r.stderr
         assert "skipping failed compressor deflate" not in r.stderr
         assert not bad_io.exists()
+
+        # An encoder may successfully allocate its model while a later
+        # independent PPMd decoder cannot.  Never publish that candidate:
+        # retry the whole archive with remaining methods and verify it.
+        memory_retry = base / "memory-retry.zip"
+        r = execute(
+            source,
+            memory_retry,
+            "store,ppmd",
+            ppmd_oom=True,
+        )
+        assert r.returncode == 0, r.stderr
+        assert "retrying from scratch without PPMd" in r.stderr, r.stderr
+        assert "refusing to publish unverified output" not in r.stderr
+        check_archive(memory_retry)
+        with zipfile.ZipFile(memory_retry) as z:
+            assert all(info.compress_type == 0 for info in z.infolist())
+
+        # If the only permitted compressor cannot be decoded, fail closed.
+        memory_only = base / "memory-only.zip"
+        r = execute(source, memory_only, "ppmd", ppmd_oom=True)
+        assert r.returncode != 0
+        assert not memory_only.exists()
 
     print("candidate failure isolation: PASS")
 

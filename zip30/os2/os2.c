@@ -21,6 +21,7 @@
 
 
 #include "os2zip.h"
+#include "dirpath.h"
 
 /* Library functions not in (most) header files */
 
@@ -87,10 +88,9 @@ char *w;                /* path/pattern to match */
   if (r >= 3 && strcmp(p + r - 3, "*.*") == 0)
     p[r - 2] = '\0';
 
-  /* Normalize path delimiter as '/'. */
-  for (q = p; *q; q++)                  /* use / consistently */
-    if (*q == '\\')
-      *q = '/';
+  /* Without this, "DIRSRC\\" becomes path "DIRSRC" and empty filename
+   * pattern, so an empty directory cannot match or be archived. */
+  iz_os2_zip_normalize_dirpath(p);
 
   /* Only name can have special matching characters */
   if ((q = isshexp(p)) != NULL &&
