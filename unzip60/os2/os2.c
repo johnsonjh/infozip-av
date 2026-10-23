@@ -146,12 +146,19 @@ static int iz_os2_links_enqueue(const char *name,unsigned char **bytes,
     return PK_OK;
 }
 int iz_os2_link_safe_path(const char *name) {
-    char prefix[CCHMAXPATH],target[1024];
+    char prefix[CCHMAXPATH],target[1024],normalized[CCHMAXPATH];
     size_t i,n;
     int rc;
     if(!name || !*name)return 0;
     n=strlen(name);
     if(n>=sizeof(prefix))return 0;
+    /* Native DosQueryPathInfo requires ordinary directory paths without
+     * trailing separators. Preserve a drive root such as C:\. */
+    memcpy(normalized,name,n+1U);
+    while(n>1U && (normalized[n-1U]=='/' || normalized[n-1U]=='\\') &&
+          !(n==3U && normalized[1U]==':'))
+        normalized[--n]='\0';
+    name=normalized;
     /* Drive-relative paths can depend on a mutable process drive CWD. */
     if(n>=2U && name[1]==':' &&
        (n==2U || (name[2]!='\\' && name[2]!='/')))return 0;
