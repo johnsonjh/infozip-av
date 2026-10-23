@@ -1,4 +1,3 @@
-main(1049): Parsing: 3728 bytes (3728 chars) from stdin as language C
 /* SPDX-License-Identifier: MIT-0 */
 /* Linux mock exercises THE SAME EA reader and resolver used by Open Watcom.
  * No native OS/2 runtime behavior is claimed by this fixture. */
@@ -13,6 +12,7 @@ main(1049): Parsing: 3728 bytes (3728 chars) from stdin as language C
 static int mock_mode = 0;
 static const char *mock_target = "../target";
 static int errors = 0;
+static int saw_unnative_separator = 0;
 #define CHECK(x)                                                              \
   do                                                                          \
     {                                                                         \
@@ -30,13 +30,41 @@ DosQueryPathInfo (PSZ path, ULONG level, PVOID data, ULONG length)
   unsigned char *buf = (unsigned char *)op->fpFEA2List;
   size_t n;
   const char *target = mock_target;
-  int yes = mock_mode;
+  int yes = mock_mode >= 1 && mock_mode <= 4 ? mock_mode : 0;
   size_t sz;
+  const unsigned char *names = (const unsigned char *)op->fpGEA2List;
 
   (void)length;
   if (level != FIL_QUERYEASFROMLIST)
     {
       return 87;
+    }
+
+  /* Verify the exact GEA2LIST length and name supplied to the OS/2 API.
+   * The old sizeof(struct) included three superfluous padding bytes. */
+  if (op->fpGEA2List->cbList != 17U || names[8] != 7U
+      || memcmp (names + 9, "SYMLINK", 8) != 0)
+    {
+      return 87;
+    }
+  if (strchr (path, '/') != NULL)
+    {
+      saw_unnative_separator = 1;
+      return 87;
+    }
+
+  if (mock_mode == 7)
+    {
+      op->oError = 9;
+      return 5;
+    }
+
+  if (mock_mode == 5 || mock_mode == 6 || mock_mode == 11)
+    {
+      memset (buf, 0, 12U);
+      op->fpFEA2List->cbList = mock_mode == 5 ? 4U :
+          mock_mode == 6 ? 12U : 4097U;
+      return 0;
     }
 
   if (!strcmp (path, "a"))
@@ -49,12 +77,12 @@ DosQueryPathInfo (PSZ path, ULONG level, PVOID data, ULONG length)
       yes = 1;
       target = "a";
     }
-  else if (!strcmp (path, "dir/link"))
+  else if (!strcmp (path, "dir\\link"))
     {
       yes = 1;
       target = "../target";
     }
-  else if (!strcmp (path, "dir/link/child"))
+  else if (!strcmp (path, "dir\\link\\child"))
     {
       yes = 0;
     }
@@ -74,6 +102,22 @@ DosQueryPathInfo (PSZ path, ULONG level, PVOID data, ULONG length)
   buf[4 + 5] = 7U;
   buf[4 + 6] = (unsigned char)(yes ? 4U + n : 0U);
   memcpy (buf + 4 + 8, "SYMLINK", 8);
+  if (mock_mode == 8)
+    {
+      memcpy (buf + 4 + 8, "NOTLINK", 8);
+    }
+  if (mock_mode == 9)
+    {
+      buf[4 + 8 + 7] = 'X';
+    }
+  if (mock_mode == 10)
+    {
+      buf[4] = 4; /* Malformed non-final oNextEntryOffset. */
+    }
+  if (mock_mode == 12)
+    {
+      buf[4 + 5] = 6;
+    }
   if (yes)
     {
       buf[4 + 8 + 8] = 0xfd;
@@ -116,6 +160,25 @@ main (void)
   CHECK (iz_os2_link_target ("link", output, sizeof (output)) == -1);
   mock_mode = 4;
   CHECK (iz_os2_link_target ("link", output, sizeof (output)) == -1);
+  mock_mode = 5;
+  CHECK (iz_os2_link_target ("empty", output, sizeof (output)) == 0);
+  mock_mode = 6;
+  CHECK (iz_os2_link_target ("truncated", output, sizeof (output)) == -1);
+  mock_mode = 7;
+  CHECK (iz_os2_link_target ("api-error", output, sizeof (output)) == -1);
+  mock_mode = 8;
+  CHECK (iz_os2_link_target ("wrong-ea", output, sizeof (output)) == -1);
+  mock_mode = 9;
+  CHECK (iz_os2_link_target ("nonterminated", output, sizeof (output)) == -1);
+  mock_mode = 10;
+  CHECK (iz_os2_link_target ("multi", output, sizeof (output)) == -1);
+  mock_mode = 11;
+  CHECK (iz_os2_link_target ("oversized", output, sizeof (output)) == -1);
+  mock_mode = 12;
+  CHECK (iz_os2_link_target ("bad-name-length", output, sizeof (output)) == -1);
+  mock_mode = 0;
+  CHECK (iz_os2_link_target ("dir/ordinary", output, sizeof (output)) == 0);
+  CHECK (!saw_unnative_separator);
   mock_mode = 0;
   CHECK (iz_os2_link_resolve ("dir/link/child", output, sizeof (output), 1)
          == 0);

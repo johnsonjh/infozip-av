@@ -99,7 +99,8 @@ static void iz_os2_links_clear(void) {
 static int iz_os2_links_enqueue(const char *name,unsigned char **bytes,
                                 size_t length) {
     iz_os2_link_pending *p,*cur;
-    size_t n;
+    size_t n,i;
+    char native_path[CCHMAXPATH];
     xtr_os2_ea_item marker;
     size_t count=0U,link_bytes;
     const unsigned char *value;
@@ -121,8 +122,10 @@ static int iz_os2_links_enqueue(const char *name,unsigned char **bytes,
        memchr(value+4U,0,link_bytes)!=NULL)return PK_ERR;
     n=strlen(name);
     if(n>=CCHMAXPATH)return PK_ERR;
+    for(i=0;i<n;i++)native_path[i]=name[i]=='/'?'\\':name[i];
+    native_path[n]=0;
     for(cur=iz_os2_links_first;cur;cur=cur->next){
-        int equal=xtr_os2_ea_native_equal((const unsigned char *)name,n,
+        int equal=xtr_os2_ea_native_equal((const unsigned char *)native_path,n,
                               (const unsigned char *)cur->path,
                               strlen(cur->path),NULL);
         if(equal!=0)return PK_ERR; /* error or same path: fail closed */
@@ -131,7 +134,7 @@ static int iz_os2_links_enqueue(const char *name,unsigned char **bytes,
     if(!p)return PK_MEM4;
     p->path=(char *)malloc(n+1U);
     if(!p->path){free(p);return PK_MEM4;}
-    memcpy(p->path,name,n+1U);
+    memcpy(p->path,native_path,n+1U);
     p->ea=*bytes;p->length=length;*bytes=NULL;
     if(!iz_os2_links_exit_registered){
         if(atexit(iz_os2_links_clear)!=0){
@@ -172,13 +175,21 @@ int iz_os2_link_safe_path(const char *name) {
         if(i==0 || (i==2 && name[1]==':'))continue;
         if(i==n){
             rc=iz_os2_link_target(name,target,sizeof(target));
-            if(rc!=0)return 0; /* preexisting symlink or query failure */
+            if(rc!=0){
+                if(rc>0)fprintf(stderr,
+                    "unzip: OS/2 destination is a symlink: %s\n",name);
+                return 0; /* preexisting symlink or query failure */
+            }
         }else{
             memcpy(prefix,name,i);prefix[i]=0;
             /* Drive roots are structural, not traversable components. */
             if(i==3 && prefix[1]==':' && (prefix[2]=='\\'||prefix[2]=='/'))continue;
             rc=iz_os2_link_target(prefix,target,sizeof(target));
-            if(rc!=0)return 0;
+            if(rc!=0){
+                if(rc>0)fprintf(stderr,
+                    "unzip: OS/2 parent is a symlink: %s\n",prefix);
+                return 0;
+            }
         }
     }
     return 1;
@@ -213,7 +224,8 @@ static void iz_os2_ea_clear(void){
 }
 static iz_os2_ea_pending *iz_os2_ea_lookup(const char *path){
     iz_os2_ea_pending *p;
-    size_t n;
+    size_t n,i;
+    char native_path[CCHMAXPATH];
     if(!path || !*path)return NULL;
     n=strlen(path);
     if(n>=CCHMAXPATH)return NULL;
@@ -222,8 +234,13 @@ static iz_os2_ea_pending *iz_os2_ea_lookup(const char *path){
     while(n>1U && (path[n-1U]=='/' || path[n-1U]=='\\') &&
           !(n==3U && path[1]==':'))n--;
     if(!n)return NULL;
+    /* Treat slash variants as the same pending destination, and pass a
+     * native path to DosQueryPathInfo/DosSetPathInfo/DosOpen on commit. */
+    for(i=0;i<n;i++)
+        native_path[i]=path[i]=='/'?'\\':path[i];
+    native_path[n]=0;
     for(p=iz_os2_ea_head;p;p=p->next){
-        int eq=xtr_os2_ea_native_equal((const unsigned char *)path,n,
+        int eq=xtr_os2_ea_native_equal((const unsigned char *)native_path,n,
             (const unsigned char *)p->path,strlen(p->path),NULL);
         if(eq<0)return NULL;
         if(eq)return p;
@@ -232,7 +249,7 @@ static iz_os2_ea_pending *iz_os2_ea_lookup(const char *path){
     if(!p)return NULL;
     p->path=(char *)malloc(n+1U);
     if(!p->path){free(p);return NULL;}
-    memcpy(p->path,path,n);p->path[n]=0;
+    memcpy(p->path,native_path,n+1U);
     if(!iz_os2_ea_exit_registered){
         if(atexit(iz_os2_ea_clear)!=0){free(p->path);free(p);return NULL;}
         iz_os2_ea_exit_registered=1;

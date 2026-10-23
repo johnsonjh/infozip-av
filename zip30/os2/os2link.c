@@ -45,15 +45,32 @@ iz_os2_link_target (const char *path, char *target, size_t capacity)
   EAOP2 op;
   PFEA2LIST list = (PFEA2LIST)fea;
   PFEA2 item;
-  size_t at, n, cb;
+  size_t at, n, cb, i;
+  char native_path[IZ_LINK_PATH_CAP];
   APIRET rc;
   if (!path || !target || capacity == 0)
     {
       return -1;
     }
 
+  /* Archive names use '/' but the native OS/2 EA API requires a native
+   * pathname. Check the same object that the later native EA calls use. */
+  n = strlen (path);
+  if (!n || n >= sizeof (native_path))
+    {
+      return -1;
+    }
+
+  for (i = 0; i < n; i++)
+    {
+      native_path[i] = path[i] == '/' ? '\\' : path[i];
+    }
+  native_path[n] = '\0';
+
   memset (&gea, 0, sizeof (gea));
-  gea.cbList = sizeof (gea);
+  /* sizeof(gea) includes trailing C structure padding. The OS/2 list
+   * length is the actual bytes through the requested name's terminator. */
+  gea.cbList = (ULONG)(2U * sizeof (ULONG) + sizeof (BYTE) + 8U);
   gea.cbName = 7;
   memcpy (gea.szName, "SYMLINK", 8);
   memset (fea, 0, sizeof (fea));
@@ -61,50 +78,91 @@ iz_os2_link_target (const char *path, char *target, size_t capacity)
   op.fpGEA2List = (PGEA2LIST)&gea;
   op.fpFEA2List = list;
   op.oError = 0;
-  rc = DosQueryPathInfo ((PSZ)path, FIL_QUERYEASFROMLIST, (PVOID)&op,
+  rc = DosQueryPathInfo ((PSZ)native_path, FIL_QUERYEASFROMLIST, (PVOID)&op,
                          sizeof (op));
   if (rc != NO_ERROR)
     {
+      fprintf (stderr, "Xtro-ZIP: OS/2 SYMLINK EA query rc=%lu, "
+               "oError=%lu: %s\n", (unsigned long)rc,
+               (unsigned long)op.oError, native_path);
       return -1;
     }
 
-  if (list->cbList < sizeof (ULONG) + offsetof (FEA2, szName))
-    {
-      return -1;
-    }
-
-  item = &list->list[0];
-  if (item->cbValue == 0)
+  /* Some filesystems report no matching records as an empty FEA2LIST.
+   * Absence is safe, but a failed API call above must remain an error. */
+  if (list->cbList == sizeof (ULONG))
     {
       return 0;
     }
 
-  if (item->cbName != 7
-      || !iz_eq_name ((const char *)item->szName, "SYMLINK", 7))
+  if (list->cbList > sizeof (fea)
+      || list->cbList < sizeof (ULONG) + offsetof (FEA2, szName))
     {
+      fprintf (stderr, "Xtro-ZIP: OS/2 invalid SYMLINK EA list "
+               "(length=%lu): %s\n", (unsigned long)list->cbList,
+               native_path);
       return -1;
     }
 
-  at = sizeof (ULONG) + offsetof (FEA2, szName) + (size_t)item->cbName + 1U;
-  cb = (size_t)item->cbValue;
-  if (at > list->cbList || cb > list->cbList - at || cb < 5U)
+  item = &list->list[0];
+  /* Validate the record's identity and bounds even for a missing EA.
+   * A zero cbValue in an unrelated or truncated record is not evidence
+   * that the path has no SYMLINK EA. */
+  if (item->oNextEntryOffset != 0 || item->cbName != 7)
     {
+      fprintf (stderr, "Xtro-ZIP: OS/2 unexpected SYMLINK EA record: %s\n",
+               native_path);
+      return -1;
+    }
+
+  at = sizeof (ULONG) + offsetof (FEA2, szName) + 8U;
+  if (at > list->cbList || item->szName[7] != 0
+      || !iz_eq_name ((const char *)item->szName, "SYMLINK", 7))
+    {
+      fprintf (stderr, "Xtro-ZIP: OS/2 invalid SYMLINK EA name: %s\n",
+               native_path);
+      return -1;
+    }
+
+  cb = (size_t)item->cbValue;
+  if (cb > list->cbList - at)
+    {
+      fprintf (stderr, "Xtro-ZIP: OS/2 malformed SYMLINK EA length: %s\n",
+               native_path);
+      return -1;
+    }
+
+  if (cb == 0)
+    {
+      return 0;
+    }
+
+  if (cb < 5U)
+    {
+      fprintf (stderr, "Xtro-ZIP: OS/2 malformed SYMLINK EA length: %s\n",
+               native_path);
       return -1;
     }
 
   if (fea[at] != 0xfdU || fea[at + 1] != 0xffU)
     {
+      fprintf (stderr, "Xtro-ZIP: OS/2 invalid SYMLINK EA type: %s\n",
+               native_path);
       return -1;
     }
 
   n = (size_t)fea[at + 2] + ((size_t)fea[at + 3] << 8);
   if (n == 0 || n != cb - 4U || n >= capacity || n >= IZ_LINK_PATH_CAP)
     {
+      fprintf (stderr, "Xtro-ZIP: OS/2 invalid SYMLINK target length: %s\n",
+               native_path);
       return -1;
     }
 
   if (fea[at + 4] == 0 || memchr (fea + at + 4, 0, n) != NULL)
     {
+      fprintf (stderr, "Xtro-ZIP: OS/2 invalid SYMLINK target bytes: %s\n",
+               native_path);
       return -1;
     }
 
