@@ -144,7 +144,8 @@ RUN set -x && \
   (cd /tmp && git clone https://github.com/ebiggers/libdeflate && cd libdeflate && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_C_FLAGS="-O3 -flto=auto" -DLIBDEFLATE_BUILD_STATIC_LIB=ON -DLIBDEFLATE_BUILD_SHARED_LIB=OFF && cd build && make -j $(nproc) && make install && cd ../.. && rm -rf libdeflate) && \
   (mkdir -p /opt/watcom && cd /opt/watcom && wget https://github.com/open-watcom/open-watcom-v2/releases/download/Last-CI-build/ow-snapshot.tar.xz && tar axf ow-snapshot.tar.xz && rm -f ow-snapshot.tar.xz) && \
   (cd /opt && curl -fsSL http://www.ibaug.de/vbcc/vbcc_linux_x64.tar.gz | pigz -dc | tar xf -) && \
-  (cd /tmp && git clone https://github.com/johnsonjh/lxlite && cd lxlite && ./build.sh && cp -f ./build/linux/lxLite /usr/bin/lxlite && cp -f ./build/linux/lxLite.cfg /usr/bin/lxLite.cfg && cd .. && rm -rf lxlite)
+  (cd /tmp && git clone https://github.com/johnsonjh/lxlite && cd lxlite && ./build.sh && cp -f ./build/linux/lxLite /usr/bin/lxlite && cp -f ./build/linux/lxLite.cfg /usr/bin/lxLite.cfg && cd .. && rm -rf lxlite) && \
+  (cd /tmp && git clone https://github.com/johnsonjh/mzchecksum && cc -O -o /usr/bin/mzchecksum mzchecksum/mzchecksum.c && rm -rf mzchecksum)
 
 RUN touch /.OK
 
