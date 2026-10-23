@@ -17,7 +17,10 @@
 # define XTR_OS2_MAX_OWNERS 65536UL
 extern int iz_os2_xtr_stage_native (const char *, const unsigned char *,
                                     size_t);
+extern int iz_os2_xtr_stage_native_pinned (const char *,
+                                           const unsigned char *, size_t, int);
 extern int iz_os2_link_safe_path (const char *);
+extern int iz_os2_link_safe_pinned (const char *, int);
 extern int iz_os2_xtr_ea_complete (int);
 static int xtr_restore_rejected;
 static int xtr_exit_hook;
@@ -153,6 +156,22 @@ xtr_release_registry (void)
     }
   xtr_pending_head = xtr_active = NULL;
   xtr_registry_count = xtr_reserved = xtr_advertised = 0;
+}
+/* Called after native EA writes but before deferred SYMLINK EA activation.
+ * Retain the original output handles for all preceding safety checks and
+ * DosSetFileInfo operations, then release them before native DosOpen. */
+static void
+xtr_os2_release_pins (void)
+{
+  xtr_pending_restore *p;
+  for (p = xtr_pending_head; p; p = p->next)
+    {
+      if (p->fd >= 0)
+        {
+          close (p->fd);
+          p->fd = -1;
+        }
+    }
 }
 static int
 xtr_locate (const unsigned char *s, size_t n, const unsigned char **value,
@@ -370,13 +389,15 @@ xtr_pin_output (min_info *info, FILE *out)
  * immediately prior to any metadata write; we do not claim race immunity
  * against an independently malicious concurrent filesystem actor. */
 static int
-xtr_output_ok (const char *path, int directory)
+xtr_output_ok (const char *path, int directory, int pinned_fd)
 {
   struct stat st;
   size_t n;
   char name[260];
 
-  if (!path || !iz_os2_link_safe_path (path))
+  if (!path || (pinned_fd >= 0
+                    ? !iz_os2_link_safe_pinned (path, pinned_fd)
+                    : !iz_os2_link_safe_path (path)))
     {
       xtr_os2_error ("unsafe or unqueryable destination", path);
       return 0;
@@ -395,10 +416,11 @@ xtr_output_ok (const char *path, int directory)
       name[n - 1] = '\0';
     }
 
-  if (stat (name, &st) != 0)
+  if ((pinned_fd >= 0 ? fstat (pinned_fd, &st) : stat (name, &st)) != 0)
     {
-      fprintf (stderr, "unzip: OS/2 Xtro cannot stat destination "
-               "(errno=%d): %s\n", errno, name);
+      fprintf (stderr, "unzip: OS/2 Xtro cannot stat %s destination "
+               "(errno=%d): %s\n", pinned_fd >= 0 ? "pinned" : "named",
+               errno, name);
       return 0;
     }
 
@@ -480,14 +502,14 @@ done:
   return bad;
 }
 static int
-xtr_save_name (xtr_pending_restore *p, const char *name, int dir)
+xtr_save_name (xtr_pending_restore *p, const char *name, int dir, int pin_fd)
 {
   if (!p || p->owner_verified)
     {
       return xtr_os2_error ("duplicate or missing metadata owner", name);
     }
 
-  if (!xtr_output_ok (name, dir))
+  if (!xtr_output_ok (name, dir, pin_fd))
     {
       return 1;
     }
@@ -521,7 +543,7 @@ xtr_set_inline (min_info *info, const char *name, const xtr_extra *outer,
       return xtr_os2_error ("duplicate inline metadata owner", name);
     }
 
-  if (xtr_save_name (p, name, dir))
+  if (xtr_save_name (p, name, dir, dir ? -1 : info->xtr_restore_fd))
     {
       return 1;
     }
@@ -529,6 +551,14 @@ xtr_set_inline (min_info *info, const char *name, const xtr_extra *outer,
   if (xtr_os2_memory_write (&p->stage, manifest, n))
     {
       return xtr_os2_error ("cannot stage inline metadata", name);
+    }
+
+  if (!dir)
+    {
+      /* Transfer ownership, not just the integer: the file stays pinned
+       * until the native EA commit has completed. */
+      p->fd = info->xtr_restore_fd;
+      info->xtr_restore_fd = -1;
     }
 
   p->has_owner = p->has_companion = p->companion_verified = 1;
@@ -565,7 +595,7 @@ xtr_directory_created (min_info *info, const char *name)
       return xtr_os2_error ("directory owner was not registered", name);
     }
 
-  return xtr_save_name (p, name, 1);
+  return xtr_save_name (p, name, 1, -1);
 }
 static int
 xtr_restore_verified (min_info *info, const uch *local, unsigned len,
@@ -600,8 +630,11 @@ xtr_restore_verified (min_info *info, const uch *local, unsigned len,
 
   rc = xtr_set_inline (info, name, &e, info->xtr_central + 40,
                        info->xtr_central_len - 40U, 0);
-  close (info->xtr_restore_fd);
-  info->xtr_restore_fd = -1;
+  if (info->xtr_restore_fd >= 0)
+    {
+      close (info->xtr_restore_fd);
+      info->xtr_restore_fd = -1;
+    }
   return rc;
 }
 static int
@@ -725,7 +758,7 @@ xtr_defer_owner (min_info *info, const uch *local, unsigned len,
     }
 
   p = xtr_lookup (e.owner, 0);
-  if (!p || !p->has_owner || xtr_save_name (p, name, 0))
+  if (!p || !p->has_owner || xtr_save_name (p, name, 0, fd))
     {
       if (!p || !p->has_owner)
         {
@@ -789,7 +822,7 @@ xtr_apply_pending (int selective)
           continue;
         }
 
-      if (!xtr_output_ok (p->output_name, p->is_dir))
+      if (!xtr_output_ok (p->output_name, p->is_dir, p->fd))
         {
           return 1;
         }
@@ -815,7 +848,8 @@ xtr_apply_pending (int selective)
 
       /* Store verified EA bytes; the OS/2 adapter merges with 0x0009
        * before performing any filesystem changes. */
-      rc = iz_os2_xtr_stage_native (p->output_name, native, native_len);
+      rc = iz_os2_xtr_stage_native_pinned (p->output_name, native,
+                                          native_len, p->fd);
       if (native)
         {
           xtr_os2_memory_wipe (native, native_len);

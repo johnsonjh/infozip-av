@@ -2933,6 +2933,9 @@ int extract_or_test_files(__G)    /* return PK-type error code */
      if(iz_os2_xtr_ea_complete(reached_end &&
                       error_in_archive==PK_COOL && !xtr_restore_rejected)!=PK_OK &&
         error_in_archive==PK_COOL)error_in_archive=PK_ERR;}
+    /* Deferred native SYMLINK EA activation uses its own DosOpen. Release
+       pinned output handles only after all ordinary EA writes have ended. */
+    if(XTR_RESTORE_ACTIVE)xtr_os2_release_pins();
 #endif
 
 #if defined(OS2) && defined(__32BIT__) && !defined(DLL)

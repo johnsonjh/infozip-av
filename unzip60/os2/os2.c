@@ -78,6 +78,7 @@ extern ZCONST char Far TruncEAs[];
 #include "../../xtrmeta/xtros2_ea.h"
 #include "../../xtrmeta/xtros2_nls.h"
 #include "../../zip30/os2/os2link.h"
+#include <io.h>
 
 typedef struct iz_os2_link_pending {
     struct iz_os2_link_pending *next;
@@ -148,7 +149,7 @@ static int iz_os2_links_enqueue(const char *name,unsigned char **bytes,
     iz_os2_links_count++;
     return PK_OK;
 }
-int iz_os2_link_safe_path(const char *name) {
+static int iz_os2_link_safe_path_checked(const char *name,int pinned_fd) {
     char prefix[CCHMAXPATH],target[1024],normalized[CCHMAXPATH];
     size_t i,n;
     int rc;
@@ -174,7 +175,12 @@ int iz_os2_link_safe_path(const char *name) {
          if(i-j==2 && name[j]=='.' && name[j+1]=='.')return 0;}
         if(i==0 || (i==2 && name[1]==':'))continue;
         if(i==n){
-            rc=iz_os2_link_target(name,target,sizeof(target));
+            /* A pinned output cannot reliably be reopened by pathname:
+             * OS/2 may return ERROR_SHARING_VIOLATION. Query its own native
+             * handle instead while retaining the parent-path checks. */
+            rc=pinned_fd>=0 ?
+                iz_os2_link_target_fd(pinned_fd,target,sizeof(target)) :
+                iz_os2_link_target(name,target,sizeof(target));
             if(rc!=0){
                 if(rc>0)fprintf(stderr,
                     "unzip: OS/2 destination is a symlink: %s\n",name);
@@ -194,6 +200,12 @@ int iz_os2_link_safe_path(const char *name) {
     }
     return 1;
 }
+int iz_os2_link_safe_path(const char *name) {
+    return iz_os2_link_safe_path_checked(name,-1);
+}
+int iz_os2_link_safe_pinned(const char *name,int fd) {
+    return fd>=0 && iz_os2_link_safe_path_checked(name,fd);
+}
 
 /* Native Xtro restoration transaction plan. Both legacy 0x0009 lists and
  * XTRO interface-10 lists are staged and reconciled BEFORE any native EA
@@ -204,6 +216,7 @@ typedef struct iz_os2_ea_pending {
     char *path;
     unsigned char *legacy,*xtro;
     size_t legacy_size,xtro_size;
+    int pinned_fd; /* borrowed from Xtro registry until EA commit finishes */
 } iz_os2_ea_pending;
 static iz_os2_ea_pending *iz_os2_ea_head,*iz_os2_ea_tail;
 static int iz_os2_ea_exit_registered;
@@ -247,6 +260,7 @@ static iz_os2_ea_pending *iz_os2_ea_lookup(const char *path){
     }
     p=(iz_os2_ea_pending *)calloc(1,sizeof(*p));
     if(!p)return NULL;
+    p->pinned_fd=-1;
     p->path=(char *)malloc(n+1U);
     if(!p->path){free(p);return NULL;}
     memcpy(p->path,native_path,n+1U);
@@ -260,7 +274,7 @@ static iz_os2_ea_pending *iz_os2_ea_lookup(const char *path){
     return p;
 }
 static int iz_os2_stage_ea(const char *path,const unsigned char *raw,
-                           size_t length,int legacy){
+                           size_t length,int legacy,int pinned_fd){
     iz_os2_ea_pending *p;
     unsigned char *copy;
     size_t n=0;
@@ -290,16 +304,21 @@ static int iz_os2_stage_ea(const char *path,const unsigned char *raw,
     }
     memcpy(copy,raw,length);
     if(legacy){p->legacy=copy;p->legacy_size=length;}
-    else{p->xtro=copy;p->xtro_size=length;}
+    else{p->xtro=copy;p->xtro_size=length;p->pinned_fd=pinned_fd;}
     return PK_OK;
 }
 int iz_os2_xtr_stage_legacy(const char *path,const unsigned char *raw,
                             size_t length){
-    return iz_os2_stage_ea(path,raw,length,1);
+    return iz_os2_stage_ea(path,raw,length,1,-1);
 }
 int iz_os2_xtr_stage_native(const char *path,const unsigned char *raw,
                             size_t length){
-    return iz_os2_stage_ea(path,raw,length,0);
+    return iz_os2_stage_ea(path,raw,length,0,-1);
+}
+int iz_os2_xtr_stage_native_pinned(const char *path,
+                                  const unsigned char *raw,size_t length,
+                                  int pinned_fd){
+    return iz_os2_stage_ea(path,raw,length,0,pinned_fd);
 }
 static int iz_os2_ea_merge(iz_os2_ea_pending *p,
                            unsigned char **output,size_t *length){
@@ -350,33 +369,53 @@ finish:
 /* OS/2 does not provide openat2-style descendant locking. For ordinary
  * files use a pinned HFILE; for directories, native DosSetPathInfo is
  * preceded by parent-component checks immediately before mutation. */
-static int iz_os2_ea_apply(const char *path,unsigned char *list,size_t len){
+static int iz_os2_ea_safe(const char *path,int pinned_fd){
+    return pinned_fd>=0 ? iz_os2_link_safe_pinned(path,pinned_fd) :
+                          iz_os2_link_safe_path(path);
+}
+static int iz_os2_ea_apply(const char *path,unsigned char *list,size_t len,
+                           int pinned_fd){
     xtr_os2_ea_partition parts;
     int err=PK_OK;
     APIRET rc;
     FILESTATUS3 st;
     EAOP2 ea;
+    HFILE pinned_handle=(HFILE)0;
     if(!list || !len)return PK_OK;
-    if(!iz_os2_link_safe_path(path)){
+    if(!iz_os2_ea_safe(path,pinned_fd)){
         fprintf(stderr,"unzip: OS/2 unsafe or unqueryable EA destination: %s\n",path);
         return PK_ERR;
+    }
+    if(pinned_fd>=0){
+        int h=_os_handle(pinned_fd);
+        if(h<0){
+            fprintf(stderr,"unzip: OS/2 invalid pinned EA handle: %s\n",path);
+            return PK_ERR;
+        }
+        pinned_handle=(HFILE)h;
     }
     if(xtr_os2_ea_partition_list(list,len,&parts,
         xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK){
         fprintf(stderr,"unzip: OS/2 cannot partition native EAs: %s\n",path);
         return PK_ERR;
     }
-    rc=DosQueryPathInfo((PSZ)path,FIL_STANDARD,&st,sizeof(st));
+    rc=pinned_fd>=0 ?
+        DosQueryFileInfo(pinned_handle,FIL_STANDARD,&st,sizeof(st)) :
+        DosQueryPathInfo((PSZ)path,FIL_STANDARD,&st,sizeof(st));
     if(rc!=NO_ERROR){
-        fprintf(stderr,"unzip: OS/2 EA DosQueryPathInfo rc=%lu: %s\n",
-            (unsigned long)rc,path);
+        fprintf(stderr,"unzip: OS/2 EA DosQuery%sInfo rc=%lu: %s\n",
+            pinned_fd>=0?"File":"Path",(unsigned long)rc,path);
+        err=PK_ERR;goto cleanup;
+    }
+    if(pinned_fd>=0 && (st.attrFile&FILE_DIRECTORY)){
+        fprintf(stderr,"unzip: OS/2 pinned EA owner is a directory: %s\n",path);
         err=PK_ERR;goto cleanup;
     }
     if(parts.ordinary){
         ea.fpGEA2List=NULL;ea.fpFEA2List=(PFEA2LIST)parts.ordinary;
         ea.oError=0;
         if(st.attrFile&FILE_DIRECTORY){
-            if(!iz_os2_link_safe_path(path)){
+            if(!iz_os2_ea_safe(path,pinned_fd)){
                 fprintf(stderr,"unzip: OS/2 EA destination became unsafe: %s\n",path);
                 err=PK_ERR;
             }else{
@@ -391,9 +430,14 @@ static int iz_os2_ea_apply(const char *path,unsigned char *list,size_t len){
         }else{
             HFILE h;
             ULONG action=0;
-            rc=DosOpen((PSZ)path,&h,&action,0,FILE_NORMAL,
-                OPEN_ACTION_OPEN_IF_EXISTS|OPEN_ACTION_FAIL_IF_NEW,
-                OPEN_ACCESS_READWRITE|OPEN_SHARE_DENYWRITE,NULL);
+            if(pinned_fd>=0){
+                h=pinned_handle;
+                rc=NO_ERROR;
+            }else{
+                rc=DosOpen((PSZ)path,&h,&action,0,FILE_NORMAL,
+                    OPEN_ACTION_OPEN_IF_EXISTS|OPEN_ACTION_FAIL_IF_NEW,
+                    OPEN_ACCESS_READWRITE|OPEN_SHARE_DENYWRITE,NULL);
+            }
             if(rc!=NO_ERROR){
                 fprintf(stderr,"unzip: OS/2 EA DosOpen rc=%lu: %s\n",
                     (unsigned long)rc,path);
@@ -406,11 +450,13 @@ static int iz_os2_ea_apply(const char *path,unsigned char *list,size_t len){
                         (unsigned long)rc,path);
                     err=PK_ERR;
                 }
-                rc=DosClose(h);
-                if(rc!=NO_ERROR){
-                    fprintf(stderr,"unzip: OS/2 EA DosClose rc=%lu: %s\n",
-                        (unsigned long)rc,path);
-                    err=PK_ERR;
+                if(pinned_fd<0){
+                    rc=DosClose(h);
+                    if(rc!=NO_ERROR){
+                        fprintf(stderr,"unzip: OS/2 EA DosClose rc=%lu: %s\n",
+                            (unsigned long)rc,path);
+                        err=PK_ERR;
+                    }
                 }
             }
         }
@@ -434,7 +480,7 @@ int iz_os2_xtr_ea_complete(int success){
             fprintf(stderr,"unzip: OS/2 legacy/Xtro EA conflict or invalid data: %s\n",
                 p->path);
             rc=PK_ERR;
-        }else if(!iz_os2_link_safe_path(p->path)){
+        }else if(!iz_os2_ea_safe(p->path,p->pinned_fd)){
             fprintf(stderr,"unzip: OS/2 unsafe or unqueryable EA destination: %s\n",
                 p->path);
             rc=PK_ERR;
@@ -450,7 +496,7 @@ int iz_os2_xtr_ea_complete(int success){
                     p->path);
                 rc=PK_ERR;break;
             }
-            rc=iz_os2_ea_apply(p->path,list,length);
+            rc=iz_os2_ea_apply(p->path,list,length,p->pinned_fd);
             if(list){xtr_os2_memory_wipe(list,length);free(list);}
             if(rc!=PK_OK)break;
         }
@@ -518,7 +564,7 @@ static int   EvalExtraFields    OF((__GPRO__ const char *path,
 static int   isfloppy           OF((int nDrive));
 static int   IsFileNameValid    OF((const char *name));
 static void  map2fat            OF((char *pathcomp, char **pEndFAT));
-static int   SetLongNameEA      OF((char *name, char *longname));
+static int   SetLongNameEA      OF((char *name, char *longname, int pinned_fd));
 static void  InitNLS            OF((void));
 
 
@@ -890,6 +936,9 @@ static int getOS2filetimes(__GPRO__ ulg *pM_dt, ulg *pA_dt, ulg *pC_dt)
 static void SetPathAttrTimes(__GPRO__ int flags, int dir)
 {
   HFILE hFile;
+#if defined(XTR_OS2_NATIVE) && defined(__32BIT__) && !defined(DLL)
+  int borrowed_handle = 0;
+#endif
 #ifdef __32BIT__
   ULONG nAction;
 #else
@@ -919,14 +968,31 @@ static void SetPathAttrTimes(__GPRO__ int flags, int dir)
   {
     /* for regular files, open them and operate on the file handle, to
        work around certain network operating system bugs ... */
-
+#if defined(XTR_OS2_NATIVE) && defined(__32BIT__) && !defined(DLL)
+    if (G.pInfo && G.pInfo->xtr_restore_fd >= 0) {
+      int native_handle = _os_handle(G.pInfo->xtr_restore_fd);
+      if (native_handle < 0) {
+        fprintf(stderr,"unzip: OS/2 invalid pinned timestamp handle: %s\n",szName);
+        return;
+      }
+      hFile = (HFILE)native_handle;
+      borrowed_handle = 1;
+    } else
+#endif
     if ( DosOpen(szName, &hFile, &nAction, 0, 0,
                  OPEN_ACTION_OPEN_IF_EXISTS | OPEN_ACTION_FAIL_IF_NEW,
                  OPEN_SHARE_DENYREADWRITE | OPEN_ACCESS_READWRITE, 0) )
       return;
 
-    if ( DosQueryFileInfo(hFile, FIL_STANDARD, (PBYTE) &fs, sizeof(fs)) )
+    if ( DosQueryFileInfo(hFile, FIL_STANDARD, (PBYTE) &fs, sizeof(fs)) ) {
+#if defined(XTR_OS2_NATIVE) && defined(__32BIT__) && !defined(DLL)
+      if (borrowed_handle)
+        fprintf(stderr,"unzip: OS/2 cannot query pinned file timestamps: %s\n",szName);
+      else
+#endif
+        DosClose(hFile);
       return;
+    }
   }
 
   if (uO.D_flag <= (dir ? 1 : 0)) {
@@ -955,8 +1021,17 @@ static void SetPathAttrTimes(__GPRO__ int flags, int dir)
   }
   else
   {
-    DosSetFileInfo(hFile, FIL_STANDARD, (PBYTE) &fs, sizeof(fs));
-    DosClose(hFile);
+    APIRET set_rc=DosSetFileInfo(hFile, FIL_STANDARD, (PBYTE) &fs, sizeof(fs));
+#if defined(XTR_OS2_NATIVE) && defined(__32BIT__) && !defined(DLL)
+    if (borrowed_handle) {
+      if (set_rc != NO_ERROR)
+        fprintf(stderr,"unzip: OS/2 pinned file timestamp/attribute set rc=%lu: %s\n",
+                (unsigned long)set_rc,szName);
+    } else
+#else
+    (void)set_rc;
+#endif
+      DosClose(hFile);
   }
 }
 
@@ -2111,7 +2186,7 @@ int checkdir(__G__ pathcomp, flag)
 #ifdef DEBUG
                 int e =
 #endif
-                  SetLongNameEA(G.os2.buildpathFAT, pathcomp);
+                  SetLongNameEA(G.os2.buildpathFAT, pathcomp, -1);
                 Trace((stderr, "APPEND_DIR:  SetLongNameEA() returns %d\n", e));
             }
         } else if (!S_ISDIR(G.statbuf.st_mode)) {
@@ -2590,10 +2665,14 @@ static void map2fat(pathcomp, pEndFAT)
 
 
 
-static int SetLongNameEA(char *name, char *longname)
+static int SetLongNameEA(char *name, char *longname, int pinned_fd)
 {
   EAOP eaop;
   FEALST fealst;
+  APIRET rc;
+
+  if (!name || !longname || strlen(longname) >= sizeof(fealst.szValue))
+    return ERROR_FILENAME_EXCED_RANGE;
 
   eaop.fpFEAList = (PFEALIST) &fealst;
   eaop.fpGEAList = NULL;
@@ -2613,8 +2692,21 @@ static int SetLongNameEA(char *name, char *longname)
   fealst.eaType  = 0xFFFD;
   fealst.eaSize  = strlen((char *) fealst.szValue);
 
-  return DosSetPathInfo(name, FIL_QUERYEASIZE,
-                        (PBYTE) &eaop, sizeof(eaop), 0);
+#if defined(XTR_OS2_NATIVE) && defined(__32BIT__) && !defined(DLL)
+  if (pinned_fd >= 0) {
+    int native_handle = _os_handle(pinned_fd);
+    if (native_handle < 0)
+      return ERROR_INVALID_HANDLE;
+    rc = DosSetFileInfo((HFILE)native_handle,FIL_QUERYEASIZE,
+                        (PBYTE)&eaop,sizeof(eaop));
+    return (int)rc;
+  }
+#else
+  (void)pinned_fd;
+#endif
+  rc = DosSetPathInfo(name, FIL_QUERYEASIZE,
+                      (PBYTE)&eaop,sizeof(eaop),0);
+  return (int)rc;
 }
 
 
@@ -2656,11 +2748,20 @@ int close_outfile(__G)   /* only for extracted files, not directories */
     }
 
     if (G.os2.longnameEA) {
-#ifdef DEBUG
-        int e =
+        int e = SetLongNameEA(G.filename, G.os2.lastpathcomp,
+#if defined(XTR_OS2_NATIVE) && defined(__32BIT__) && !defined(DLL)
+                        G.pInfo ? G.pInfo->xtr_restore_fd : -1);
+#else
+                        -1);
 #endif
-          SetLongNameEA(G.filename, G.os2.lastpathcomp);
         Trace((stderr, "close_outfile:  SetLongNameEA() returns %d\n", e));
+#if defined(XTR_OS2_NATIVE) && defined(__32BIT__) && !defined(DLL)
+        if (e != NO_ERROR && G.pInfo && G.pInfo->xtr_restore_fd >= 0) {
+            fprintf(stderr,"unzip: OS/2 pinned .LONGNAME EA write rc=%d: %s\n",
+                    e,G.filename);
+            close_status = PK_ERR;
+        }
+#endif
         free(G.os2.lastpathcomp);
     }
 

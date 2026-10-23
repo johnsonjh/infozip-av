@@ -96,12 +96,24 @@ both flag `80` and the exact typed value; `DosQueryPathInfo rc=2` from
 original `XTROEA.ZIP` for independent header and manifest verification.
 
 If the diagnostic UnZip rejects an `unsafe or unqueryable destination`,
-also record any preceding `Xtro-ZIP: OS/2 SYMLINK EA query rc=...` line,
-including `oError` and the native path. The safety guard checks the
+also record any preceding `Xtro-ZIP: OS/2 SYMLINK EA path query rc=...`
+or `file-handle query rc=...` line and the native path. `oError` is reported
+only for EA-list format errors; it has no meaningful value for rc=32.
+The safety guard checks the
 `SYMLINK` EA independently of the user EA being restored: a valid empty
 response or a well-formed zero-length `SYMLINK` value means the destination
 is not a link; a genuine query error or malformed record must still block
 the write. Retest in a newly created destination on an EA-capable volume.
+
+On a pinned Xtro output file, `DosQueryPathInfo` can return rc=32
+(`ERROR_SHARING_VIOLATION`) because the file is still open for writing.
+Updated UnZip checks parent path components by name, but checks the final
+file via `DosQueryFileInfo` on the pinned native handle. It also applies
+ordinary EAs through that handle and releases the pin before deferred
+`SYMLINK` EA activation. A file-handle query failure is **not** treated as
+proof that the destination is safe. Test the ordinary legacy extraction,
+`--xattrs` inline restoration, and an archive with a metadata companion,
+including exact `ea-fixture check` values for all three cases.
 
 ## 3. Directory attributes and existing directories (Option B)
 

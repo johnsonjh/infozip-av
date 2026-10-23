@@ -248,6 +248,7 @@ void fwkcs_md5_final(__G__ digest)
    buffers are that big).
 */
 #if defined(XTR_OS2_NATIVE) && !defined(SFX) && !defined(DLL)
+#include <share.h>
 extern int xtr_unzip_xattrs;
 extern int xtr_os2_stage_write(const unsigned char *,size_t);
 #  define WriteError(buf,len,strm) \
@@ -671,6 +672,20 @@ int open_outfile(__G)           /* return 1 if fail */
     {
 #if defined(ATH_BEO_UNX) || defined(AOS_VS) || defined(QDOS) || defined(TANDEM)
         mode_t umask_sav = umask(0077);
+#endif
+#if defined(XTR_OS2_NATIVE) && !defined(SFX) && !defined(DLL)
+        if (xtr_unzip_xattrs && G.pInfo && G.pInfo->xtr_central) {
+            /* Xtro needs a read/write native file handle through deferred
+             * EA commit. Deny competing opens so handle-based EA queries
+             * and metadata writes never need a conflicting path reopen. */
+            int fd=sopen(G.filename,O_CREAT|O_TRUNC|O_RDWR|O_BINARY,
+                         SH_DENYRW,S_IREAD|S_IWRITE);
+            G.outfile=NULL;
+            if(fd>=0){
+                G.outfile=fdopen(fd,"w+b");
+                if(!G.outfile)close(fd);
+            }
+        } else
 #endif
 #if defined(SYMLINKS) || defined(QLZIP)
         /* These features require the ability to re-read extracted data from

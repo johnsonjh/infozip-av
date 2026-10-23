@@ -8,6 +8,7 @@
 /* Returns 1 for a valid symlink, 0 if no SYMLINK EA, -1 for malformed EA
  * or an OS/2 API failure other than 'no attributes'. */
 int iz_os2_link_target (const char *path, char *target, size_t capacity);
+int iz_os2_link_target_fd (int fd, char *target, size_t capacity);
 /* Resolves EAs on path components; at most 32 links; never silently
  * dereferences a malformed or cyclic link. follow_final=0 keeps last link. */
 int iz_os2_link_resolve (const char *path, char *resolved, size_t capacity,

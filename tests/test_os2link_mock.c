@@ -13,6 +13,7 @@ static int mock_mode = 0;
 static const char *mock_target = "../target";
 static int errors = 0;
 static int saw_unnative_separator = 0;
+static int handle_queries = 0;
 #define CHECK(x)                                                              \
   do                                                                          \
     {                                                                         \
@@ -23,8 +24,9 @@ static int saw_unnative_separator = 0;
         }                                                                     \
     }                                                                         \
   while (0)
-APIRET
-DosQueryPathInfo (PSZ path, ULONG level, PVOID data, ULONG length)
+static APIRET
+mock_query (const char *path, ULONG level, PVOID data, ULONG length,
+            int via_handle)
 {
   EAOP2 *op = (EAOP2 *)data;
   unsigned char *buf = (unsigned char *)op->fpFEA2List;
@@ -52,6 +54,11 @@ DosQueryPathInfo (PSZ path, ULONG level, PVOID data, ULONG length)
       saw_unnative_separator = 1;
       return 87;
     }
+
+  if (mock_mode == 13 && !via_handle)
+    return 32U; /* Open output: pathname queries conflict with its sharing. */
+  if (mock_mode == 14 && via_handle)
+    return 5U;  /* An inaccessible handle must not be treated as safe. */
 
   if (mock_mode == 7)
     {
@@ -143,6 +150,24 @@ DosQueryPathInfo (PSZ path, ULONG level, PVOID data, ULONG length)
 
   return 0;
 }
+APIRET
+DosQueryPathInfo (PSZ path, ULONG level, PVOID data, ULONG length)
+{
+  return mock_query (path, level, data, length, 0);
+}
+APIRET
+DosQueryFileInfo (HFILE file, ULONG level, PVOID data, ULONG length)
+{
+  if (file != 42U)
+    return 6U;
+  handle_queries++;
+  return mock_query ("pinned", level, data, length, 1);
+}
+int
+_os_handle (int fd)
+{
+  return fd;
+}
 int
 main (void)
 {
@@ -179,6 +204,17 @@ main (void)
   mock_mode = 0;
   CHECK (iz_os2_link_target ("dir/ordinary", output, sizeof (output)) == 0);
   CHECK (!saw_unnative_separator);
+  mock_mode = 13;
+  CHECK (iz_os2_link_target ("pinned", output, sizeof (output)) == -1);
+  CHECK (iz_os2_link_target_fd (42, output, sizeof (output)) == 0);
+  mock_mode = 1;
+  CHECK (iz_os2_link_target_fd (42, output, sizeof (output)) == 1);
+  CHECK (!strcmp (output, "../target"));
+  CHECK (iz_os2_link_target_fd (-1, output, sizeof (output)) == -1);
+  CHECK (iz_os2_link_target_fd (43, output, sizeof (output)) == -1);
+  mock_mode = 14;
+  CHECK (iz_os2_link_target_fd (42, output, sizeof (output)) == -1);
+  CHECK (handle_queries == 3);
   mock_mode = 0;
   CHECK (iz_os2_link_resolve ("dir/link/child", output, sizeof (output), 1)
          == 0);

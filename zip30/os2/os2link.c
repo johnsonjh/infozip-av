@@ -7,6 +7,7 @@
 #include "os2link.h"
 #include <ctype.h>
 #include <errno.h>
+#include <io.h>
 #include <os2.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,8 +33,9 @@ iz_eq_name (const char *a, const char *b, size_t count)
   return 1;
 }
 
-int
-iz_os2_link_target (const char *path, char *target, size_t capacity)
+static int
+iz_os2_link_target_query (const char *path, HFILE handle, int use_handle,
+                          char *target, size_t capacity)
 {
   struct
   {
@@ -48,24 +50,31 @@ iz_os2_link_target (const char *path, char *target, size_t capacity)
   size_t at, n, cb, i;
   char native_path[IZ_LINK_PATH_CAP];
   APIRET rc;
-  if (!path || !target || capacity == 0)
+  if ((!path && !use_handle) || !target || capacity == 0)
     {
       return -1;
     }
 
   /* Archive names use '/' but the native OS/2 EA API requires a native
    * pathname. Check the same object that the later native EA calls use. */
-  n = strlen (path);
-  if (!n || n >= sizeof (native_path))
+  if (!use_handle)
     {
-      return -1;
-    }
+      n = strlen (path);
+      if (!n || n >= sizeof (native_path))
+        {
+          return -1;
+        }
 
-  for (i = 0; i < n; i++)
-    {
-      native_path[i] = path[i] == '/' ? '\\' : path[i];
+      for (i = 0; i < n; i++)
+        {
+          native_path[i] = path[i] == '/' ? '\\' : path[i];
+        }
+      native_path[n] = '\0';
     }
-  native_path[n] = '\0';
+  else
+    {
+      strcpy (native_path, "<pinned output handle>");
+    }
 
   memset (&gea, 0, sizeof (gea));
   /* sizeof(gea) includes trailing C structure padding. The OS/2 list
@@ -78,13 +87,20 @@ iz_os2_link_target (const char *path, char *target, size_t capacity)
   op.fpGEA2List = (PGEA2LIST)&gea;
   op.fpFEA2List = list;
   op.oError = 0;
-  rc = DosQueryPathInfo ((PSZ)native_path, FIL_QUERYEASFROMLIST, (PVOID)&op,
-                         sizeof (op));
+  rc = use_handle
+           ? DosQueryFileInfo (handle, FIL_QUERYEASFROMLIST, (PVOID)&op,
+                               sizeof (op))
+           : DosQueryPathInfo ((PSZ)native_path, FIL_QUERYEASFROMLIST,
+                               (PVOID)&op, sizeof (op));
   if (rc != NO_ERROR)
     {
-      fprintf (stderr, "Xtro-ZIP: OS/2 SYMLINK EA query rc=%lu, "
-               "oError=%lu: %s\n", (unsigned long)rc,
-               (unsigned long)op.oError, native_path);
+      /* oError is an EA-list offset only for EA validation errors.  An
+       * arbitrary value returned for an I/O/sharing failure is meaningless. */
+      fprintf (stderr, "Xtro-ZIP: OS/2 SYMLINK EA %s query rc=%lu",
+               use_handle ? "file-handle" : "path", (unsigned long)rc);
+      if (rc == ERROR_INVALID_EA_NAME || rc == ERROR_EA_LIST_INCONSISTENT)
+        fprintf (stderr, ", oError=%lu", (unsigned long)op.oError);
+      fprintf (stderr, ": %s\n", native_path);
       return -1;
     }
 
@@ -169,6 +185,24 @@ iz_os2_link_target (const char *path, char *target, size_t capacity)
   memcpy (target, fea + at + 4, n);
   target[n] = 0;
   return 1;
+}
+
+int
+iz_os2_link_target (const char *path, char *target, size_t capacity)
+{
+  return iz_os2_link_target_query (path, (HFILE)0, 0, target, capacity);
+}
+
+int
+iz_os2_link_target_fd (int fd, char *target, size_t capacity)
+{
+  int handle;
+  if (fd < 0)
+    return -1;
+  handle = _os_handle (fd);
+  if (handle < 0)
+    return -1;
+  return iz_os2_link_target_query (NULL, (HFILE)handle, 1, target, capacity);
 }
 
 /* Construct native path from either relative target, OS/2 drive path,

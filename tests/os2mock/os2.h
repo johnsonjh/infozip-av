@@ -13,6 +13,7 @@ typedef unsigned short USHORT;
 typedef void *PVOID;
 typedef char *PSZ;
 typedef ULONG APIRET;
+typedef ULONG HFILE;
 /* Packed layout is required here to match the native FEA2 structure. */
 #pragma pack(push,1)
 typedef struct _FEA2 {
@@ -28,5 +29,8 @@ typedef struct _GEA2LIST {ULONG cbList;} GEA2LIST, *PGEA2LIST;
 typedef struct _EAOP2 {PGEA2LIST fpGEA2List;PFEA2LIST fpFEA2List;ULONG oError;} EAOP2;
 #define FIL_QUERYEASFROMLIST 3U
 #define NO_ERROR 0UL
+#define ERROR_INVALID_EA_NAME 254U
+#define ERROR_EA_LIST_INCONSISTENT 255U
 APIRET DosQueryPathInfo(PSZ path,ULONG level,PVOID data,ULONG length);
+APIRET DosQueryFileInfo(HFILE file,ULONG level,PVOID data,ULONG length);
 #endif
