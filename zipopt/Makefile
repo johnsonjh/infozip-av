@@ -239,10 +239,21 @@ test-interrupt: tests/test_interrupt.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_interrupt.c -o $@ $(LOCAL_GLDFLAGS)
 test-zopfli-oom: tests/test_zopfli_oom.c ../zip30/zopfli.c ../zip30/zopfli.h
 	$(CC) -O2 -std=c89 -pedantic -Wall -Wextra tests/test_zopfli_oom.c -lm -o $@
+# This harness includes the production comparison helpers. On ELF targets,
+# section garbage collection discards the unrelated CLI/codec references.
+# Other toolchains retain the normal build and test paths unchanged.
+ifneq ($(filter Linux FreeBSD NetBSD OpenBSD,$(shell uname -s)),)
+test-output-compare: tests/test_output_compare.c zipopt.c archive.h display.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -ffunction-sections -fdata-sections -Wno-unused-function tests/test_output_compare.c -Wl,--gc-sections -o $@ $(LOCAL_GLDFLAGS)
+ZO_COMPARE_TEST_BINARY = test-output-compare
+else
+ZO_COMPARE_TEST_BINARY =
+endif
 print-deflate-backend:
 	@printf '%s\n' '$(ZO_SELECTED_BACKEND)'
-test: test-display test-index test-structures test-zip64-offset test-interrupt test-source-stability codec-probe zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-zopfli-oom
+test: test-display test-index test-structures test-zip64-offset test-interrupt test-source-stability codec-probe zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-zopfli-oom $(ZO_COMPARE_TEST_BINARY)
 	./test-zopfli-oom
+	$(if $(ZO_COMPARE_TEST_BINARY),./test-output-compare,)
 	./test-display
 	./test-index
 	./test-structures
@@ -260,7 +271,7 @@ endif
 	./test-source-stability
 -include $(UZDEPS)
 clean:
-	rm -f test-zopfli-oom zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-display test-index test-structures test-interrupt test-source-stability codec-probe test-zip64-offset
+	rm -f test-zopfli-oom test-output-compare zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-display test-index test-structures test-interrupt test-source-stability codec-probe test-zip64-offset
 	rm -rf build
 .PHONY: all clean test print-deflate-backend
 

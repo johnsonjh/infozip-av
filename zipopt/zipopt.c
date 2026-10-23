@@ -699,54 +699,120 @@ zo_original_allowed (unsigned method, const unsigned char *enabled)
   return 0;
 }
 
+/* Compare results distinguish actual differences from file I/O failures.
+ * The offset is relative to the beginning of the decoded member/record. */
+#define ZO_COMPARE_EQUAL 1
+#define ZO_COMPARE_BYTES 0
+#define ZO_COMPARE_SIZE (-1)
+#define ZO_COMPARE_LEFT_IO (-2)
+#define ZO_COMPARE_RIGHT_IO (-3)
+
 static int
-zo_equal (FILE *a, FILE *b)
+zo_equal (FILE *a, FILE *b, zo_u64 *difference)
 {
   unsigned char x[32768], y[32768];
-  size_t n, m;
+  size_t n, m, at;
+  zo_u64 offset = 0;
 
-  rewind (a);
-  rewind (b);
+  *difference = 0;
+  if (fseek (a, 0, SEEK_SET) != 0)
+    return ZO_COMPARE_LEFT_IO;
+  if (fseek (b, 0, SEEK_SET) != 0)
+    return ZO_COMPARE_RIGHT_IO;
 
   for (;;)
     {
       n = fread (x, 1, sizeof (x), a);
       m = fread (y, 1, sizeof (y), b);
 
-      if (n != m || memcmp (x, y, n) != 0)
+      *difference = offset;
+      if (ferror (a))
+        return ZO_COMPARE_LEFT_IO;
+      if (ferror (b))
+        return ZO_COMPARE_RIGHT_IO;
+      if (n != m)
         {
-          return 0;
+          *difference += n < m ? (zo_u64)n : (zo_u64)m;
+          return ZO_COMPARE_SIZE;
+        }
+
+      if (memcmp (x, y, n) != 0)
+        {
+          for (at = 0; at < n && x[at] == y[at]; at++)
+            ;
+          *difference += (zo_u64)at;
+          return ZO_COMPARE_BYTES;
         }
 
       if (n < sizeof (x))
         {
-          return !ferror (a) && !ferror (b) && feof (a) && feof (b);
+          if (!feof (a))
+            return ZO_COMPARE_LEFT_IO;
+          if (!feof (b))
+            return ZO_COMPARE_RIGHT_IO;
+          return ZO_COMPARE_EQUAL;
         }
+
+      offset += (zo_u64)n;
     }
 }
 
 /* Compare byte ranges without allocating storage proportional to metadata. */
 static int
-zo_equal_records (zo_archive *a, zo_u64 ao, zo_archive *b, zo_u64 bo, zo_u64 n)
+zo_equal_records (zo_archive *a, zo_u64 ao, zo_archive *b, zo_u64 bo,
+                  zo_u64 n, zo_u64 *difference)
 {
   unsigned char x[4096], y[4096];
+  zo_u64 offset = 0;
+  size_t j;
+
+  *difference = 0;
 
   while (n)
     {
       size_t take = n > sizeof (x) ? sizeof (x) : (size_t)n;
 
-      if (!zo_archive_at (a, ao, x, take) || !zo_archive_at (b, bo, y, take)
-          || memcmp (x, y, take))
+      *difference = offset;
+      if (!zo_archive_at (a, ao, x, take))
+        return ZO_COMPARE_LEFT_IO;
+      if (!zo_archive_at (b, bo, y, take))
+        return ZO_COMPARE_RIGHT_IO;
+      if (memcmp (x, y, take) != 0)
         {
-          return 0;
+          for (j = 0; j < take && x[j] == y[j]; j++)
+            ;
+          *difference += (zo_u64)j;
+          return ZO_COMPARE_BYTES;
         }
 
       ao += (zo_u64)take;
       bo += (zo_u64)take;
       n -= (zo_u64)take;
+      offset += (zo_u64)take;
     }
 
-  return 1;
+  return ZO_COMPARE_EQUAL;
+}
+
+static int
+zo_output_member_issue (zo_u64 i, const char *reason)
+{
+  char member[32];
+  fprintf (stderr, "zipopt: output member %s validation failed: %s\n",
+           zo_decimal (i, member), reason);
+  return 0;
+}
+
+static int
+zo_output_number_difference (zo_u64 i, const char *field,
+                             zo_u64 expected, zo_u64 observed)
+{
+  char member[32], want[32], got[32];
+  fprintf (stderr,
+           "zipopt: output member %s %s mismatch (expected %s, got %s)\n",
+           zo_decimal (i, member), field, zo_decimal (expected, want),
+           zo_decimal (observed, got));
+  return 0;
 }
 
 static int
@@ -757,6 +823,9 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
   zo_u64 i;
   FILE *a, *b;
   int ok = 1;
+  int compared;
+  zo_u64 difference = 0;
+  char index_text[32], offset_text[32], count_a[32], count_b[32];
   unsigned char src[46], dst[46];
 
   if (!zo_archive_open (&output, w->temporary))
@@ -768,13 +837,39 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
       return 0;
     }
 
-  if (output.count != original->count
-      || output.archive_comment_len != original->archive_comment_len
-      || !zo_equal_records (original, original->eocd_offset + 22, &output,
-                            output.eocd_offset + 22,
-                            original->archive_comment_len))
+  if (output.count != original->count)
     {
+      fprintf (stderr,
+               "zipopt: output validation: member count mismatch "
+               "(input=%s, output=%s)\n",
+               zo_decimal (original->count, count_a),
+               zo_decimal (output.count, count_b));
       ok = 0;
+    }
+  else if (output.archive_comment_len != original->archive_comment_len)
+    {
+      fprintf (stderr,
+               "zipopt: output validation: archive comment length mismatch "
+               "(input=%u, output=%u)\n",
+               original->archive_comment_len, output.archive_comment_len);
+      ok = 0;
+    }
+  else
+    {
+      compared = zo_equal_records (original, original->eocd_offset + 22,
+                                   &output, output.eocd_offset + 22,
+                                   original->archive_comment_len,
+                                   &difference);
+      if (compared != ZO_COMPARE_EQUAL)
+        {
+          fprintf (stderr, "zipopt: output validation: archive comment %s "
+                   "at byte %s\n",
+                   compared == ZO_COMPARE_LEFT_IO ? "input read failed"
+                   : compared == ZO_COMPARE_RIGHT_IO ? "output read failed"
+                                                        : "bytes differ",
+                   zo_decimal (difference, offset_text));
+          ok = 0;
+        }
     }
 
   for (i = 0; i < original->count && ok; i++)
@@ -797,30 +892,85 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
           break;
         }
 
-      if (y->name_len != x->name_len || memcmp (y->name, x->name, x->name_len)
-          || y->has_fwkcs != (unsigned)w->entries[(size_t)i].has_md5
-          || y->method != w->entries[(size_t)i].method
-          || y->flags != w->entries[(size_t)i].flags
-          || y->csize != w->entries[(size_t)i].csize || y->usize != x->usize
-          || y->crc != x->crc
-          || y->central_comment_len != x->central_comment_len
-          || !zo_archive_at (original, x->central_offset, src, 46)
-          || !zo_archive_at (&output, y->central_offset, dst, 46)
-          || (w->entries[(size_t)i].normalize_timestamp
-                  ? (xtr_sde_clip_dos(src+12,xtr_sde_dos(w->sde_epoch)),
-                     memcmp(src+12,dst+12,4))
-                  : memcmp(src+12,dst+12,4)) || /* DOS timestamp */
-          memcmp (src + 36, dst + 36, 6) || /* attrs and original OS flags */
-          (src[5] != dst[5]) ||             /* version-made-by host OS */
-          !zo_equal_records (
-              original,
-              x->central_offset + 46 + x->name_len + x->central_extra_len,
-              &output,
-              y->central_offset + 46 + y->name_len + y->central_extra_len,
-              x->central_comment_len))
-        {
-          ok = 0;
+      if (y->name_len != x->name_len)
+        ok = zo_output_number_difference (i, "name length", x->name_len,
+                                          y->name_len);
+      else if (memcmp (y->name, x->name, x->name_len))
+        ok = zo_output_member_issue (i, "member name bytes differ");
+      else if (y->has_fwkcs != (unsigned)w->entries[(size_t)i].has_md5)
+        ok = zo_output_number_difference (
+            i, "FWKCS MD5 presence", (unsigned)w->entries[(size_t)i].has_md5,
+            y->has_fwkcs);
+      else if (y->method != w->entries[(size_t)i].method)
+        ok = zo_output_number_difference (i, "ZIP method",
+                                          w->entries[(size_t)i].method,
+                                          y->method);
+      else if (y->flags != w->entries[(size_t)i].flags)
+        ok = zo_output_number_difference (i, "general-purpose flags",
+                                          w->entries[(size_t)i].flags,
+                                          y->flags);
+      else if (y->csize != w->entries[(size_t)i].csize)
+        ok = zo_output_number_difference (i, "compressed size",
+                                          w->entries[(size_t)i].csize,
+                                          y->csize);
+      else if (y->usize != x->usize)
+        ok = zo_output_number_difference (i, "uncompressed size", x->usize,
+                                          y->usize);
+      else if (y->crc != x->crc)
+        ok = zo_output_number_difference (i, "CRC32", x->crc, y->crc);
+      else if (y->central_comment_len != x->central_comment_len)
+        ok = zo_output_number_difference (i, "member comment length",
+                                          x->central_comment_len,
+                                          y->central_comment_len);
 
+      if (!ok)
+        break;
+
+      if (!zo_archive_at (original, x->central_offset, src, 46))
+        {
+          ok = zo_output_member_issue (i, "cannot read input central header");
+          break;
+        }
+      if (!zo_archive_at (&output, y->central_offset, dst, 46))
+        {
+          ok = zo_output_member_issue (i, "cannot read output central header");
+          break;
+        }
+      if (w->entries[(size_t)i].normalize_timestamp)
+        xtr_sde_clip_dos (src + 12, xtr_sde_dos (w->sde_epoch));
+      if (memcmp (src + 12, dst + 12, 4))
+        {
+          ok = zo_output_member_issue (i, "DOS timestamp bytes differ");
+          break;
+        }
+      if (memcmp (src + 36, dst + 36, 6))
+        {
+          ok = zo_output_member_issue (i, "central attribute bytes differ");
+          break;
+        }
+      if (src[5] != dst[5])
+        {
+          ok = zo_output_member_issue (
+              i, "version-made-by host OS identifier differs");
+          break;
+        }
+      compared = zo_equal_records (
+          original,
+          x->central_offset + 46 + x->name_len + x->central_extra_len,
+          &output,
+          y->central_offset + 46 + y->name_len + y->central_extra_len,
+          x->central_comment_len, &difference);
+      if (compared != ZO_COMPARE_EQUAL)
+        {
+          fprintf (stderr,
+                   "zipopt: output member %s central comment %s "
+                   "at byte %s\n",
+                   zo_decimal (i, index_text),
+                   compared == ZO_COMPARE_LEFT_IO ? "input read failed"
+                   : compared == ZO_COMPARE_RIGHT_IO ? "output read failed"
+                                                        : "bytes differ",
+                   zo_decimal (difference, offset_text));
+          ok = 0;
           break;
         }
 
@@ -829,6 +979,10 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
 
       if (!a || !b)
         {
+          fprintf (stderr,
+                   "zipopt: output member %s cannot create decoded "
+                   "comparison temporary file (errno=%d)\n",
+                   zo_decimal (i, index_text), errno);
           if (a)
             {
               fclose (a);
@@ -844,10 +998,33 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
           break;
         }
 
-      if (!zo_extract_index (original, i, a)
-          || !zo_extract_index (&output, i, b) || !zo_equal (a, b))
+      if (!zo_extract_index (original, i, a))
         {
-          ok = 0;
+          ok = zo_output_member_issue (
+              i, "input decoder, size, CRC, or decoded write failed");
+        }
+      else if (!zo_extract_index (&output, i, b))
+        {
+          ok = zo_output_member_issue (
+              i, "output decoder, size, CRC, or decoded write failed");
+        }
+      else
+        {
+          compared = zo_equal (a, b, &difference);
+          if (compared != ZO_COMPARE_EQUAL)
+            {
+              const char *issue = compared == ZO_COMPARE_LEFT_IO
+                                      ? "input decoded read/seek failed"
+                                  : compared == ZO_COMPARE_RIGHT_IO
+                                      ? "output decoded read/seek failed"
+                                  : compared == ZO_COMPARE_SIZE
+                                      ? "decoded length differs"
+                                      : "decoded bytes differ";
+              fprintf (stderr, "zipopt: output member %s %s at byte %s\n",
+                       zo_decimal (i, index_text), issue,
+                       zo_decimal (difference, offset_text));
+              ok = 0;
+            }
         }
 
       fclose (a);
@@ -1814,9 +1991,7 @@ main (int argc, char **argv)
   if (!zo_verify_output (&a, &w, &final_archive_size,
                          wavpack_compat_reencode))
     {
-      fprintf (stderr,
-               "zipopt: output validation or byte comparison failed\n");
-
+      fprintf (stderr, "zipopt: refusing to publish unverified output\n");
       goto done;
     }
 

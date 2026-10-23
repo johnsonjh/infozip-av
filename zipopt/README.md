@@ -203,6 +203,18 @@ concurrent file mutation, not malicious transformations that can restore the
 original bytes and metadata between checks. Ordinary Zip/UnZip/zipdedup object files are not reused or
 replaced by this build.
 
+Final verification failures are distinguished in stderr. `output structural
+validation` reports the ZIP parser's specific rejection. Archive and member
+metadata failures report the affected count, length, field or comment byte;
+decoded member failures distinguish input/output decoder or CRC errors from
+content-length and byte mismatches, including the first differing decoded
+byte offset. All such failures end with `refusing to publish unverified
+output`, leaving the requested output pathname unpublished. `--verbose`
+remains useful for seeing the selected candidate, but the final error reason
+is printed even without it. To investigate a platform-specific failure, save
+the complete stderr including the first failure line, command, exit status,
+operating system, filesystem, and (if non-confidential) reproducing ZIP.
+
 ## WavPack / WinZip method 97 (optional encoder)
 
 WavPack method 97 is included in `--methods=all` when libwavpack headers
