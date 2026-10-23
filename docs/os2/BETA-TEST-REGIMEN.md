@@ -76,6 +76,25 @@ its attributes should restore. Compare raw bytes and `FEA_NEEDEA` flags.
 Test a file with unrelated preexisting destination EAs; restoring an archived
 EA must not remove the unrelated name.
 
+If the `--xattrs` extraction creates a file but exits with code 2, **do not
+count that as an EA restore**: staged native EAs are discarded when the archive
+does not finish verification. Rerun against a fresh empty `OUTPUT` directory
+with the diagnostic build and save stderr as well as stdout. To distinguish
+file content from native-EA restoration, use:
+
+```text
+unzip -Z -v XTROEA.ZIP
+ea-fixture get OUTPUT\SOURCE\ONE.TXT XTROTEST
+ea-fixture check OUTPUT\SOURCE\ONE.TXT XTROTEST 80 FFFD0300414243
+```
+
+ZipInfo should name `0x5854` as `Xtro metadata`. The `get` result must show
+both flag `80` and the exact typed value; `DosQueryPathInfo rc=2` from
+`ea-fixture get` means the requested EA was not found. Include the **first**
+`unzip: OS/2 Xtro ...` failure line and any `DosQueryPathInfo`,
+`DosSetPathInfo`, or `DosSetFileInfo` return code in the report. Keep the
+original `XTROEA.ZIP` for independent header and manifest verification.
+
 ## 3. Directory attributes and existing directories (Option B)
 
 ```text
