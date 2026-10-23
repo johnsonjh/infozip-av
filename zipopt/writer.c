@@ -498,7 +498,8 @@ zo_writer_add (zo_writer *w, zo_u64 idx, FILE *payload, unsigned method,
   int z64;
   zo_u64 off;
 
-  if (!w || !w->source || idx >= w->source->count || w->failed)
+  if (!w || !w->source || !w->stream || w->completed
+      || idx >= w->source->count || w->failed)
     {
       return 0;
     }
@@ -624,7 +625,7 @@ zo_writer_complete (zo_writer *w)
   unsigned nx, need;
   unsigned z64, zsz, zcs, zoff, ver, made;
 
-  if (!w || !w->source || w->failed)
+  if (!w || !w->source || !w->stream || w->completed || w->failed)
     {
       return 0;
     }
@@ -813,6 +814,32 @@ zo_writer_complete (zo_writer *w)
 
   (void)now;
 
+  w->completed = 1;
+  return 1;
+}
+
+int
+zo_writer_seal (zo_writer *w)
+{
+  int close_rc;
+
+  if (!w || !w->stream || w->failed || !w->completed || w->sealed)
+    {
+      return 0;
+    }
+
+  /* OS/2 may deny a second reader while the mkstemp/fdopen write handle
+   * remains open.  Sealing also detects delayed close errors before the
+   * output is independently decoded and compared. */
+  close_rc = fclose (w->stream);
+  w->stream = NULL;
+  if (close_rc != 0)
+    {
+      w->failed = 1;
+      return 0;
+    }
+
+  w->sealed = 1;
   return 1;
 }
 
@@ -822,18 +849,12 @@ zo_writer_publish (zo_writer *w)
   zo_sigmask_t previous;
   int ok;
 
-  if (!w || !w->stream || w->failed)
+  /* Publication is allowed only after the file was closed for verification.
+   * Never silently publish an output which still has pending buffered data. */
+  if (!w || !w->sealed || w->stream || w->failed)
     {
       return 0;
     }
-
-  if (fclose (w->stream) != 0)
-    {
-      w->stream = NULL;
-      return 0;
-    }
-
-  w->stream = NULL;
 
   if (!zo_signal_mask (1, &previous))
     {

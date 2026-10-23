@@ -816,6 +816,53 @@ zo_output_number_difference (zo_u64 i, const char *field,
 }
 
 static int
+zo_output_decode_issue (zo_u64 i, const char *side, const zo_entry *e,
+                        const zo_extract_report *r)
+{
+  char member[32], got[32], want[32];
+
+  if (r->unzip_status != 0)
+    {
+      fprintf (stderr,
+               "zipopt: %s member %s embedded UnZip returned status %d "
+               "(decoded %s of %s bytes; last errno=%d)\n",
+               side, zo_decimal (i, member), r->unzip_status,
+               zo_decimal (r->written, got), zo_decimal (e->usize, want),
+               r->unzip_errno);
+    }
+  else if (r->size_overflow)
+    fprintf (stderr, "zipopt: %s member %s decoded byte count overflow\n",
+             side, zo_decimal (i, member));
+  else if (r->write_failed)
+    fprintf (stderr,
+             "zipopt: %s member %s decoded temporary-file write failed "
+             "(errno=%d)\n",
+             side, zo_decimal (i, member), r->write_errno);
+  else if (r->written != e->usize)
+    fprintf (stderr,
+             "zipopt: %s member %s decoded size mismatch "
+             "(expected %s, got %s bytes)\n",
+             side, zo_decimal (i, member), zo_decimal (e->usize, want),
+             zo_decimal (r->written, got));
+  else if (r->crc != e->crc)
+    fprintf (stderr,
+             "zipopt: %s member %s decoded CRC32 mismatch "
+             "(expected %08lX, got %08lX)\n",
+             side, zo_decimal (i, member), e->crc & 0xffffffffUL,
+             r->crc & 0xffffffffUL);
+  else if (r->flush_failed)
+    fprintf (stderr,
+             "zipopt: %s member %s decoded temporary-file flush failed "
+             "(errno=%d)\n",
+             side, zo_decimal (i, member), r->flush_errno);
+  else
+    fprintf (stderr, "zipopt: %s member %s decoder could not start\n",
+             side, zo_decimal (i, member));
+
+  return 0;
+}
+
+static int
 zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
                   int wavpack_compat_reencode)
 {
@@ -827,6 +874,7 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
   zo_u64 difference = 0;
   char index_text[32], offset_text[32], count_a[32], count_b[32];
   unsigned char src[46], dst[46];
+  zo_extract_report decode_report;
 
   if (!zo_archive_open (&output, w->temporary))
     {
@@ -998,15 +1046,13 @@ zo_verify_output (zo_archive *original, zo_writer *w, zo_u64 *verified_size,
           break;
         }
 
-      if (!zo_extract_index (original, i, a))
+      if (!zo_extract_index_report (original, i, a, &decode_report))
         {
-          ok = zo_output_member_issue (
-              i, "input decoder, size, CRC, or decoded write failed");
+          ok = zo_output_decode_issue (i, "input", x, &decode_report);
         }
-      else if (!zo_extract_index (&output, i, b))
+      else if (!zo_extract_index_report (&output, i, b, &decode_report))
         {
-          ok = zo_output_member_issue (
-              i, "output decoder, size, CRC, or decoded write failed");
+          ok = zo_output_decode_issue (i, "output", y, &decode_report);
         }
       else
         {
@@ -1985,6 +2031,13 @@ main (int argc, char **argv)
     {
       fprintf (stderr, "zipopt: failed finalizing ZIP headers\n");
 
+      goto done;
+    }
+
+  if (!zo_writer_seal (&w))
+    {
+      fprintf (stderr, "zipopt: failed closing temporary ZIP before "
+               "independent output verification (errno=%d)\n", errno);
       goto done;
     }
 

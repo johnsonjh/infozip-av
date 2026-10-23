@@ -158,6 +158,7 @@ main (void)
   const char *path = "build/test-index.zip";
   zo_archive a;
   FILE *f;
+  zo_extract_report report;
   unsigned i;
   char buffer[100];
   size_t n;
@@ -201,6 +202,26 @@ main (void)
 
       fclose (f);
     }
+
+  /* The diagnostic extraction API must distinguish independently checked
+   * length and CRC mismatches from an embedded UnZip decoder failure. */
+  a.entries[0].usize++;
+  f = tmpfile ();
+  if (!f || zo_extract_index_report (&a, 0, f, &report)
+      || report.unzip_status != 0
+      || report.written != strlen (fixtures[0].data))
+    return 9;
+  fclose (f);
+  a.entries[0].usize--;
+
+  a.entries[0].crc ^= 1UL;
+  f = tmpfile ();
+  if (!f || zo_extract_index_report (&a, 0, f, &report)
+      || report.unzip_status != 0
+      || report.crc != crc32_local (fixtures[0].data))
+    return 10;
+  fclose (f);
+  a.entries[0].crc ^= 1UL;
 
   zo_archive_close (&a);
 

@@ -20,6 +20,7 @@ const char *zo_unzip_libdeflate_size_arg;
 #endif
 #include "extract.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
@@ -43,6 +44,7 @@ struct zo_sink
   zo_u64 count;
   unsigned long crc;
   int failed;
+  int size_overflow, write_failed, write_errno;
 };
 
 static struct zo_sink *zo_active_sink;
@@ -90,11 +92,17 @@ UZ_EXP zo_unzip_msg (zvoid *g, uch *p, ulg n, int flag)
       return 1;
     }
 
-  if ((zo_u64)n > ((zo_u64)-1) - s->count
-      || fwrite (p, 1, (size_t)n, s->file) != (size_t)n)
+  if ((zo_u64)n > ((zo_u64)-1) - s->count)
     {
+      s->size_overflow = 1;
       s->failed = 1;
-
+      return 1;
+    }
+  if (fwrite (p, 1, (size_t)n, s->file) != (size_t)n)
+    {
+      s->write_failed = 1;
+      s->write_errno = errno;
+      s->failed = 1;
       return 1;
     }
 
@@ -105,13 +113,20 @@ UZ_EXP zo_unzip_msg (zvoid *g, uch *p, ulg n, int flag)
 }
 
 int
-zo_extract_index (const zo_archive *a, zo_u64 i, FILE *out)
+zo_extract_index_report (const zo_archive *a, zo_u64 i, FILE *out,
+                         zo_extract_report *report)
 {
   UzpInit init;
   struct zo_sink sink;
   char *args[7];
   int argc;
   int rc;
+
+  if (report)
+    {
+      memset (report, 0, sizeof (*report));
+      report->unzip_status = -1;
+    }
 
   if (!a || !out || i >= a->count || i > (zo_u64)ULONG_MAX || zo_active_sink)
     {
@@ -138,15 +153,41 @@ zo_extract_index (const zo_archive *a, zo_u64 i, FILE *out)
 #endif
   args[argc++] = (char *)a->path;
   args[argc] = NULL;
+  errno = 0;
   rc = UzpAltMainIndex (argc, args, &init, (unsigned long)i);
+  if (report)
+    {
+      report->unzip_status = rc;
+      report->unzip_errno = errno;
+      report->written = sink.count;
+      report->crc = sink.crc ^ 0xffffffffUL;
+      report->size_overflow = sink.size_overflow;
+      report->write_failed = sink.write_failed;
+      report->write_errno = sink.write_errno;
+    }
   zo_active_sink = NULL;
 
   if (rc != 0 || sink.failed || sink.count != a->entries[(size_t)i].usize
-      || (sink.crc ^ 0xffffffffUL) != a->entries[(size_t)i].crc
-      || fflush (out) != 0)
+      || (sink.crc ^ 0xffffffffUL) != a->entries[(size_t)i].crc)
     {
       return 0;
     }
 
+  if (fflush (out) != 0)
+    {
+      if (report)
+        {
+          report->flush_failed = 1;
+          report->flush_errno = errno;
+        }
+      return 0;
+    }
+
   return 1;
+}
+
+int
+zo_extract_index (const zo_archive *a, zo_u64 i, FILE *out)
+{
+  return zo_extract_index_report (a, i, out, NULL);
 }

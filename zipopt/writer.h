@@ -26,7 +26,7 @@ typedef struct zo_writer
   char *temporary, *destination;
   zo_outentry *entries;
   zo_u64 written;
-  int failed;
+  int failed, completed, sealed;
   int sde_active, fwkcs_requested;
   unsigned long sde_epoch;
 } zo_writer;
@@ -39,6 +39,8 @@ int zo_writer_install_interrupts (void);
 /* Payload is either a seekable compressed file or original source data. */
 int zo_writer_add (zo_writer *, zo_u64, FILE *, unsigned, unsigned, zo_u64);
 int zo_writer_complete (zo_writer *);
+/* Close the completed output before independent verification reopens it. */
+int zo_writer_seal (zo_writer *);
 int zo_writer_publish (zo_writer *);
 void zo_writer_abort (zo_writer *);
 

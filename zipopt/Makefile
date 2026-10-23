@@ -235,6 +235,8 @@ test-source-stability: tests/test_source_stability.c archive.c archive.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_source_stability.c archive.c -o $@ $(LOCAL_GLDFLAGS)
 test-zip64-offset: tests/test_zip64_offset.c archive.c archive.h writer.c writer.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_zip64_offset.c archive.c writer.c -o $@ $(LOCAL_GLDFLAGS)
+test-writer-seal: tests/test_writer_seal.c archive.c archive.h writer.c writer.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_writer_seal.c archive.c writer.c -o $@ $(LOCAL_GLDFLAGS)
 test-interrupt: tests/test_interrupt.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_interrupt.c -o $@ $(LOCAL_GLDFLAGS)
 test-zopfli-oom: tests/test_zopfli_oom.c ../zip30/zopfli.c ../zip30/zopfli.h
@@ -251,13 +253,15 @@ ZO_COMPARE_TEST_BINARY =
 endif
 print-deflate-backend:
 	@printf '%s\n' '$(ZO_SELECTED_BACKEND)'
-test: test-display test-index test-structures test-zip64-offset test-interrupt test-source-stability codec-probe zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-zopfli-oom $(ZO_COMPARE_TEST_BINARY)
+test: test-display test-index test-structures test-zip64-offset test-writer-seal test-interrupt test-source-stability codec-probe zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-zopfli-oom $(ZO_COMPARE_TEST_BINARY)
 	./test-zopfli-oom
 	$(if $(ZO_COMPARE_TEST_BINARY),./test-output-compare,)
 	./test-display
 	./test-index
 	./test-structures
 	./test-zip64-offset
+	./test-writer-seal
+	python3 tests/test_output_seal.py
 	./test-interrupt
 	./tests/test_zipopt.sh
 	python3 tests/test_candidate_failure.py
@@ -271,7 +275,7 @@ endif
 	./test-source-stability
 -include $(UZDEPS)
 clean:
-	rm -f test-zopfli-oom test-output-compare zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-display test-index test-structures test-interrupt test-source-stability codec-probe test-zip64-offset
+	rm -f test-zopfli-oom test-output-compare zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-display test-index test-structures test-interrupt test-source-stability codec-probe test-zip64-offset test-writer-seal
 	rm -rf build
 .PHONY: all clean test print-deflate-backend
 
