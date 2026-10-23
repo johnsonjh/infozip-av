@@ -95,6 +95,14 @@ both flag `80` and the exact typed value; `DosQueryPathInfo rc=2` from
 `DosSetPathInfo`, or `DosSetFileInfo` return code in the report. Keep the
 original `XTROEA.ZIP` for independent header and manifest verification.
 
+If the diagnostic UnZip rejects an `unsafe or unqueryable destination`,
+also record any preceding `Xtro-ZIP: OS/2 SYMLINK EA query rc=...` line,
+including `oError` and the native path. The safety guard checks the
+`SYMLINK` EA independently of the user EA being restored: a valid empty
+response or a well-formed zero-length `SYMLINK` value means the destination
+is not a link; a genuine query error or malformed record must still block
+the write. Retest in a newly created destination on an EA-capable volume.
+
 ## 3. Directory attributes and existing directories (Option B)
 
 ```text
