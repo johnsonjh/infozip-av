@@ -79,7 +79,10 @@ for i in os2/*.exe; do sudo mzchecksum --set auto "${i:?}" || :; done
 sudo rm -f os2/zipopt-decodecheck.exe os2/zipopt-preflight.exe || :
 zip --fwkcs-md5 --pkav-name 'Jeffrey H. Johnson <johnsonjh.dev@gmail.com>' \
   --use-libdeflate --libdeflate-size 1GB \
-  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 ./staging/os2.zip -r os2
+  --pkav-s1 0uzsvg8 --pkav-s2 1xrdoyg -11 ./os2.zip -r os2
+cat ./os2/unzipsfx.exe ./os2.zip > ./os2.exe && zip -A ./os2.exe
+sudo mzchecksum --set auto ./os2.exe || :
+mv -f ./os2.exe ./staging && rm -f ./os2.zip
 
 #################################### Cleanup ###################################
 
@@ -111,7 +114,7 @@ gh release upload --clobber v0 \
   ./staging/dos386.exe \
   ./staging/linux32.zip \
   ./staging/linux64.zip \
-  ./staging/os2.zip \
+  ./staging/os2.exe \
   ./staging/win32.zip \
   ./staging/win64ucrt.zip \
   ./staging/win64.zip
