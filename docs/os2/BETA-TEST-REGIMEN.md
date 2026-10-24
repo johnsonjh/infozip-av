@@ -125,6 +125,13 @@ unzip --xattrs DIRPLAIN.ZIP -d DOUT
 ea-fixture check DOUT\DIRSRC XTRODIR 80 FFFD0300444952
 ```
 
+The terminating `\` is intentional: on OS/2 a directory argument ending
+in a native backslash must be accepted as the directory itself. Test the
+same fixture using `DIRSRC` without the trailing separator in a **separate**
+archive and compare ZipInfo directory records (`DIRSRC/`) and restored EA
+bytes. A trailing separator must not turn the directory into a missing
+filename or omit its metadata. Do not include drive roots in this comparison.
+
 Repeat with `DOUT\DIRSRC` **already existing** and the overwrite-all flag
 `unzip -o --xattrs ...` to verify directory registration in that case. The
 original unrelated EAs on the existing directory must remain intact. Verify
@@ -161,6 +168,15 @@ scratch archives. Test ZipCrypto using `-e` separately. Wrong passwords and
 corrupted companion authentication must fail and must **not** apply new EAs.
 For corruption tests use only coordinator-supplied, well-formed mutation
 fixtures; do not randomly edit arbitrary ZIP offsets.
+
+If UnZip reports a companion uncompressed-length mismatch, retain the
+original archive, and report the exact `staged`, `expected`, and `central`
+byte counts. Test the unmodified AES archive with both `unzip -t` and
+`unzip --xattrs` on a fresh destination. If a companion decoder fails,
+record its first decompression error; a short stage after such a failure is
+not evidence of an independently corrupted ZIP size. Do not mark an EA
+restore as passed unless UnZip exits successfully and `ea-fixture check`
+matches both the value and the EA-required flag.
 
 ## 5. Native kLIBC symlink preservation and extraction safety
 

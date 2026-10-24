@@ -39,6 +39,7 @@ typedef struct xtr_pending_restore
 } xtr_pending_restore;
 static xtr_pending_restore *xtr_pending_head, *xtr_active;
 static unsigned long xtr_reserved, xtr_advertised, xtr_registry_count;
+static size_t xtr_active_expected;
 static int
 xtr_os2_error (const char *reason, const char *path)
 {
@@ -156,6 +157,7 @@ xtr_release_registry (void)
     }
   xtr_pending_head = xtr_active = NULL;
   xtr_registry_count = xtr_reserved = xtr_advertised = 0;
+  xtr_active_expected = 0U;
 }
 /* Called after native EA writes but before deferred SYMLINK EA activation.
  * Retain the original output handles for all preceding safety checks and
@@ -660,6 +662,7 @@ xtr_stage_begin (min_info *info, const char *name)
 
   xtr_reserved += bytes;
   xtr_active = p;
+  xtr_active_expected = (size_t)bytes;
   return 0;
 }
 static FILE *
@@ -685,6 +688,18 @@ xtr_os2_stage_write (const unsigned char *b, size_t n)
       return xtr_os2_error ("companion write without active staging", NULL);
     }
 
+  /* A valid archive cannot expand beyond its central-directory usize.
+   * Reject the overrun *before* allocating or writing metadata bytes. */
+  if (xtr_active->stage.length > xtr_active_expected
+      || n > xtr_active_expected - xtr_active->stage.length)
+    {
+      fprintf (stderr, "unzip: OS/2 Xtro companion exceeds advertised "
+               "uncompressed size (staged=%lu, next=%lu, expected=%lu)\n",
+               (unsigned long)xtr_active->stage.length, (unsigned long)n,
+               (unsigned long)xtr_active_expected);
+      return 1;
+    }
+
   if (xtr_os2_memory_write (&xtr_active->stage, b, n))
     {
       return xtr_os2_error ("companion metadata exceeded memory quota", NULL);
@@ -693,7 +708,7 @@ xtr_os2_stage_write (const unsigned char *b, size_t n)
   return 0;
 }
 static int
-xtr_stage_end (min_info *info, const char *name)
+xtr_stage_end (min_info *info, const char *name, int decode_status)
 {
   unsigned char id[16];
   int bad;
@@ -704,13 +719,29 @@ xtr_stage_end (min_info *info, const char *name)
       return xtr_os2_error ("companion staging end mismatch", name);
     }
 
-  bad = xtr_active->stage.length != (size_t)info->uncompr_size;
+  /* The caller may have failed to decode or write the member.  In that
+   * case its incomplete staging is not a second "length mismatch" bug. */
+  bad = (decode_status != PK_COOL);
   if (bad)
     {
-      xtr_os2_error ("companion uncompressed length mismatch", name);
+      fprintf (stderr, "unzip: OS/2 Xtro companion decode/output failed "
+               "(status=%d, staged=%lu, expected=%lu): %s\n",
+               decode_status, (unsigned long)xtr_active->stage.length,
+               (unsigned long)xtr_active_expected, name);
+    }
+  else if (xtr_active->stage.length != xtr_active_expected
+           || xtr_active_expected != (size_t)info->uncompr_size)
+    {
+      fprintf (stderr, "unzip: OS/2 Xtro companion uncompressed length "
+               "mismatch (staged=%lu, expected=%lu, central=%lu): %s\n",
+               (unsigned long)xtr_active->stage.length,
+               (unsigned long)xtr_active_expected,
+               (unsigned long)info->uncompr_size, name);
+      bad = 1;
     }
   xtr_os2_memory_rewind (&xtr_active->stage);
   xtr_active = NULL;
+  xtr_active_expected = 0U;
   return bad;
 }
 static void

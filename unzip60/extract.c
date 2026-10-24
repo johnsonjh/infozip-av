@@ -2013,12 +2013,16 @@ extern int xtr_unzip_streams;
 #endif
 #if defined(XTR_OS2_NATIVE)
 #include "xtrunzip_os2.c"
+#define XTR_STAGE_END(info,name,status) xtr_stage_end(info,name,status)
 #elif defined(XTR_WIN_NATIVE) && defined(WIN32)
 #include "xtrunzip_win.c"
+#define XTR_STAGE_END(info,name,status) xtr_stage_end(info,name)
 #elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST)
 #include "xtrunzip_bsd.c"
+#define XTR_STAGE_END(info,name,status) xtr_stage_end(info,name)
 #else
 #include "xtrunzip_linux.c"
+#define XTR_STAGE_END(info,name,status) xtr_stage_end(info,name)
 #endif
 #endif
 static int store_info OF((__GPRO));
@@ -4393,6 +4397,7 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 #endif
                 if(xtr_stage_begin(G.pInfo,G.filename))return PK_DISK;
                 G.outfile=xtr_stage_file(G.filename);
+                if(!G.outfile)return PK_DISK;
             }else
 #endif
             if(open_outfile(__G))return PK_DISK;
@@ -4997,7 +5002,8 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
     if (!uO.tflag && !uO.cflag) {  /* don't close NULL file or stdout */
 #if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
         if(XTR_RESTORE_ACTIVE && G.pInfo->xtr_companion){
-            if(xtr_stage_end(G.pInfo,G.filename))error=PK_ERR;
+            if(XTR_STAGE_END(G.pInfo,G.filename,error) &&
+               error<PK_ERR)error=PK_ERR;
             G.outfile=NULL;
         }else if(XTR_RESTORE_ACTIVE && G.pInfo->xtr_central){
             int cr=close_outfile(__G);

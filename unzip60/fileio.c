@@ -252,9 +252,7 @@ void fwkcs_md5_final(__G__ digest)
 extern int xtr_unzip_xattrs;
 extern int xtr_os2_stage_write(const unsigned char *,size_t);
 #  define WriteError(buf,len,strm) \
-    ((xtr_unzip_xattrs && G.pInfo && G.pInfo->xtr_companion) ? \
-      xtr_os2_stage_write((const unsigned char *)(buf),(size_t)(len)) : \
-      ((extent)write(fileno(strm),(char *)(buf),(extent)(len)) != (extent)(len)))
+    ((extent)write(fileno(strm),(char *)(buf),(extent)(len)) != (extent)(len))
 #elif defined(WINDLL)
 #  define WriteError(buf,len,strm) \
    (win_fprintf(pG, strm, (extent)len, (char far *)buf) != (int)(len))
@@ -1122,6 +1120,17 @@ static int partflush(__G__ rawbuf, size, unshrink)
 
     if (G.disk_full)
         return PK_DISK;         /* disk already full:  ignore rest of file */
+
+#if defined(XTR_OS2_NATIVE) && !defined(SFX) && !defined(DLL)
+    /* The companion sink receives exact decompressed binary bytes, not the
+     * text-translated output of an ordinary file.  Route it before either
+     * output-mode branch; stdout is only a placeholder in extract.c. */
+    if (xtr_unzip_xattrs && G.pInfo && G.pInfo->xtr_companion) {
+        if (xtr_os2_stage_write(rawbuf, (size_t)size))
+            return PK_DISK;
+        return PK_OK;
+    }
+#endif
 
 /*---------------------------------------------------------------------------
     Write the bytes rawbuf[0..size-1] to the output device, first converting
