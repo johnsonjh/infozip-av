@@ -179,7 +179,7 @@ main (void)
     require (xtr_os2_ea_partition_list (raw, 49, &parts, NULL, NULL) == 0,
              "partition mixed EA list");
     require (parts.ordinary != NULL && parts.symlink != NULL
-                 && parts.ordinary_len == 19U && parts.symlink_len == 28U,
+                 && parts.ordinary_len == 20U && parts.symlink_len == 28U,
              "split list sizes");
     require (xtr_os2_ea_parse (parts.ordinary, parts.ordinary_len, a, 2, &n)
                      == 0
@@ -199,6 +199,31 @@ main (void)
                      == XTR_OS2_EA_BAD
                  && !parts.ordinary && !parts.symlink,
              "malformed symlink fails closed before any ordinary writes");
+  }
+  /* OS/2's native directory .CLASSINFO example has a 359-byte value.
+   * Its FEA2LIST consumes 382 bytes before final DWORD padding, and the
+   * packed list must expose the full 384-byte allocation in cbList. */
+  {
+    xtr_os2_ea_item item, result;
+    unsigned char value[359];
+    unsigned char *packed = NULL;
+    size_t packed_len = 0U, count = 0U, i;
+    for (i = 0U; i < sizeof(value); ++i) value[i] = (unsigned char)i;
+    item.name = (const unsigned char *)".CLASSINFO";
+    item.name_len = 10U;
+    item.value = value;
+    item.value_len = sizeof(value);
+    item.flags = 0U;
+    require (xtr_os2_ea_pack_list(&item,1U,&packed,&packed_len,NULL,NULL)
+                 == XTR_OS2_EA_OK && packed && packed_len == 384U,
+             "OS/2 .CLASSINFO FEA2LIST retains DWORD tail padding");
+    require (packed[382] == 0U && packed[383] == 0U &&
+             xtr_os2_ea_parse(packed,packed_len,&result,1U,&count)
+                == XTR_OS2_EA_OK && count == 1U &&
+             result.value_len == sizeof(value) &&
+             memcmp(result.value,value,sizeof(value)) == 0,
+             "padded directory EA round-trip is byte exact");
+    free(packed);
   }
   puts ("OS/2 EA parser, NLS conflict, V1 TLV unit tests: PASS");
   return 0;

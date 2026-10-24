@@ -379,15 +379,32 @@ static int iz_os2_ea_safe(const char *path,int pinned_fd){
 static int iz_os2_ea_verify(const char *path,const unsigned char *raw,
                            size_t length,int use_handle,HFILE native_handle){
     xtr_os2_ea_item *items=NULL;
-    size_t count=0U,i;
+    size_t count=0U,parsed=0U,i;
+    int parse_rc;
     int ok=0;
-    if(xtr_os2_ea_parse_ex(raw,length,NULL,0,&count,
-                          xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK ||
-       count>(size_t)-1/sizeof(*items))goto done;
+    parse_rc=xtr_os2_ea_parse_ex(raw,length,NULL,0,&count,
+                                xtr_os2_ea_native_equal,NULL);
+    if(parse_rc!=XTR_OS2_EA_OK || count>(size_t)-1/sizeof(*items)){
+        fprintf(stderr,"unzip: OS/2 EA verification input invalid "
+                "(parse=%d, len=%lu, entries=%lu): %s\n",
+                parse_rc,(unsigned long)length,(unsigned long)count,path);
+        goto done;
+    }
     if(count){
         items=(xtr_os2_ea_item *)malloc(count*sizeof(*items));
-        if(!items || xtr_os2_ea_parse_ex(raw,length,items,count,&count,
-                        xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK)goto done;
+        if(!items){
+            fprintf(stderr,"unzip: OS/2 EA verification allocation failed "
+                    "(entries=%lu): %s\n",(unsigned long)count,path);
+            goto done;
+        }
+        parse_rc=xtr_os2_ea_parse_ex(raw,length,items,count,&parsed,
+                                     xtr_os2_ea_native_equal,NULL);
+        if(parse_rc!=XTR_OS2_EA_OK || parsed!=count){
+            fprintf(stderr,"unzip: OS/2 EA verification input changed "
+                    "(parse=%d, entries=%lu/%lu): %s\n",
+                    parse_rc,(unsigned long)parsed,(unsigned long)count,path);
+            goto done;
+        }
     }
     for(i=0U;i<count;i++){
         unsigned char names[4U+8U+256U+4U];
@@ -400,6 +417,7 @@ static int iz_os2_ea_verify(const char *path,const unsigned char *raw,
         size_t capacity=items[i].value_len+items[i].name_len+128U;
         size_t found=0U;
         APIRET api_rc;
+        int result_rc=XTR_OS2_EA_BAD;
         int equal;
         /* A GEA2LIST contains a four-byte cbList followed by a GEA2's
          * four-byte next offset, one-byte cbName and name plus NUL.
@@ -413,7 +431,12 @@ static int iz_os2_ea_verify(const char *path,const unsigned char *raw,
         memcpy(entry->szName,items[i].name,items[i].name_len);
         entry->szName[items[i].name_len]='\0';
         returned=(unsigned char *)calloc(capacity,1U);
-        if(!returned)goto done;
+        if(!returned){
+            fprintf(stderr,"unzip: OS/2 EA read-back allocation failed "
+                    "(EA=%.*s): %s\n",(int)items[i].name_len,
+                    (const char *)items[i].name,path);
+            goto done;
+        }
         result=(PFEA2LIST)returned;
         result->cbList=(ULONG)capacity;
         query.fpGEA2List=wanted;
@@ -424,14 +447,19 @@ static int iz_os2_ea_verify(const char *path,const unsigned char *raw,
                              &query,sizeof(query)) :
             DosQueryPathInfo((PSZ)path,FIL_QUERYEASFROMLIST,
                              &query,sizeof(query));
+        if(api_rc==NO_ERROR && result->cbList>=4U &&
+           result->cbList<=capacity)
+            result_rc=xtr_os2_ea_parse_ex(returned,
+                    (size_t)result->cbList,&actual,1,&found,
+                    xtr_os2_ea_native_equal,NULL);
         if(api_rc!=NO_ERROR || result->cbList<4U ||
-           result->cbList>capacity ||
-           xtr_os2_ea_parse_ex(returned,(size_t)result->cbList,&actual,1,
-                      &found,xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK ||
-           found!=1U){
+           result->cbList>capacity || result_rc!=XTR_OS2_EA_OK || found!=1U){
             fprintf(stderr,"unzip: OS/2 EA read-back failed "
-                    "(rc=%lu, EA=%.*s): %s\n",
-                    (unsigned long)api_rc,(int)items[i].name_len,
+                    "(rc=%lu, parse=%d, returned=%lu, cap=%lu, "
+                    "entries=%lu, EA=%.*s): %s\n",
+                    (unsigned long)api_rc,result_rc,
+                    (unsigned long)result->cbList,(unsigned long)capacity,
+                    (unsigned long)found,(int)items[i].name_len,
                     (const char *)items[i].name,path);
             free(returned);goto done;
         }

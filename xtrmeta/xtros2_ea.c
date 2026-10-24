@@ -407,12 +407,19 @@ partition_group (const xtr_os2_ea_item *items, size_t n, int links,
       return XTR_OS2_EA_OK;
     }
 
+  /* OS/2 FEA2LIST objects are DWORD-aligned.  Keep padding after the last
+   * entry as well: a number of native EA producers include these bytes in
+   * cbList, and kernel EA consumers must never read beyond our allocation. */
+  if (sz > (size_t)-1 - 3U)
+    {
+      return XTR_OS2_EA_LIMIT;
+    }
+  sz = (sz + 3U) & ~(size_t)3U;
 #if ULONG_MAX > 0xffffffffUL
   if (sz > 0xffffffffUL)
     {
       return XTR_OS2_EA_LIMIT;
     }
-
 #endif /* if ULONG_MAX > 0xffffffffUL */
   dst = (unsigned char *)malloc (sz);
   if (!dst)
