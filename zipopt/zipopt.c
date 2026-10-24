@@ -294,7 +294,7 @@ zo_usage (void)
 
         /******************************************************************************/
   puts ("Usage: zipopt [option(s)...] <in.zip> <out.zip>\n"
-        "  --methods=<help|list|all>      specify methods (default: all)\n"
+        "  --methods=LIST                 ordered methods/profiles (default: all)\n"
         "  --fwkcs-md5                    write FWKCS MD5 metadata to output\n"
         "  --dcl-implode-optimal          enable DCL-Implode optimal parser");
   puts (
@@ -320,9 +320,12 @@ zo_methods_help (void)
 
   puts ("zipopt --methods=list: valid compression candidates:");
   puts ("  all                      all available candidates (default)");
-  puts ("  implode                  all four ZIP-Implode variants");
-  puts ("  reduce                   all four ZIP-Reduce variants");
-  puts ("  dcl-implode              both DCL-Implode modes");
+  puts ("  pkzip1                   store, shrink, reduce, and implode");
+  puts ("  pkzip2                   store, shrink, reduce, implode, and deflate");
+  puts ("  winzip                   all available candidates except dcl-implode");
+  puts ("  implode                  all four zip-implode variants");
+  puts ("  reduce                   all four zip-reduce variants");
+  puts ("  dcl-implode              both dcl-implode modes");
 
   /* Sort only the help output by ZIP method number.  Keep the internal
    * registry indices unchanged: candidate selection uses those indices. */
@@ -352,8 +355,10 @@ zo_methods_help (void)
       previous = best;
     }
 
-  puts ("Separate multiple methods with commas; for example:");
-  puts ("  --methods=store,deflate,ppmd");
+  puts ("Process comma-separated names from left to right; prefix - to remove.");
+  puts ("  --methods=all,-bzip2,bzip2");
+  puts ("  --methods=pkzip2,-reduce,reduce-l4");
+  puts ("  --methods=-all,store,deflate");
 }
 
 static int
@@ -565,18 +570,20 @@ zo_selected_methods (const char *s, unsigned char *enabled)
 
   memset (enabled, 0, zo_candidate_count);
 
-  if (!strcmp (s, "all"))
-    {
-      for (i = 0; i < zo_candidate_count; ++i)
-        enabled[i] = (unsigned char)zo_candidate_available (i);
-
-      return 1;
-    }
-
   for (;;)
     {
+      int remove = 0;
+      int all, pkzip1, pkzip2, winzip, implode, reduce, dcl;
+
       q = strchr (p, ',');
       n = q ? (size_t)(q - p) : strlen (p);
+
+      if (n && *p == '-')
+        {
+          remove = 1;
+          p++;
+          n--;
+        }
 
       if (n == 0)
         {
@@ -584,22 +591,37 @@ zo_selected_methods (const char *s, unsigned char *enabled)
         }
 
       matched = 0;
+      all = zo_name (p, n, "all");
+      pkzip1 = zo_name (p, n, "pkzip1");
+      pkzip2 = zo_name (p, n, "pkzip2");
+      winzip = zo_name (p, n, "winzip");
+      implode = zo_name (p, n, "implode");
+      reduce = zo_name (p, n, "reduce");
+      dcl = zo_name (p, n, "dcl-implode");
 
-      if (zo_name (p, n, "implode") || zo_name (p, n, "dcl-implode")
-          || zo_name (p, n, "reduce"))
+      if (all || pkzip1 || pkzip2 || winzip || implode || reduce || dcl)
         {
-          unsigned wanted = zo_name (p, n, "implode")  ? 6U
-                            : zo_name (p, n, "reduce") ? 2U
-                                                       : 10U;
-
+          matched = 1;
           for (i = 0; i < zo_candidate_count; i++)
             {
-              if ((wanted == 2U && zo_candidates[i].method >= 2U
-                   && zo_candidates[i].method <= 5U)
-                  || (wanted != 2U && zo_candidates[i].method == wanted))
+              unsigned method = zo_candidates[i].method;
+              int selected = all || (winzip && method != 10U)
+                  || ((pkzip1 || pkzip2) && method <= 6U)
+                  || (pkzip2 && !strcmp (zo_candidates[i].name, "deflate"))
+                  || (implode && method == 6U)
+                  || (reduce && method >= 2U && method <= 5U)
+                  || (dcl && method == 10U);
+
+              if (selected)
                 {
-                  enabled[i] = 1;
-                  matched = 1;
+                  /* Profiles follow the compiled-in availability of 'all'.
+                   * Named codecs still diagnose unavailable backends. */
+                  if (remove)
+                    enabled[i] = 0;
+                  else if (all || pkzip1 || pkzip2 || winzip)
+                    enabled[i] = (unsigned char)zo_candidate_available (i);
+                  else
+                    enabled[i] = 1;
                 }
             }
         }
@@ -609,7 +631,7 @@ zo_selected_methods (const char *s, unsigned char *enabled)
             {
               if (zo_name (p, n, zo_candidates[i].name))
                 {
-                  enabled[i] = 1;
+                  enabled[i] = (unsigned char)!remove;
                   matched = 1;
 
                   break;
@@ -1422,6 +1444,13 @@ main (int argc, char **argv)
         {
           selected_count++;
         }
+    }
+
+  if (selected_count == 0)
+    {
+      fprintf (stderr, "zipopt: --methods selects no available candidates\n");
+      free (enabled);
+      return 2;
     }
 
   if (!input || !output)

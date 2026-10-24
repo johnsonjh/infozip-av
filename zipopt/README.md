@@ -115,7 +115,22 @@ libdeflate candidate to be selected. zipopt does **not** accept Zip's
 store, shrink, reduce-l1 through reduce-l4, implode-4k-2, implode-4k-3,
 implode-8k-2, implode-8k-3, deflate, deflate64, dcl-implode-binary,
 dcl-implode-ascii, bzip2, lzma, zstd, xz, and ppmd. The aliases `implode`, `reduce`,
-and `dcl-implode` expand to all corresponding variants. `--methods=help`
+and `dcl-implode` expand to all corresponding variants. The `pkzip1` profile
+selects STORE, Shrink, all Reduce factors and all ZIP Implode variants;
+`pkzip2` adds ordinary Deflate (not the separate libdeflate candidate).
+The `winzip` profile selects every available candidate except the two
+DCL-Implode modes. These are selectable profiles, not file-format checks.
+
+Names are processed **left to right**; prefix any name, group, or profile
+with `-` to remove its members from the current selection. A subsequent
+positive token adds them back. For example, `--methods=all,-bzip2,bzip2`
+restores bzip2, `--methods=pkzip2,-reduce,reduce-l4` chooses only the fourth
+Reduce factor, and `--methods=-all,store,deflate` starts from an empty set.
+`-all` on its own leaves no candidates and is rejected as an empty final
+selection. Named unavailable codecs are rejected if they remain selected;
+`all` and profiles only add codecs built into the executable.
+
+`--methods=help`
 prints the complete compiled-in candidate list (also printed for unknown method
 names). Default `all` runs all compiled-in configurations, sequentially,
 for every member; this can be very slow and

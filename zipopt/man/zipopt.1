@@ -79,7 +79,27 @@ to select all four ZIP Implode variants,
 .B reduce
 to select all four Reduce factors, and
 .B dcl-implode
-for both DCL modes. Use
+for both DCL modes. The profile
+.B pkzip1
+selects STORE, Shrink, all Reduce factors and all ZIP Implode variants;
+.B pkzip2
+also includes ordinary Deflate (not the separate libdeflate candidate).
+.B winzip
+selects every available candidate except DCL-Implode.
+.PP
+Process comma-separated names from left to right. Prefix a method, group
+or profile with a minus sign to remove it; subsequent names may add it
+back. For example,
+.B \-\-methods=all,\-bzip2,bzip2
+restores bzip2, and
+.B \-\-methods=pkzip2,\-reduce,reduce-l4
+selects only the fourth Reduce factor. Use
+.B \-all
+to start from an empty selection; an empty final selection is an error.
+An individual unavailable codec remains an error if selected at the end;
+profiles and
+.B all
+include only compiled-in candidates. Use
 .B \-\-methods=help
 to display every available method; invalid names also print this list.
 .TP

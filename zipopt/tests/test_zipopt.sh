@@ -50,7 +50,8 @@ fi
 # Method help is authoritative and works without archive positional arguments.
 ./zipopt --methods=help >build/methods-help.log
 for method in store shrink reduce-l1 reduce-l4 implode-8k-3 deflate64 \
-              dcl-implode-binary dcl-implode-ascii zstd ppmd; do
+              dcl-implode-binary dcl-implode-ascii zstd ppmd \
+              pkzip1 pkzip2 winzip; do
   if ! grep "$method" build/methods-help.log >/dev/null; then
     echo "FAILED: --methods=help omitted $method" >&2; exit 1
   fi
@@ -61,6 +62,26 @@ fi
 if ! grep 'invalid --methods selection' build/methods-invalid.log >/dev/null ||
    ! grep 'implode-8k-3' build/methods-invalid.log >/dev/null; then
   echo 'FAILED: invalid method did not show valid method list' >&2; exit 1
+fi
+# The profiles and exclusions must be usable together in the real CLI.
+# Each expression below reduces to STORE alone, so outputs must match.
+./zipopt --methods=store build/candidate-0.zip build/progress-method-ref.zip \
+    2>build/progress-method-ref.log
+for selection in 'pkzip1,-shrink,-reduce,-implode' \
+                 'pkzip2,-shrink,-reduce,-implode,-deflate' \
+                 'winzip,-all,store' \
+                 'all,-bzip2,bzip2,-bzip2,-all,store' \
+                 '-all,store'; do
+  ./zipopt "--methods=$selection" build/candidate-0.zip \
+      build/progress-method-test.zip 2>build/progress-method-test.log
+  if ! cmp -s build/progress-method-ref.zip build/progress-method-test.zip; then
+    echo "FAILED: --methods=$selection did not select STORE only" >&2; exit 1
+  fi
+done
+if ./zipopt --methods=-all build/candidate-0.zip build/progress-method-empty.zip \
+      >build/progress-method-empty.log 2>&1 ||
+   ! grep 'selects no available candidates' build/progress-method-empty.log >/dev/null; then
+  echo 'FAILED: empty final --methods selection was not rejected' >&2; exit 1
 fi
 # One selected method does not emit progress dots. Multiple selected methods do.
 ./zipopt --methods=store build/candidate-0.zip build/progress-single.zip \

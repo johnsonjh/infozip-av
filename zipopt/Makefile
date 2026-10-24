@@ -251,7 +251,9 @@ test-zopfli-oom: tests/test_zopfli_oom.c ../zip30/zopfli.c ../zip30/zopfli.h
 ifneq ($(filter Linux FreeBSD NetBSD OpenBSD,$(shell uname -s)),)
 test-output-compare: tests/test_output_compare.c zipopt.c archive.h display.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -ffunction-sections -fdata-sections -Wno-unused-function tests/test_output_compare.c -Wl,--gc-sections -o $@ $(LOCAL_GLDFLAGS)
-ZO_COMPARE_TEST_BINARY = test-output-compare
+test-method-selection: tests/test_method_selection.c zipopt.c codec.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -ffunction-sections -fdata-sections -Wno-unused-function tests/test_method_selection.c -Wl,--gc-sections -o $@ $(LOCAL_GLDFLAGS)
+ZO_COMPARE_TEST_BINARY = test-output-compare test-method-selection
 else
 ZO_COMPARE_TEST_BINARY =
 endif
@@ -260,6 +262,7 @@ print-deflate-backend:
 test: test-display test-index test-structures test-zip64-offset test-writer-seal test-interrupt test-source-stability codec-probe zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-zopfli-oom $(ZO_COMPARE_TEST_BINARY)
 	./test-zopfli-oom
 	$(if $(ZO_COMPARE_TEST_BINARY),./test-output-compare,)
+	$(if $(ZO_COMPARE_TEST_BINARY),./test-method-selection,)
 	./test-display
 	./test-index
 	./test-structures
@@ -279,7 +282,7 @@ endif
 	./test-source-stability
 -include $(UZDEPS)
 clean:
-	rm -f test-zopfli-oom test-output-compare zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-display test-index test-structures test-interrupt test-source-stability codec-probe test-zip64-offset test-writer-seal
+	rm -f test-zopfli-oom test-output-compare test-method-selection zipopt zipopt-test-candidate-failure zipopt-preflight zipopt-decodecheck test-display test-index test-structures test-interrupt test-source-stability codec-probe test-zip64-offset test-writer-seal
 	rm -rf build
 .PHONY: all clean test print-deflate-backend
 
