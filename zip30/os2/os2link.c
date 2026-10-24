@@ -70,6 +70,16 @@ iz_os2_link_target_query (const char *path, HFILE handle, int use_handle,
           native_path[i] = path[i] == '/' ? '\\' : path[i];
         }
       native_path[n] = '\0';
+      /* The archive spells directory members with a final '/'.  OS/2
+       * DosQueryPathInfo(FIL_QUERYEASFROMLIST) rejects an ordinary directory
+       * pathname ending in '\\' (ERROR_PATH_NOT_FOUND).  Remove only
+       * redundant final separators, never the root of a drive or volume. */
+      while (n > 1U && native_path[n - 1U] == '\\'
+             && !(n == 3U && native_path[1] == ':')
+             && !(n == 2U && native_path[0] == '\\'))
+        {
+          native_path[--n] = '\0';
+        }
     }
   else
     {
@@ -79,7 +89,7 @@ iz_os2_link_target_query (const char *path, HFILE handle, int use_handle,
   memset (&gea, 0, sizeof (gea));
   /* sizeof(gea) includes trailing C structure padding. The OS/2 list
    * length is the actual bytes through the requested name's terminator. */
-  gea.cbList = (ULONG)(2U * sizeof (ULONG) + sizeof (BYTE) + 8U);
+  gea.cbList = (ULONG)IZ_OS2_GEA2LIST_SIZE (7U);
   gea.cbName = 7;
   memcpy (gea.szName, "SYMLINK", 8);
   memset (fea, 0, sizeof (fea));

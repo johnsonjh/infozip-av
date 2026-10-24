@@ -5,6 +5,10 @@
  * The application is compiled and linked with Open Watcom, not kLIBC. */
 # include <stddef.h>
 # include <sys/stat.h>
+/* Exact packed GEA2LIST byte count for one requested EA name, including
+ * both ULONG fields, cbName, and the terminating NUL.  sizeof(GEA2)
+ * includes structure padding on some compilers and must not be used. */
+# define IZ_OS2_GEA2LIST_SIZE(name_len) (10U + (size_t)(name_len))
 /* Returns 1 for a valid symlink, 0 if no SYMLINK EA, -1 for malformed EA
  * or an OS/2 API failure other than 'no attributes'. */
 int iz_os2_link_target (const char *path, char *target, size_t capacity);

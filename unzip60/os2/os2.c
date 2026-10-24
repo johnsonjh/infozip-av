@@ -401,7 +401,11 @@ static int iz_os2_ea_verify(const char *path,const unsigned char *raw,
         size_t found=0U;
         APIRET api_rc;
         int equal;
-        ULONG size=(ULONG)(4U+8U+items[i].name_len+1U);
+        /* A GEA2LIST contains a four-byte cbList followed by a GEA2's
+         * four-byte next offset, one-byte cbName and name plus NUL.
+         * The former 4+8+name+1 was three bytes too long and could
+         * be rejected as an inconsistent EA request. */
+        ULONG size=(ULONG)IZ_OS2_GEA2LIST_SIZE(items[i].name_len);
 
         memset(names,0,sizeof(names));
         wanted->cbList=size;

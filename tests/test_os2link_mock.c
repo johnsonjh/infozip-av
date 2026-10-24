@@ -55,6 +55,15 @@ mock_query (const char *path, ULONG level, PVOID data, ULONG length,
       return 87;
     }
 
+  /* Model the native OS/2 EA-query failure seen on a directory name with a
+   * trailing separator; unlike DosQueryPathInfo for some other info levels,
+   * FIL_QUERYEASFROMLIST does not accept TESTDIR\\. */
+  n = strlen (path);
+  if (n > 1U && path[n - 1U] == '\\'
+      && !(n == 3U && path[1] == ':')
+      && !(n == 2U && path[0] == '\\'))
+    return 3U;
+
   if (mock_mode == 13 && !via_handle)
     return 32U; /* Open output: pathname queries conflict with its sharing. */
   if (mock_mode == 14 && via_handle)
@@ -173,6 +182,12 @@ main (void)
 {
   char output[1024];
 
+  /* The native verification path also uses this size calculation, and
+   * must not add padding to the packed GEA2LIST request length. */
+  CHECK (IZ_OS2_GEA2LIST_SIZE (3U) == 13U); /* UID */
+  CHECK (IZ_OS2_GEA2LIST_SIZE (7U) == 17U); /* SYMLINK */
+  CHECK (IZ_OS2_GEA2LIST_SIZE (255U) == 265U);
+
   mock_mode = 0;
   CHECK (iz_os2_link_target ("none", output, sizeof (output)) == 0);
   mock_mode = 1;
@@ -203,6 +218,12 @@ main (void)
   CHECK (iz_os2_link_target ("bad-name-length", output, sizeof (output)) == -1);
   mock_mode = 0;
   CHECK (iz_os2_link_target ("dir/ordinary", output, sizeof (output)) == 0);
+  CHECK (iz_os2_link_target ("TESTDIR/", output, sizeof (output)) == 0);
+  CHECK (iz_os2_link_target ("TESTDIR\\", output, sizeof (output)) == 0);
+  CHECK (iz_os2_link_target ("TESTDIR//", output, sizeof (output)) == 0);
+  CHECK (iz_os2_link_target ("C:/TESTDIR/", output, sizeof (output)) == 0);
+  CHECK (iz_os2_link_target ("C:/", output, sizeof (output)) == 0);
+  CHECK (iz_os2_link_target ("/", output, sizeof (output)) == 0);
   CHECK (!saw_unnative_separator);
   mock_mode = 13;
   CHECK (iz_os2_link_target ("pinned", output, sizeof (output)) == -1);
