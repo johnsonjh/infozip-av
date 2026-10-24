@@ -145,13 +145,30 @@ without `--xattrs` only from the traditional OS/2 field where present.
 history; use `-e` for the ordinary ZipCrypto prompt. Example:
 
 ```text
+ea-fixture get SOURCE\ONE.TXT XTROTEST
+ea-fixture check SOURCE\ONE.TXT XTROTEST 80 FFFD0300414243
 zip -r --xattrs -eS --aes-strength 256 PRIVATE.ZIP SOURCE
+ea-fixture check SOURCE\ONE.TXT XTROTEST 80 FFFD0300414243
+unzip -t PRIVATE.ZIP
 unzip --xattrs PRIVATE.ZIP -d PRIVOUT
  ea-fixture check PRIVOUT\SOURCE\ONE.TXT XTROTEST 80 FFFD0300414243
+ea-fixture get DIRSRC XTRODIR
+ea-fixture check DIRSRC XTRODIR 80 FFFD0300444952
 zip --xattrs -eS --aes-strength 256 DIRPRIVATE.ZIP DIRSRC\
+unzip -t DIRPRIVATE.ZIP
 unzip --xattrs DIRPRIVATE.ZIP -d PRIVDIR
  ea-fixture check PRIVDIR\DIRSRC XTRODIR 80 FFFD0300444952
 ```
+
+**Stop if either source-fixture check fails.** Test results are not valid
+unless the named EA existed immediately before Zip captured the input. The
+original failing `PRIVATE.ZIP` investigated during beta testing had valid AES
+companions with seven EAs per owner (`FLAGS`, `GEN`, `GID`, `INO`, `MODE`,
+`RDEV`, `UID`) but **no `XTROTEST` record**. This is a capture/source-fixture
+failure for that archive, independent of whether UnZip correctly restores the
+seven attributes actually present. Preserve a failing original archive for
+inspection and recreate the fixture rather than assuming successful ZIP
+member decompression proves that the intended EA was captured.
 
 Confirm the exact warning `OS/2 AES uses time/memory-derived salts; secure
 entropy is NOT guaranteed.` when AES encryption is performed. Record that the
@@ -160,6 +177,18 @@ The encrypted Xtro companion is staged in memory; its pseudo-path must never
 be passed through native filesystem or symlink resolution. The AES test must
 finish without a `writing Xtro companion` open error, and the decrypted EA
 must pass the byte-for-byte fixture check.
+The internal `__XTRO_ZIP__/x/*.xtm` entries should be displayed as
+`staging: [Xtro: SOURCE/ONE.TXT]` and `staging: [Xtro: SOURCE/]`, not as
+ordinary extracted filesystem files. `unzip -t` should also identify each
+companion's owner as `[Xtro: ...]` beside the `testing:` status. Run
+`unzip -t` without `--xattrs`: the existing `--xattrs -t` combination is
+intentionally rejected, and test mode must not attempt native EA writes. `unzip -l`
+and `unzip -v` may continue to list the raw member names.
+An extraction success summary is meaningful only after native EA read-back
+verifies the names, required flags and value bytes for every recorded EA,
+including deferred SYMLINK EAs. A read-back mismatch must result in a
+diagnostic and nonzero exit status. Use `ea-fixture check` independently to
+confirm that the original *intended* test EA was actually captured.
 Neither local nor central headers should contain plaintext `XTROTEST`,
 `XTRODIR`, or plaintext EA value bytes. The AES compatibility entropy is
 predictable and **not** suitable for valuable secrets. Test AES-128, AES-192,

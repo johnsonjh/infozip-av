@@ -70,3 +70,5 @@ pvsreport/
 /zipopt/zipopt
 /zipopt/zipopt-decodecheck
 /zipopt/zipopt-preflight
+/*.ZIP
+/ow-snapshot.tar.xz

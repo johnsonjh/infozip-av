@@ -76,6 +76,7 @@ extern ZCONST char Far TruncEAs[];
  * ordinary EAs have been checked. Ordinary EAs are written first. */
 #if defined(__32BIT__) && !defined(DLL)
 #include "../../xtrmeta/xtros2_ea.h"
+#include "../../xtrmeta/xtros2_memory.h"
 #include "../../xtrmeta/xtros2_nls.h"
 #include "../../zip30/os2/os2link.h"
 #include <io.h>
@@ -373,6 +374,81 @@ static int iz_os2_ea_safe(const char *path,int pinned_fd){
     return pinned_fd>=0 ? iz_os2_link_safe_pinned(path,pinned_fd) :
                           iz_os2_link_safe_path(path);
 }
+/* Verify each EA with the native API after writing it. In particular, a
+ * successful DosSetFileInfo is not proof that an EA was actually stored. */
+static int iz_os2_ea_verify(const char *path,const unsigned char *raw,
+                           size_t length,int use_handle,HFILE native_handle){
+    xtr_os2_ea_item *items=NULL;
+    size_t count=0U,i;
+    int ok=0;
+    if(xtr_os2_ea_parse_ex(raw,length,NULL,0,&count,
+                          xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK ||
+       count>(size_t)-1/sizeof(*items))goto done;
+    if(count){
+        items=(xtr_os2_ea_item *)malloc(count*sizeof(*items));
+        if(!items || xtr_os2_ea_parse_ex(raw,length,items,count,&count,
+                        xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK)goto done;
+    }
+    for(i=0U;i<count;i++){
+        unsigned char names[4U+8U+256U+4U];
+        unsigned char *returned=NULL;
+        xtr_os2_ea_item actual;
+        PGEA2LIST wanted=(PGEA2LIST)names;
+        PGEA2 entry=(PGEA2)(names+4U);
+        PFEA2LIST result;
+        EAOP2 query;
+        size_t capacity=items[i].value_len+items[i].name_len+128U;
+        size_t found=0U;
+        APIRET api_rc;
+        int equal;
+        ULONG size=(ULONG)(4U+8U+items[i].name_len+1U);
+
+        memset(names,0,sizeof(names));
+        wanted->cbList=size;
+        entry->cbName=(BYTE)items[i].name_len;
+        memcpy(entry->szName,items[i].name,items[i].name_len);
+        entry->szName[items[i].name_len]='\0';
+        returned=(unsigned char *)calloc(capacity,1U);
+        if(!returned)goto done;
+        result=(PFEA2LIST)returned;
+        result->cbList=(ULONG)capacity;
+        query.fpGEA2List=wanted;
+        query.fpFEA2List=result;
+        query.oError=0;
+        api_rc=use_handle ?
+            DosQueryFileInfo(native_handle,FIL_QUERYEASFROMLIST,
+                             &query,sizeof(query)) :
+            DosQueryPathInfo((PSZ)path,FIL_QUERYEASFROMLIST,
+                             &query,sizeof(query));
+        if(api_rc!=NO_ERROR || result->cbList<4U ||
+           result->cbList>capacity ||
+           xtr_os2_ea_parse_ex(returned,(size_t)result->cbList,&actual,1,
+                      &found,xtr_os2_ea_native_equal,NULL)!=XTR_OS2_EA_OK ||
+           found!=1U){
+            fprintf(stderr,"unzip: OS/2 EA read-back failed "
+                    "(rc=%lu, EA=%.*s): %s\n",
+                    (unsigned long)api_rc,(int)items[i].name_len,
+                    (const char *)items[i].name,path);
+            free(returned);goto done;
+        }
+        equal=xtr_os2_ea_native_equal(items[i].name,items[i].name_len,
+                                      actual.name,actual.name_len,NULL);
+        if(equal!=1 || items[i].flags!=actual.flags ||
+           items[i].value_len!=actual.value_len ||
+           (items[i].value_len &&
+            memcmp(items[i].value,actual.value,items[i].value_len)!=0)){
+            fprintf(stderr,"unzip: OS/2 EA read-back mismatch (EA=%.*s): %s\n",
+                    (int)items[i].name_len,(const char *)items[i].name,path);
+            free(returned);goto done;
+        }
+        free(returned);
+    }
+    ok=1;
+done:
+    free(items);
+    if(!ok)fprintf(stderr,"unzip: OS/2 EA verification failed: %s\n",path);
+    return ok?PK_OK:PK_ERR;
+}
 static int iz_os2_ea_apply(const char *path,unsigned char *list,size_t len,
                            int pinned_fd){
     xtr_os2_ea_partition parts;
@@ -461,6 +537,9 @@ static int iz_os2_ea_apply(const char *path,unsigned char *list,size_t len,
             }
         }
     }
+    if(err==PK_OK && parts.ordinary &&
+       iz_os2_ea_verify(path,parts.ordinary,parts.ordinary_len,
+                        pinned_fd>=0,pinned_handle)!=PK_OK)err=PK_ERR;
     if(err==PK_OK && parts.symlink){
         err=iz_os2_links_enqueue(path,&parts.symlink,parts.symlink_len);
     }
@@ -529,12 +608,16 @@ int iz_os2_deferred_links_complete(int success) {
         if(rc!=NO_ERROR){result=PK_ERR;break;}
         op.fpGEA2List=NULL;op.fpFEA2List=(PFEA2LIST)p->ea;op.oError=0;
         rc=DosSetFileInfo(h,FIL_QUERYEASIZE,&op,sizeof(op));
+        if(rc==NO_ERROR &&
+           iz_os2_ea_verify(p->path,p->ea,p->length,1,h)!=PK_OK)
+            result=PK_ERR;
         if(DosClose(h)!=NO_ERROR)result=PK_ERR;
         if(rc!=NO_ERROR){
             fprintf(stderr,"unzip: DosSetFileInfo failed for %s (rc=%lu)\n",
                     p->path,(unsigned long)rc);
             result=PK_ERR;break;
         }
+        if(result!=PK_OK)break;
     }
     if(result!=PK_OK)fprintf(stderr,
        "unzip: deferred OS/2 SYMLINK EA restoration incomplete (no archive-wide rollback)\n");

@@ -8,6 +8,7 @@
 # include <errno.h>
 # include <fcntl.h>
 # include <io.h>
+# include <limits.h>
 # include <stdio.h>
 # include <stdlib.h>
 # include <string.h>
@@ -34,11 +35,12 @@ typedef struct xtr_pending_restore
   int companion_fwkcs, is_dir;
   int has_owner, has_companion, owner_verified, companion_verified;
   int fd;
-  char *output_name;
+  char *output_name, *archive_name;
   xtr_os2_memory stage;
 } xtr_pending_restore;
 static xtr_pending_restore *xtr_pending_head, *xtr_active;
 static unsigned long xtr_reserved, xtr_advertised, xtr_registry_count;
+static unsigned long xtr_staged_owners, xtr_staged_attributes;
 static size_t xtr_active_expected;
 static int
 xtr_os2_error (const char *reason, const char *path)
@@ -152,11 +154,13 @@ xtr_release_registry (void)
 
       xtr_os2_memory_free (&p->stage);
       free (p->output_name);
+      free (p->archive_name);
       free (p);
       p = next;
     }
   xtr_pending_head = xtr_active = NULL;
   xtr_registry_count = xtr_reserved = xtr_advertised = 0;
+  xtr_staged_owners = xtr_staged_attributes = 0;
   xtr_active_expected = 0U;
 }
 /* Called after native EA writes but before deferred SYMLINK EA activation.
@@ -298,11 +302,21 @@ xtr_note_central (min_info *in, const uch *ef, unsigned len, const char *name)
 
   if (e.mode == XTR_V1_COMPANION)
     {
+      size_t name_len = strlen (name);
       p = xtr_lookup (e.owner, 1);
       if (!p || p->has_owner)
         {
           goto fail;
         }
+
+      /* Native restore diagnostics retain the original member name. The
+       * shared display association is maintained separately for all ports. */
+      p->archive_name = (char *)malloc (name_len + 1U);
+      if (!p->archive_name)
+        {
+          goto fail;
+        }
+      memcpy (p->archive_name, name, name_len + 1U);
 
       p->has_owner = 1;
       p->outer = e;
@@ -809,12 +823,15 @@ xtr_apply_pending (int selective)
   xtr_pending_restore *p;
   unsigned char *native = NULL;
   size_t native_len = 0;
+  size_t ea_count = 0;
   int rc;
+  unsigned skipped = 0U;
 
   for (p = xtr_pending_head; p; p = p->next)
     {
       if (selective && !p->has_owner)
         {
+          skipped++;
           continue;
         }
 
@@ -837,20 +854,8 @@ xtr_apply_pending (int selective)
 
       if (!p->owner_verified)
         {
-          if (!selective)
-            {
-              unsigned i;
-              fprintf (stderr, "unzip: warning: OS/2 Xtro owner was not "
-                       "extracted; metadata left unchanged (owner=");
-              for (i = 0U; i < 16U; i++)
-                {
-                  fprintf (stderr, "%02x", (unsigned)p->id[i]);
-                }
-
-              fprintf (stderr, ")\n");
-            }
-
-          continue;
+          return xtr_os2_error ("metadata owner was not extracted; "
+                                "EAs were NOT restored", p->archive_name);
         }
 
       if (!xtr_output_ok (p->output_name, p->is_dir, p->fd))
@@ -877,6 +882,27 @@ xtr_apply_pending (int selective)
           return 1;
         }
 
+      ea_count = 0U;
+      if (!native || xtr_os2_ea_parse_ex (native, native_len, NULL, 0,
+                          &ea_count, xtr_os2_ea_native_equal, NULL)
+                           != XTR_OS2_EA_OK || ea_count == 0U)
+        {
+          if (native)
+            {
+              xtr_os2_memory_wipe (native, native_len);
+              free (native);
+            }
+          return xtr_os2_error ("decoded companion has no applicable "
+                                "OS/2 extended attributes", p->output_name);
+        }
+      if (ea_count > (size_t)(ULONG_MAX - xtr_staged_attributes))
+        {
+          xtr_os2_memory_wipe (native, native_len);
+          free (native);
+          return xtr_os2_error ("restored EA count exceeds accounting limit",
+                                p->output_name);
+        }
+
       /* Store verified EA bytes; the OS/2 adapter merges with 0x0009
        * before performing any filesystem changes. */
       rc = iz_os2_xtr_stage_native_pinned (p->output_name, native,
@@ -895,7 +921,13 @@ xtr_apply_pending (int selective)
                    "(code=%d): %s\n", rc, p->output_name);
           return 1;
         }
+      xtr_staged_owners++;
+      xtr_staged_attributes += (unsigned long)ea_count;
     }
+
+  if (skipped)
+    fprintf (stderr, "unzip: warning: %u Xtro companion(s) excluded "
+             "because their owners were not selected\n", skipped);
 
   return 0;
 }

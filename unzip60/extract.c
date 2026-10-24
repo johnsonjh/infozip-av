@@ -2014,6 +2014,8 @@ extern int xtr_unzip_streams;
 #if defined(XTR_OS2_NATIVE)
 #include "xtrunzip_os2.c"
 #define XTR_STAGE_END(info,name,status) xtr_stage_end(info,name,status)
+/* Test mode discovers owners for diagnostics without applying native EAs. */
+#define XTR_STATUS_DISCOVERY_ACTIVE (XTR_RESTORE_ACTIVE || uO.tflag)
 #elif defined(XTR_WIN_NATIVE) && defined(WIN32)
 #include "xtrunzip_win.c"
 #define XTR_STAGE_END(info,name,status) xtr_stage_end(info,name)
@@ -2024,6 +2026,39 @@ extern int xtr_unzip_streams;
 #include "xtrunzip_linux.c"
 #define XTR_STAGE_END(info,name,status) xtr_stage_end(info,name)
 #endif
+#ifndef XTR_STATUS_DISCOVERY_ACTIVE
+#define XTR_STATUS_DISCOVERY_ACTIVE XTR_RESTORE_ACTIVE
+#endif
+#endif
+#ifndef SFX
+/* This is the sole implementation of archive-level metadata associations.
+ * Compiled here and used by ZipInfo too; it never opens an output file or
+ * takes part in deciding whether metadata can actually be restored. */
+#include "xtro_assoc.c"
+#if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(DLL)
+#define UZ_XTRO_ASSOC_ACTIVE (uO.tflag || XTR_RESTORE_ACTIVE)
+#define UZ_XTRO_DISPLAY_RESTORE XTR_RESTORE_ACTIVE
+#else
+#define UZ_XTRO_ASSOC_ACTIVE (uO.tflag)
+#define UZ_XTRO_DISPLAY_RESTORE 0
+#endif
+static const char *uz_xtro_display_name(const char *name, int enabled)
+{
+    static char label[FILNAMSIZ + 16];
+    if (!enabled) return name;
+    return uz_xtro_assoc_label(name, label, sizeof(label));
+}
+#define XTR_COMPANION_STATUS(info,name) \
+    uz_xtro_display_name(name, UZ_XTRO_ASSOC_ACTIVE)
+#define XTR_COMPANION_VERB(info,normal) \
+    (UZ_XTRO_DISPLAY_RESTORE && uz_xtro_assoc_is_companion(G.filename) ? \
+     "staging" : (normal))
+#endif
+#ifndef XTR_COMPANION_STATUS
+#define XTR_COMPANION_STATUS(info,name) (name)
+#endif
+#ifndef XTR_COMPANION_VERB
+#define XTR_COMPANION_VERB(info,normal) (normal)
 #endif
 static int store_info OF((__GPRO));
 #ifdef SET_DIR_ATTRIB
@@ -2568,6 +2603,9 @@ int extract_or_test_files(__G)    /* return PK-type error code */
 #ifdef PKAV_SUPPORT
     pkav_reset(__G);
 #endif
+#ifndef SFX
+    uz_xtro_assoc_reset();
+#endif
     G.pInfo = G.info;
 #if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
     xtr_restore_rejected=0;
@@ -2726,6 +2764,13 @@ int extract_or_test_files(__G)    /* return PK-type error code */
                     break;
                 }
             }
+#ifndef SFX
+            /* Discover every owner, including excluded or unselected ones.
+             * Labels work with opaque AES payloads: central extras suffice. */
+            if (UZ_XTRO_ASSOC_ACTIVE)
+                (void)uz_xtro_assoc_note(G.filename, G.extra_field,
+                                         G.crec.extra_field_length);
+#endif
             if ((error = fwkcs_note_cdir(__G)) != PK_COOL) {
                 if (error > error_in_archive)
                     error_in_archive = error;
@@ -2823,7 +2868,7 @@ int extract_or_test_files(__G)    /* return PK-type error code */
         } /* end while-loop (adding files to current block) */
 
 #if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
-        if(XTR_RESTORE_ACTIVE && xtr_restore_rejected){
+        if(XTR_STATUS_DISCOVERY_ACTIVE && xtr_restore_rejected){
             xtr_cleanup_block(G.info,j);
             xtr_release_registry();
             return PK_ERR;
@@ -2846,7 +2891,7 @@ int extract_or_test_files(__G)    /* return PK-type error code */
 #endif
                         error_in_archive);
 #if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
-        if(XTR_RESTORE_ACTIVE){
+        if(XTR_STATUS_DISCOVERY_ACTIVE){
             xtr_cleanup_block(G.info,j);
             if(xtr_restore_rejected && error < PK_ERR)error=PK_ERR;
         }
@@ -2917,7 +2962,7 @@ int extract_or_test_files(__G)    /* return PK-type error code */
 #endif /* SYMLINKS */
 
 #if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
-    if(XTR_RESTORE_ACTIVE){
+    if(XTR_RESTORE_ACTIVE && !uO.tflag){
         if(!xtr_restore_rejected && error_in_archive==PK_COOL &&
            xtr_apply_pending(G.filespecs!=0 || G.xfilespecs!=0)!=0)error_in_archive=PK_ERR;
     }
@@ -2927,14 +2972,14 @@ int extract_or_test_files(__G)    /* return PK-type error code */
     /* Restore the verified directory xattrs while the newly created
        directories are still writable. UnZip's deferred chmod and timestamps
        must run afterward, so read-only modes can be restored faithfully. */
-    if(XTR_RESTORE_ACTIVE && !xtr_restore_rejected &&
+    if(XTR_RESTORE_ACTIVE && !uO.tflag && !xtr_restore_rejected &&
        error_in_archive==PK_COOL && xtr_apply_directories()!=0)
         error_in_archive=PK_ERR;
 #endif
 
 #if defined(XTR_OS2_NATIVE) && !defined(SFX) && !defined(DLL)
     {extern int iz_os2_xtr_ea_complete(int);
-     if(iz_os2_xtr_ea_complete(reached_end &&
+     if(iz_os2_xtr_ea_complete(!uO.tflag && reached_end &&
                       error_in_archive==PK_COOL && !xtr_restore_rejected)!=PK_OK &&
         error_in_archive==PK_COOL)error_in_archive=PK_ERR;}
     /* Deferred native SYMLINK EA activation uses its own DosOpen. Release
@@ -2952,6 +2997,16 @@ int extract_or_test_files(__G)    /* return PK-type error code */
                                        error_in_archive==PK_COOL)!=PK_OK &&
          error_in_archive==PK_COOL)error_in_archive=PK_ERR;
     }
+#endif
+
+#if defined(XTR_OS2_NATIVE) && !defined(SFX) && !defined(DLL)
+    /* Both ordinary EAs and deferred SYMLINK EAs must be committed and
+     * read back before reporting success, never merely decompressed. */
+    if(XTR_RESTORE_ACTIVE && !uO.tflag && xtr_staged_owners &&
+       error_in_archive==PK_COOL)
+        fprintf(stderr,"unzip: OS/2 Xtro restored %lu EA(s) for %lu "
+                "owner(s); native read-back verified\n",
+                xtr_staged_attributes,xtr_staged_owners);
 #endif
 
 /*---------------------------------------------------------------------------
@@ -3009,7 +3064,7 @@ int extract_or_test_files(__G)    /* return PK-type error code */
     }
 #endif /* SET_DIR_ATTRIB */
 #if (defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(XTR_BSD_TEST) || (defined(XTR_WIN_NATIVE) && defined(WIN32)) || defined(XTR_OS2_NATIVE)) && !defined(SFX) && !defined(DLL)
-    if(XTR_RESTORE_ACTIVE)xtr_release_registry();
+    if(XTR_STATUS_DISCOVERY_ACTIVE)xtr_release_registry();
 #endif
 
 /*---------------------------------------------------------------------------
@@ -3054,6 +3109,9 @@ int extract_or_test_files(__G)    /* return PK-type error code */
 #ifdef PKAV_SUPPORT
         pkav_reset(__G);
 #endif
+#ifndef SFX
+        uz_xtro_assoc_reset();
+#endif
         return error_in_archive;
     }
 
@@ -3078,6 +3136,30 @@ int extract_or_test_files(__G)    /* return PK-type error code */
             error_in_archive = PK_WARN;
     }
 #endif /* !SFX */
+#ifndef SFX
+    /* If a companion preceded its owner, the initial progress line cannot
+     * name the owner. Resolve that line now, after scanning the full central
+     * directory, without changing success/error status or writing files. */
+    if (UZ_XTRO_ASSOC_ACTIVE && uO.qflag < 2) {
+        const uz_xtro_assoc *a;
+        for (a = uz_xtro_assoc_first(); a; a = uz_xtro_assoc_next(a)) {
+            char member[52];
+            const char *owner;
+            if (!uz_xtro_assoc_needs_followup(a)) continue;
+            owner = uz_xtro_assoc_owner(a);
+            uz_xtro_assoc_member_name(a, member);
+            Info(slide, 0, ((char *)slide,
+                 "  Xtro late association: %s\n", FnFilter1(member)));
+            if (owner)
+                Info(slide, 0, ((char *)slide,
+                     "    [Xtro: %s]\n", FnFilter1(owner)));
+            else
+                Info(slide, 0, ((char *)slide,
+                     "    [Xtro: owner unavailable or ambiguous]\n"));
+        }
+    }
+    uz_xtro_assoc_reset();
+#endif
     if (uO.tflag) {
         ulg num = filnum - num_bad_pwd;
 
@@ -3473,7 +3555,7 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
         }
     }
 #endif
-    if(XTR_RESTORE_ACTIVE && xtr_note_central(G.pInfo,G.extra_field,
+    if(XTR_STATUS_DISCOVERY_ACTIVE && xtr_note_central(G.pInfo,G.extra_field,
                                            G.crec.extra_field_length,G.filename)) {
         if(G.pInfo->cfilname){
             zffree(G.pInfo->cfilname);
@@ -4337,7 +4419,8 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
     if (uO.tflag) {
         if (!uO.qflag)
             Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg), "test",
-              FnFilter1(G.filename), "", "", "", ""));
+              FnFilter1(XTR_COMPANION_STATUS(G.pInfo,G.filename)),
+              "", "", "", ""));
     } else {
 #ifdef DLL
         if (uO.cflag && !G.redirect_data)
@@ -4444,7 +4527,9 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
                 else
 #endif /* SYMLINKS */
                 Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
-                  "extract", FnFilter1(G.filename), avmark, avsep,
+                  XTR_COMPANION_VERB(G.pInfo,"extract"),
+                  FnFilter1(XTR_COMPANION_STATUS(G.pInfo,G.filename)),
+                  avmark, avsep,
                   (uO.aflag != 1 /* && G.pInfo->textfile==G.pInfo->textmode */)?
                   "" : (G.lrec.ucsize == 0L? nul : (G.pInfo->textfile? txt :
                   bin)), uO.cflag? NEWLINE : ""));
@@ -4892,7 +4977,9 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
 #endif
             if (!uO.tflag && QCOND2) {
                 Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
-                  "inflat", FnFilter1(G.filename), avmark, avsep,
+                  XTR_COMPANION_VERB(G.pInfo,"inflat"),
+                  FnFilter1(XTR_COMPANION_STATUS(G.pInfo,G.filename)),
+                  avmark, avsep,
                   (uO.aflag != 1 /* && G.pInfo->textfile==G.pInfo->textmode */)?
                   "" : (G.pInfo->textfile? txt : bin), uO.cflag? NEWLINE : ""));
             }

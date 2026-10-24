@@ -24,6 +24,7 @@
 
 #define UNZIP_INTERNAL
 #include "unzip.h"
+#include "xtro_assoc.h"
 #include "crc32.h"
 
 
@@ -804,6 +805,7 @@ int zipinfo(__G)   /* return PK-type error code */
     unsigned aes_total_ovh;
     zusz_t endprev;   /* buffers end of previous entry for zi_long()'s check
                        *  of extra bytes */
+    const uz_xtro_assoc *xtr_assoc;
 
     /* Keep the normal fatal-skip result while releasing match arrays. */
 #define ZI_SKIP_(length) \
@@ -839,6 +841,9 @@ int zipinfo(__G)   /* return PK-type error code */
   ---------------------------------------------------------------------------*/
 
     uO.L_flag = FALSE;      /* zipinfo mode: never convert name to lowercase */
+    /* Human-readable detail only: do not alter the stable short/medium
+     * listings or the raw archive member names used by scripts. */
+    uz_xtro_assoc_reset();
     G.pInfo = G.info;       /* (re-)initialize, (just to make sure) */
     G.pInfo->textmode = 0;  /* so one can read on screen (is this ever used?) */
 
@@ -942,6 +947,13 @@ int zipinfo(__G)   /* return PK-type error code */
                  */
             }
 
+            if (uO.lflag == 10) {
+                (void)uz_xtro_assoc_note(G.filename, G.extra_field,
+                                         G.crec.extra_field_length);
+                uz_xtro_assoc_select(G.filename, G.extra_field,
+                                     G.crec.extra_field_length);
+            }
+
             switch (uO.lflag) {
                 case 1:
                 case 2:
@@ -1009,13 +1021,53 @@ int zipinfo(__G)   /* return PK-type error code */
 #endif
 
         } else {        /* not listing this file */
-            ZI_SKIP_(G.crec.extra_field_length)
+            if (uO.lflag == 10) {
+                if ((error = do_string(__G__ G.crec.extra_field_length,
+                                       EXTRA_FIELD)) != PK_COOL) {
+                    if (error > error_in_archive) error_in_archive = error;
+                    if (error > PK_WARN) break;
+                }
+                (void)uz_xtro_assoc_note(G.filename, G.extra_field,
+                                         G.crec.extra_field_length);
+            } else {
+                ZI_SKIP_(G.crec.extra_field_length)
+            }
             ZI_SKIP_(G.crec.file_comment_length)
             if (endprev != 0) endprev = 0;
 
         } /* end if (list member?) */
 
     } /* end for-loop (j: member files) */
+
+    /* Emit after scanning the entire central directory. This resolves
+     * reverse-ordered archives where the metadata companion precedes its
+     * owner, and includes AES companions without decrypting payloads. */
+    if (uO.lflag == 10) {
+        int heading = FALSE;
+        for (xtr_assoc = uz_xtro_assoc_first(); xtr_assoc;
+             xtr_assoc = uz_xtro_assoc_next(xtr_assoc)) {
+            char member[52];
+            const char *owner;
+            if (!uz_xtro_assoc_has_companion(xtr_assoc) ||
+                !uz_xtro_assoc_is_selected(xtr_assoc)) continue;
+            if (!heading) {
+                Info(slide, 0, ((char *)slide,
+                  "\nXtro metadata companion associations:\n"));
+                heading = TRUE;
+            }
+            uz_xtro_assoc_member_name(xtr_assoc, member);
+            owner = uz_xtro_assoc_owner(xtr_assoc);
+            Info(slide, 0, ((char *)slide,
+                 "  %s\n", FnFilter1(member)));
+            if (owner)
+                Info(slide, 0, ((char *)slide,
+                     "    [Xtro: %s]\n", FnFilter1(owner)));
+            else
+                Info(slide, 0, ((char *)slide,
+                     "    [Xtro: owner unavailable or ambiguous]\n"));
+        }
+    }
+    uz_xtro_assoc_reset();
 
 /*---------------------------------------------------------------------------
     Check that we actually found requested files; if so, print totals.
@@ -2117,6 +2169,19 @@ ef_default_display:
         }
         (*G.message)((zvoid *)&G, (uch *)"\n", 1L, 0);
     }
+
+    /* Describe the *owner* in the usual verbose entry, while the archive-
+     * wide summary below resolves companion filenames even in reverse order. */
+    if (uz_xtro_assoc_extra_kind(G.extra_field,
+                                 G.crec.extra_field_length) ==
+        UZ_XTRO_ASSOC_OWNER)
+        Info(slide, 0, ((char *)slide,
+             "  Xtro metadata: stored in linked companion member\n"));
+    else if (uz_xtro_assoc_extra_kind(G.extra_field,
+                                      G.crec.extra_field_length) ==
+             UZ_XTRO_ASSOC_INLINE)
+        Info(slide, 0, ((char *)slide,
+             "  Xtro metadata: stored inline for this member\n"));
 
     /* high bit == Unix/OS2/NT GMT times (mtime, atime); next bit == UID/GID */
     if ((xattr = (unsigned)((G.crec.external_file_attributes & 0xC000) >> 12))

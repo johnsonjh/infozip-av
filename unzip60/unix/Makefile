@@ -379,7 +379,7 @@ crc32$O:	crc32.c $(UNZIP_H) zip.h crc32.h crc32_pclmul.h crc32_arm.h iz_arm_caps
 crypt$O:	crypt.c izsha1.c izsha1.h izsha1_ni.h iz_arm_crypto.h iz_arm_caps.h wzaes.c wzaes.h ae3_impl.h iz_aes_x86.h iz_arm_crypto.h iz_arm_caps.h iz_arm_crypto.h iz_arm_caps.h $(UNZIP_H) zip.h crypt.h crc32.h ttyio.h
 envargs$O:	envargs.c $(UNZIP_H)
 explode$O:	explode.c $(UNZIP_H)
-extract$O:	extract.c refptr.c wavpackzip.c wzmp3.c wzmp3.h $(UNZIP_H) crc32.h crypt.h xtrunzip_linux.c xtrunzip_bsd.c ../xtrmeta/xtrv1.h ../xtrmeta/xtrlinux.h ../xtrmeta/xtrbsd.h
+extract$O:	extract.c xtro_assoc.c xtro_assoc.h refptr.c wavpackzip.c wzmp3.c wzmp3.h $(UNZIP_H) crc32.h crypt.h xtrunzip_linux.c xtrunzip_bsd.c ../xtrmeta/xtrv1.h ../xtrmeta/xtrlinux.h ../xtrmeta/xtrbsd.h
 fileio$O:	fileio.c fwkcs_fast_md5.inc $(UNZIP_H) crc32.h crypt.h ttyio.h ebcdic.h
 funzip$O:	funzip.c $(UNZIP_H) crc32.h crypt.h ttyio.h
 globals$O:	globals.c $(UNZIP_H)
@@ -392,7 +392,7 @@ ubz2err$O:	ubz2err.c $(UNZIP_H)
 unreduce$O:	unreduce.c $(UNZIP_H)
 unshrink$O:	unshrink.c $(UNZIP_H)
 unzip$O:	unzip.c $(UNZIP_H) crypt.h unzvers.h consts.h iz_accel_status.h iz_arm_caps.h
-zipinfo$O:	zipinfo.c $(UNZIP_H)
+zipinfo$O:	zipinfo.c xtro_assoc.h $(UNZIP_H)
 
 # unzipsfx compilation section
 unzipsfx$O:	unzip.c $(UNZIP_H) crypt.h unzvers.h consts.h
