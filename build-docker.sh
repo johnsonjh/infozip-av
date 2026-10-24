@@ -102,7 +102,7 @@ gh release delete-asset -y v0 dos16.exe || :
 gh release delete-asset -y v0 dos386.exe || :
 gh release delete-asset -y v0 linux32.zip || :
 gh release delete-asset -y v0 linux64.zip || :
-gh release delete-asset -y v0 os2.zip || :
+gh release delete-asset -y v0 os2.exe || :
 gh release delete-asset -y v0 win32.zip || :
 gh release delete-asset -y v0 win64ucrt.zip || :
 gh release delete-asset -y v0 win64.zip || :
