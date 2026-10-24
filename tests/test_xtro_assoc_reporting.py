@@ -13,7 +13,6 @@ import subprocess
 import tempfile
 import zipfile
 
-
 OWNER = bytes.fromhex("0123456789abcdef0123456789abcdef")
 PSEUDO = "__XTRO_ZIP__/x/" + OWNER.hex() + ".xtm"
 NAME = "SOURCE/ONE.TXT"
@@ -41,6 +40,7 @@ def inline_extra():
 
 def make_archive(path, reverse=False, duplicate=False, valid=True, fillers=0):
     with zipfile.ZipFile(path, "w") as out:
+
         def member(name, data, metadata=False):
             info = zipfile.ZipInfo(name)
             if metadata:
