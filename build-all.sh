@@ -416,7 +416,7 @@ env DOS16_EXPERIMENTAL_ZIPDEDUP=1 ./build-dos16.sh
 
 ./build-os2-libs.sh
 ./build-os2.sh
-lxlite /C- /LA- /MR3 /ML1 /MF1 /P- /B- /Y /U- os2/unzipsfx.exe || :
+lxlite /C- /LA- /MR3 /ML2 /MF1 /P- /B- /Y /U- os2/unzipsfx.exe || :
 lxlite /C- /LA- /MR3 /MLN /MF1 /P- /B- /Y /U- os2/*.exe || :
 
 # Done
