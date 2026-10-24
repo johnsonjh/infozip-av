@@ -16,12 +16,22 @@ CONTENTS = {
 }
 
 
-def execute(source, dest, selection, *, failed=None, partial=False, fatal=False,
-            ppmd_oom=False):
+def execute(
+    source,
+    dest,
+    selection,
+    *,
+    failed=None,
+    partial=False,
+    fatal=False,
+    inapplicable=False,
+    ppmd_oom=False
+):
     env = os.environ.copy()
     env.pop("ZO_TEST_FAIL_ID", None)
     env.pop("ZO_TEST_WRITE_PARTIAL", None)
     env.pop("ZO_TEST_FATAL", None)
+    env.pop("ZO_TEST_INAPPLICABLE", None)
     env.pop("ZO_TEST_PPMD_VERIFY_OOM", None)
     if failed is not None:
         env["ZO_TEST_FAIL_ID"] = str(failed)
@@ -29,6 +39,8 @@ def execute(source, dest, selection, *, failed=None, partial=False, fatal=False,
         env["ZO_TEST_WRITE_PARTIAL"] = "1"
     if fatal:
         env["ZO_TEST_FATAL"] = "1"
+    if inapplicable:
+        env["ZO_TEST_INAPPLICABLE"] = "1"
     if ppmd_oom:
         env["ZO_TEST_PPMD_VERIFY_OOM"] = "1"
     args = [str(TESTER)]
@@ -78,6 +90,16 @@ def main():
         assert (
             normal.read_bytes() == skipped.read_bytes()
         ), "partial output from a failed candidate altered final archive"
+
+        # A format-specific codec can decline an unsuitable member without
+        # producing the per-file compressor failure message (e.g. WavPack
+        # on non-WAV audio or an ordinary document).
+        unsupported = base / "inapplicable.zip"
+        r = execute(source, unsupported, "store,ppmd", failed=18, inapplicable=True)
+        assert r.returncode == 0, r.stderr
+        assert "skipping failed compressor" not in r.stderr, r.stderr
+        check_archive(unsupported)
+        assert normal.read_bytes() == unsupported.read_bytes()
 
         # Failure of an earlier candidate must not prevent later encoders.
         later = base / "later.zip"

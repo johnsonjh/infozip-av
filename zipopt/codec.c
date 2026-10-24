@@ -993,6 +993,8 @@ zo_compress (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
                                    settings->wavpack_level,
                                    settings->wavpack_extra_level);
         if (wr < 0) return ZO_COMPRESS_FATAL;
+        if (wr == ZO_WAVPACK_NOT_APPLICABLE)
+          return ZO_COMPRESS_INAPPLICABLE;
         if (wr > 0) s.written = wavpack_size;
         rc = wr > 0;
       }

@@ -12,7 +12,6 @@ import subprocess
 import tempfile
 import zipfile
 
-
 ZIPOPT = Path(__file__).resolve().parent.parent / "zipopt"
 DECODECHECK = ZIPOPT.with_name("zipopt-decodecheck")
 

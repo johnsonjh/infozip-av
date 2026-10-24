@@ -1142,11 +1142,22 @@ struct zlist far *z;    /* zip entry to compress */
 #else
 #if defined(OS2) && defined(OS2_KLIBC_SYMLINKS)
       {
-        char resolved[1024];
-        if (iz_os2_link_resolve(z->name,resolved,sizeof(resolved),1))
-          return ZE_OPEN;
-        if ((ifile = zopen(resolved, fhow)) == fbad)
-          return ZE_OPEN;
+        /* Native Xtro companions use an in-process pseudo-path.  It must
+         * go straight to xtr_os2_stage_open(), rather than to the kLIBC
+         * symlink resolver, which only accepts real filesystem paths. */
+#ifdef XTR_OS2_NATIVE
+        if (xtr_zip_is_stage(z->name,z->iname)) {
+          if ((ifile = zopen(z->name, fhow)) == fbad)
+            return ZE_OPEN;
+        } else
+#endif
+        {
+          char resolved[1024];
+          if (iz_os2_link_resolve(z->name,resolved,sizeof(resolved),1))
+            return ZE_OPEN;
+          if ((ifile = zopen(resolved, fhow)) == fbad)
+            return ZE_OPEN;
+        }
       }
 #else
       if ((ifile = zopen(z->name, fhow)) == fbad)

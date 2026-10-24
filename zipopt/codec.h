@@ -41,6 +41,7 @@ typedef struct zo_settings
 #define ZO_COMPRESS_FATAL  (-1)
 #define ZO_COMPRESS_FAILED 0
 #define ZO_COMPRESS_OK     1
+#define ZO_COMPRESS_INAPPLICABLE 2
 int zo_compress (unsigned candidate, FILE *in, FILE *out, zo_u64 *compressed,
                  const zo_settings *settings);
 

@@ -34,6 +34,11 @@ zo_compress_test (unsigned id, FILE *in, FILE *out, zo_u64 *compressed,
               return ZO_COMPRESS_FATAL;
             }
 
+          if (getenv ("ZO_TEST_INAPPLICABLE"))
+            {
+              return ZO_COMPRESS_INAPPLICABLE;
+            }
+
           return ZO_COMPRESS_FAILED;
         }
     }

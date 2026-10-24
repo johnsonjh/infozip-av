@@ -163,12 +163,16 @@ endif
 ZO_WAVPACK ?= auto
 ZO_WAVPACK_CFLAGS ?= $(shell pkg-config --cflags wavpack 2>/dev/null)
 ZO_WAVPACK_LIBS ?= $(shell pkg-config --libs wavpack 2>/dev/null)
+# Upstream wavpack.h uses C++-style comments, which GCC rejects when the
+# global ZipOpt C89 setting is in effect. Relax only the SDK probe and the
+# encoder object: ZipOpt's own core and codec adapter remain strict C89.
+ZO_WAVPACK_HEADER_CSTD ?= -std=gnu89
 ifeq ($(strip $(ZO_WAVPACK_LIBS)),)
   ZO_WAVPACK_LIBS = -lwavpack
 endif
 ZO_WAVPACK_FOUND := no
 ifneq ($(ZO_WAVPACK),off)
-  ZO_WAVPACK_FOUND := $(shell $(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_WAVPACK_CFLAGS) tests/wavpack_probe.c $(ZO_WAVPACK_LIBS) -o /dev/null >/dev/null 2>&1 && echo yes)
+  ZO_WAVPACK_FOUND := $(shell $(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_WAVPACK_HEADER_CSTD) $(ZO_WAVPACK_CFLAGS) tests/wavpack_probe.c $(ZO_WAVPACK_LIBS) -o /dev/null >/dev/null 2>&1 && echo yes)
 endif
 ifeq ($(ZO_WAVPACK),on)
   ifneq ($(ZO_WAVPACK_FOUND),yes)
@@ -191,7 +195,7 @@ $(ZO_WAVPACK_STAMP): | build
 	rm -f build/zo-wavpack-*.stamp
 	touch $@
 build/zo-wavpack-encoder.o: wavpack_encoder.c wavpack_encoder.h archive.h | build
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_WAVPACK_FLAGS) -c $< -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ZO_WAVPACK_HEADER_CSTD) $(ZO_WAVPACK_FLAGS) -c $< -o $@
 
 # The Zip-side codec adapter is compiled separately to prevent cross-pollution
 # of LOCAL_ZIP/LOCAL_UNZIP and to preserve conditional ABI declarations.

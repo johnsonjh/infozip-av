@@ -1808,6 +1808,14 @@ retry_members:
 
           candidate_rc
               = zo_compress (k, decoded, candidate, &compressed, &settings);
+          if (candidate_rc == ZO_COMPRESS_INAPPLICABLE)
+            {
+              /* Not every input is RIFF/WAVE audio.  Rejecting a different
+               * format is routine, not a compressor failure to warn about. */
+              fclose (candidate);
+              candidate = NULL;
+              continue;
+            }
           if (candidate_rc != ZO_COMPRESS_OK)
             {
               if (candidate_rc != ZO_COMPRESS_FAILED)

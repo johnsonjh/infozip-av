@@ -233,7 +233,7 @@ zo_wavpack_encode (FILE *in, FILE *out, zo_u64 *size, unsigned level,
 
   if (!zo_wv_parse (in, &info))
     {
-      return ferror (in) ? -1 : 0;
+      return ferror (in) ? -1 : ZO_WAVPACK_NOT_APPLICABLE;
     }
 
   width = info.width;

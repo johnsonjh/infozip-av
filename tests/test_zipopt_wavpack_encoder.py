@@ -252,10 +252,12 @@ def main():
             bad = base / ("bad%d.zip" % i)
             dest = base / ("bad-out%d.zip" % i)
             archive(bad, data)
-            call(executable, "--methods=wavpack", bad, dest, success=False)
+            rejected = call(executable, "--methods=wavpack", bad, dest, success=False)
+            assert b"skipping failed compressor wavpack" not in rejected.stderr
             assert not dest.exists()
             fallback = base / ("bad-fallback%d.zip" % i)
-            call(executable, "--methods=store,wavpack", bad, fallback)
+            ordinary = call(executable, "--methods=store,wavpack", bad, fallback)
+            assert b"skipping failed compressor wavpack" not in ordinary.stderr
             assert compressed_member(fallback)[0] == 0
         # Deterministic structural/audio mutations: unsupported WAV must not
         # crash or prevent a different selected candidate from succeeding.

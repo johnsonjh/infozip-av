@@ -149,6 +149,10 @@ unzip --xattrs DIRPRIVATE.ZIP -d PRIVDIR
 Confirm the exact warning `OS/2 AES uses time/memory-derived salts; secure
 entropy is NOT guaranteed.` when AES encryption is performed. Record that the
 **directory owner remains unencrypted** while its companion is encrypted.
+The encrypted Xtro companion is staged in memory; its pseudo-path must never
+be passed through native filesystem or symlink resolution. The AES test must
+finish without a `writing Xtro companion` open error, and the decrypted EA
+must pass the byte-for-byte fixture check.
 Neither local nor central headers should contain plaintext `XTROTEST`,
 `XTRODIR`, or plaintext EA value bytes. The AES compatibility entropy is
 predictable and **not** suitable for valuable secrets. Test AES-128, AES-192,
