@@ -1726,7 +1726,6 @@ local void help_extended()
 "              deflate64   - ZIP Deflate64 (method 9; -1..-9 presets)",
 #endif
 "              dcl-implode - PKWARE DCL Implode (method 10)",
-"              tamp        - Tamp (method 31340; -1..-9 presets)",
 #ifdef LPAQ8_ENCODE_SUPPORT
 "              lpaq8       - PAQZIP LPAQ8 (method 20; -1..-9 presets)",
 #endif
@@ -1747,6 +1746,7 @@ local void help_extended()
 "              ppmd        - PPMd Variant I (method 98; -1..-9 presets)",
 #ifdef LZFSE_SUPPORT
 "              lzfse       - Apple LZFSE (method 99)",
+"              tamp        - Tamp (method 31340; -1..-9 presets)",
 #endif
 #endif
 "",
