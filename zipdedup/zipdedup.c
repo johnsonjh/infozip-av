@@ -4,10 +4,10 @@
  */
 
 #undef ZD_VER
-#define ZD_VER "0.6"
+#define ZD_VER "0.7"
 
 #undef ZD_DATE
-#define ZD_DATE "2026-10-22"
+#define ZD_DATE "2026-10-26"
 
 #if !defined(_WIN32) && !defined(__DJGPP__) && !defined(ZD_DOS16) && !defined(OS2) && !defined(_FILE_OFFSET_BITS)
 # define _FILE_OFFSET_BITS 64
