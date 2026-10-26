@@ -515,6 +515,96 @@ find_best_match (TampCompressor *compressor, xtrt_u16 *match_index,
 #endif /* if TAMP_ESP32 */
 
 #if TAMP_LAZY_MATCHING
+static xtrt_bool
+tamp_price_normal_suffix (TampCompressor *compressor, xtrt_u8 first_len,
+                          unsigned first_bits, unsigned *total_bits)
+{
+  TampCompressor sim;
+  unsigned char saved_window[16];
+  xtrt_u16 mask;
+  xtrt_u16 base_pos;
+  xtrt_u8 written;
+  xtrt_bool valid;
+  unsigned bits;
+
+  if (first_len > compressor->input_size)
+    return 0;
+  sim = *compressor;
+  mask = (xtrt_u16) ((1UL << sim.conf.window) - 1UL);
+  base_pos = (xtrt_u16) sim.window_pos;
+  written = 0;
+  valid = 1;
+  bits = first_bits;
+
+  while (sim.input_size != 0)
+    {
+      xtrt_u8 count;
+      xtrt_u8 j;
+
+      if (written == 0)
+        count = first_len;
+      else
+        {
+          xtrt_u16 index;
+          xtrt_u8 found;
+
+          /* The upstream RLE handler may defer consumption and updates to
+           * another poll.  Do not guess its costs or simulate that path. */
+          if (sim.conf.extended
+              && sim.input[sim.input_pos]
+                     == sim.window[(sim.window_pos - 1U) & mask])
+            {
+              valid = 0;
+              break;
+            }
+          index = 0;
+          found = 0;
+          find_best_match (&sim, &index, &found);
+          if (found < sim.min_pattern_size)
+            {
+              count = 1;
+              bits += sim.conf.literal + 1U;
+            }
+          else if (sim.conf.extended
+                   && found > sim.min_pattern_size + 11)
+            {
+              /* A V2 match can continue across input-buffer boundaries. */
+              valid = 0;
+              break;
+            }
+          else
+            {
+              count = found;
+              bits += huffman_bits[found - sim.min_pattern_size]
+                      + sim.conf.window;
+            }
+        }
+
+      /* The initial action has already been priced by the caller. */
+      for (j = 0; j < count; j++)
+        {
+          xtrt_u16 pos = (xtrt_u16) ((base_pos + written) & mask);
+          saved_window[written] = sim.window[pos];
+          sim.window[pos]
+              = sim.input[(sim.input_pos + j) & 0x0FU];
+          written++;
+        }
+      sim.input_pos = (sim.input_pos + count) & 0x0FU;
+      sim.input_size -= count;
+      sim.window_pos = (sim.window_pos + count) & mask;
+    }
+
+  /* Every modification is to a different position: 16 < minimum window. */
+  while (written != 0)
+    {
+      written--;
+      sim.window[(base_pos + written) & mask] = saved_window[written];
+    }
+  if (valid)
+    *total_bits = bits;
+  return valid;
+}
+
 /**
  * @brief Check if writing a single byte will overlap with a future match
  * section.
@@ -1126,6 +1216,7 @@ tamp_compressor_poll (TampCompressor *compressor, unsigned char *output,
         {
           xtrt_u16 next_match_index;
           xtrt_u8 next_match_size;
+          xtrt_bool prefer_lazy;
           /* Temporarily advance input position to check next position */
           compressor->input_pos = input_add (1);
           compressor->input_size--;
@@ -1138,10 +1229,37 @@ tamp_compressor_poll (TampCompressor *compressor, unsigned char *output,
           compressor->input_pos = input_add (-1);
           compressor->input_size++;
 
-          /* If next position has a better match, and the match doesn't overlap
-           * with the literal we are writing, emit */
-          /* literal and cache the next match */
+          /* Only use the cost-aware decision.  If either projected suffix
+           * cannot be priced reliably, keep the current greedy match. */
+          prefer_lazy = 0;
           if (next_match_size > match_size
+              && next_match_size <= compressor->min_pattern_size + 11)
+            {
+              unsigned current_bits;
+              unsigned lazy_bits;
+              xtrt_bool have_current;
+              xtrt_bool have_lazy;
+              unsigned first_current_bits
+                  = huffman_bits[match_size - compressor->min_pattern_size]
+                    + conf_window;
+              unsigned first_lazy_bits
+                  = conf_literal + 1U
+                    + huffman_bits[next_match_size
+                                   - compressor->min_pattern_size]
+                    + conf_window;
+              have_current = tamp_price_normal_suffix (
+                  compressor, match_size, first_current_bits, &current_bits);
+              have_lazy = tamp_price_normal_suffix (
+                  compressor, (xtrt_u8) (next_match_size + 1U),
+                  first_lazy_bits, &lazy_bits);
+              if (have_current && have_lazy)
+                prefer_lazy = lazy_bits <= current_bits;
+            }
+
+          /* If next position has a better match, and the match
+           * doesn't overlap with the literal we are writing,
+           * emit literal and cache the next match */
+          if (prefer_lazy
               && validate_no_match_overlap (compressor->window_pos,
                                             next_match_index, next_match_size))
             {
