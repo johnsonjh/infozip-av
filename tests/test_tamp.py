@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""Tamp method 31340 interoperability/CLI/round-trip regression suite.
-
-Run against freshly built binaries.  --upstream-dir enables independent
-interoperability checks using Brian Pugh's pure-Python reference package.
-
-  python3 tests/test_tamp.py --zip zip30/zip --unzip unzip60/unzip \
-      --funzip unzip60/funzip --zipopt zipopt/zipopt \
-      --zipdedup zipdedup/zipdedup \
-      --upstream-dir /path/to/tamp-upstream
-"""
 
 import argparse
 import io
@@ -311,17 +301,27 @@ def main():
             str(source),
             good=False,
         )
-        run(
-            str(args.zip),
-            "-q",
-            "-Z",
-            "tamp",
-            "-10",
-            str(directory / "level10.zip"),
-            str(source),
-            good=False,
-        )
-        count += 2
+        count += 1
+        # Reserve -10 explicitly: parsing it as -1 followed by -0 silently
+        # chooses STORE.  Neither spelling may create an archive.
+        for spelling, tag in (("-10", "short"), ("--compress-10", "long")):
+            rejected = directory / f"level10_{tag}.zip"
+            result = run(
+                str(args.zip),
+                "-q",
+                "-Z",
+                "tamp",
+                spelling,
+                str(rejected),
+                str(source),
+                good=False,
+            )
+            assert result.returncode == 16, (spelling, result.returncode)
+            assert (
+                b"invalid argument" in (result.stdout + result.stderr).lower()
+            ), spelling
+            assert not rejected.exists(), spelling
+            count += 1
 
         # Tamp must also pass through the ordinary ZIP encryption layers.
         # AES stores method 99 in the ZIP headers and 31340 in extra 0x9901.
