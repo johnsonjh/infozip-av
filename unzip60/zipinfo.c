@@ -211,6 +211,7 @@ static ZCONST char Far MthdLZMA[] = "LZMA-ed";
 static ZCONST char Far MthdTerse[] = "IBM TERSE or Xceed BWT (method 18)";
 static ZCONST char Far MthdLZ77[] = "LZ77-compressed (IBM)";
 static ZCONST char Far MthdZstd[] = "Zstandard-compressed";
+static ZCONST char Far MthdTamp[] = "Tamp-compressed (nonstandard method 31340)";
 
 #ifdef IZ_LPAQ8_ENABLED
 /* A central-directory listing cannot safely infer the compressed stream! */
@@ -1237,7 +1238,7 @@ static int zi_long(__G__ pEndprev, error_in_archive)
         MthdNone, MthdShrunk, MthdRedF1, MthdRedF2, MthdRedF3, MthdRedF4,
         MthdImplode, MthdToken, MthdDeflate, MthdDeflat64, MthdDCLImplode,
         MthdBZip2, MthdLZMA, MthdTerse, MthdLZ77, Mthd20, MthdZstd,
-        MthdRefPtr, MthdWZMP3, MthdXZ, MthdWZJPEG, MthdWavPack, MthdPPMd, MthdCMPSC
+        MthdRefPtr, MthdWZMP3, MthdXZ, MthdWZJPEG, MthdWavPack, MthdPPMd, MthdCMPSC, MthdTamp
     };
     static ZCONST char Far *dtypelng[4] = {
         DeflNorm, DeflMax, DeflFast, DeflSFast
@@ -2264,7 +2265,7 @@ static int zi_short(__G)   /* return PK-type error code */
 #else
         "zstd",
 #endif
-        "zstd", "rptr", "mp3 ", "xz  ", "wj96", "wavp", "ppmd", "cmps", "u###"
+        "zstd", "rptr", "mp3 ", "xz  ", "wj96", "wavp", "ppmd", "cmps", "tamp", "u###"
     };
 
 

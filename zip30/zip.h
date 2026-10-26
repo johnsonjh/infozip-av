@@ -386,6 +386,7 @@ extern int scanimage;           /* Scan through image files */
 #define XZ 95                   /* XZ/LZMA2 method */
 #define PPMD 98                 /* PPMd Variant I, ZIP method 98 */
 #define LZFSE 99                /* Apple LZFSE (unofficial ZIP method 99) */
+#define TAMP 31340U             /* Tamp (unofficial ZIP method 31340) */
 
 /* Shrink is ANSI C and its allocations fit 16-bit memory segments */
 #if !defined(NO_SHRINK) && !defined(NO_PROTO) && !defined(NO_CONST) && \
@@ -461,7 +462,7 @@ extern int scanimage;           /* Scan through image files */
 /* Compression methods which Zip recognizes while reading existing archives.
  * Keep this explicit: modern method numbers are sparse (14, 16, 20, 93, 95, 98, 99). */
 #define KNOWN_COMPMETHOD(m) \
-    ((m) <= BZIP2 || (m) == LZMA || (m) == ZSTD_OLD || \
+    (((m) >= STORE && (m) <= BZIP2) || (m) == TAMP || (m) == LZMA || (m) == ZSTD_OLD || \
      (m) == ZSTD || (m) == XZ || (m) == PPMD || (m) == CMPSC16 || \
      (m) == LZFSE)
 
@@ -494,6 +495,7 @@ extern int iz_aes_quantum;
 extern unsigned long iz_aes_iterations; /* AE-3 PBKDF2 iterations */
 extern int zstd_level;          /* 0=generic mapping, otherwise native 1..22 */
 extern int zstd_deprecated_method; /* write deprecated Zstd method 20 when selected */
+extern int tamp_lazy_mode;      /* -1=level default, 0=off, 1=on */
 extern int translate_eol;       /* Translate end-of-line LF -> CR LF */
 #ifdef VMS
    extern int vmsver;           /* Append VMS version number to file names */

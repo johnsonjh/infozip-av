@@ -294,6 +294,7 @@ zo_need_version (unsigned method)
     case 97:
     case 93:
     case 95:
+    case 31340:
       return 20;
 
     case 9:

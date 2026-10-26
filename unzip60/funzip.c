@@ -119,6 +119,7 @@
 #include "unzip.h"
 #include "crc32.h"
 #include "crypt.h"
+#include "../common/xtr_tamp.h"
 #include "ttyio.h"
 #include "../xtrmeta/source_epoch.h"
 #include <time.h>
@@ -281,6 +282,88 @@ ulg w;          /* number of bytes to flush */
 
 #endif /* ?(USE_DEFLATE64 && __16BIT__) */
 
+/* fUnZip has no central directory; the local header's compressed size must
+ * delimit a Tamp member.  All bytes go through NEXTBYTE, so ZipCrypto uses
+ * the identical decrypt/CRC/output path as Deflate. */
+static void funzip_tamp(compressed_size)
+ulg compressed_size;
+{
+  TampConf conf;
+  TampDecompressor decoder;
+  uch header[2];
+  uch input[256];
+  uch *window;
+  unsigned hlen;
+  size_t hread, pos, got, consumed, produced;
+  tamp_res status;
+  unsigned want, i;
+  int ch;
+
+  if (!compressed_size)
+    err(4, "Tamp stream has no compressed size in local header");
+  ch = NEXTBYTE;
+  if (ch == EOF)
+    err(4, "truncated Tamp stream header");
+  header[0] = (uch)ch;
+  compressed_size--;
+  hlen = (unsigned)(1U + (header[0] & 1U));
+  if (hlen == 2U) {
+    if (!compressed_size)
+      err(4, "truncated Tamp stream header");
+    ch = NEXTBYTE;
+    if (ch == EOF)
+      err(4, "truncated Tamp stream header");
+    header[1] = (uch)ch;
+    compressed_size--;
+  }
+  memset(&conf, 0, sizeof(conf));
+  status = tamp_decompressor_read_header(&conf, header, (size_t)hlen, &hread);
+  if (status != TAMP_OK || hread != (size_t)hlen)
+    err(4, "invalid Tamp stream header");
+  if (conf.use_custom_dictionary)
+    err(4, "Tamp custom-dictionary streams are not supported");
+
+  window = (uch *)malloc((size_t)(1UL << conf.window));
+  if (!window)
+    err(1, "out of memory for Tamp dictionary");
+  status = tamp_decompressor_init(&decoder, &conf, window, (xtrt_u8)conf.window);
+  if (status != TAMP_OK)
+    err(4, "invalid Tamp configuration");
+
+  while (compressed_size) {
+    want = compressed_size < 256UL ? (unsigned)compressed_size : 256U;
+    for (i = 0; i < want; i++) {
+      ch = NEXTBYTE;
+      if (ch == EOF)
+        err(4, "truncated Tamp stream");
+      input[i] = (uch)ch;
+    }
+    compressed_size -= (ulg)want;
+    got = (size_t)want;
+    pos = 0;
+    while (pos < got) {
+      status = tamp_decompressor_decompress(&decoder, slide, 1024U,
+                         &produced, input + pos, got - pos, &consumed);
+      if (status < 0 || (consumed == 0 && produced == 0))
+        err(4, "invalid Tamp compressed data");
+      pos += consumed;
+      if (produced)
+        flush(__G__ (ulg)produced);
+    }
+  }
+  for (;;) {
+    status = tamp_decompressor_decompress(&decoder, slide, 1024U,
+                                          &produced, input, 0, &consumed);
+    if (status < 0 || consumed)
+      err(4, "invalid trailing Tamp data");
+    if (produced)
+      flush(__G__ (ulg)produced);
+    else
+      break;
+  }
+  free(window);
+}
+
 
 int main(argc, argv)
 int argc;
@@ -421,12 +504,13 @@ char **argv;
     switch (method = SH(h + LOCHOW)) {
       case STORED:
       case DEFLATED:
+      case TAMPED:
 #ifdef USE_DEFLATE64
       case ENHDEFLATED:
 #endif
         break;
       default:
-        err(3, "first entry not deflated or stored--cannot unpack");
+        err(3, "unsupported compression method for fUnZip");
         break;
     }
     for (n = SH(h + LOCFIL); n--; ) g = getc(G.in);
@@ -498,7 +582,19 @@ char **argv;
     if ((G.inbuf = (uch *)malloc(INBUFSIZ)) == (uch *)NULL)
        err(1, "out of memory");
 #endif /* USE_ZLIB */
-    if ((r = UZinflate(__G__ (method == ENHDEFLATED))) != 0) {
+    if (method == TAMPED) {
+      ulg csize = LG(h + LOCSIZ);
+#if CRYPT
+      if (encrypted) {
+        if (csize < (ulg)RAND_HEAD_LEN)
+          err(4, "invalid Tamp encrypted size");
+        csize -= (ulg)RAND_HEAD_LEN;
+      }
+#endif
+      if (h[LOCFLG] & EXTFLG)
+        err(4, "Tamp requires a local compressed size (no data descriptor)");
+      funzip_tamp(csize);
+    } else if ((r = UZinflate(__G__ (method == ENHDEFLATED))) != 0) {
       if (r == 3)
         err(1, "out of memory");
       else
@@ -507,7 +603,8 @@ char **argv;
 #if defined(USE_ZLIB) && defined(USE_DEFLATE64)
     iz_inflate64_free(__G);
 #endif
-    inflate_free(__G);
+    if (method != TAMPED)
+      inflate_free(__G);
   }
   else
   {                             /* stored entry */
@@ -580,3 +677,5 @@ char **argv;
   DESTROYGLOBALS();
   RETURN (0);
 }
+
+#include "../common/xtr_tamp.c"

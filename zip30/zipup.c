@@ -19,6 +19,7 @@
    different sizes and needless to say leads to segmentation faults.  Putting
    zip.h first seems to fix this.  8/14/04 EG */
 #include "zip.h"
+#include "../common/xtr_tamp.h"
 #ifdef USE_LIBDEFLATE
 # include <libdeflate.h>
 extern int xld_zip_enabled;
@@ -270,6 +271,7 @@ local zoff_t zopflifilecompress OF((struct zlist far *z_entry, int *cmpr_method)
 local zoff_t deflate64filecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
 local zoff_t dclfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
+local zoff_t tampfilecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #ifdef LPAQ8_ENCODE_SUPPORT
 local zoff_t lpaq8filecompress OF((struct zlist far *z_entry, int *cmpr_method));
 #endif
@@ -514,7 +516,8 @@ local int fwkcs_add_extra(z, digest)
  */
 local int iz_aes_append_extra(z, version, strength, method)
     struct zlist far *z;
-    int version, strength, method;
+    int version, strength;
+    unsigned method; /* ZIP method IDs are unsigned 16-bit fields. */
 {
     unsigned l = z->ext, c = z->cext;
     char *lp, *cp;
@@ -1505,6 +1508,9 @@ struct zlist far *z;    /* zip entry to compress */
     if (m == DCLIMPLODE) {
       s = dclfilecompress(z, &m);
     }
+    else if (m == TAMP) {
+      s = tampfilecompress(z, &m);
+    }
 #ifdef SHRINK_SUPPORT
     else if (m == SHRINK) {
       s = shrinkfilecompress(z, &m);
@@ -1870,6 +1876,8 @@ struct zlist far *z;    /* zip entry to compress */
 #endif
       case DCLIMPLODE:
         z->ver = 20; break;
+      case TAMP:
+        z->ver = 20; break;
 #ifdef BZIP2_SUPPORT
       case BZIP2:
         z->ver = 46; break;
@@ -1973,6 +1981,8 @@ struct zlist far *z;    /* zip entry to compress */
       fprintf(mesg, " (imploded %d%%)\n", percent(isize, s));
     else if (m == DCLIMPLODE)
       fprintf(mesg, " (DCL imploded %d%%)\n", percent(isize, s));
+    else if (m == TAMP)
+      fprintf(mesg, " (Tamp compressed %d%%)\n", percent(isize, s));
 #ifdef LPAQ8_ENCODE_SUPPORT
     else if (m == LPAQ8)
       fprintf(mesg, " (LPAQ8 compressed %d%%)\n", percent(isize, s));
@@ -2029,6 +2039,8 @@ struct zlist far *z;    /* zip entry to compress */
       fprintf(logfile, " (imploded %d%%)\n", percent(isize, s));
     else if (m == DCLIMPLODE)
       fprintf(logfile, " (DCL imploded %d%%)\n", percent(isize, s));
+    else if (m == TAMP)
+      fprintf(logfile, " (Tamp compressed %d%%)\n", percent(isize, s));
 #ifdef LPAQ8_ENCODE_SUPPORT
     else if (m == LPAQ8)
       fprintf(logfile, " (LPAQ8 compressed %d%%)\n", percent(isize, s));
@@ -2416,6 +2428,115 @@ local zoff_t small_store_finish(s, cmpr_method, cmpr_size)
 
     small_store_discard(s);
     return result;
+}
+
+local zoff_t tampfilecompress(z_entry, cmpr_method)
+    struct zlist far *z_entry;
+    int *cmpr_method;
+{
+    TampConf conf;
+    TampCompressor compressor;
+    struct small_store_state store_test;
+    uch *window;
+    uch *input;
+    uch *output;
+    unsigned got;
+    size_t pos;
+    size_t consumed;
+    size_t produced;
+    size_t window_size;
+    zoff_t compressed_size;
+    tamp_res res;
+    int failure;
+
+    memset(&conf, 0, sizeof(conf));
+    conf.window = (unsigned)(level <= 2 ? 8 : level >= 9 ? 15 : level + 6);
+    conf.literal = 8;
+    conf.extended = 1;
+    conf.lazy_matching = (unsigned)(tamp_lazy_mode == -1 ? level == 11 :
+                                    tamp_lazy_mode != 0);
+    window_size = (size_t)(1UL << conf.window);
+    window = (uch *)malloc(window_size);
+    input = (uch *)malloc(1024U);
+    output = (uch *)malloc(1024U);
+    if (window == NULL || input == NULL || output == NULL) {
+        free(window);
+        free(input);
+        free(output);
+        ziperr(ZE_MEM, "allocating Tamp compression buffers");
+    }
+    res = tamp_compressor_init(&compressor, &conf, window);
+    if (res != TAMP_OK) {
+        free(window);
+        free(input);
+        free(output);
+        ziperr(ZE_COMPERR, "initializing Tamp compression");
+    }
+
+    small_store_init(&store_test, 4096U);
+    compressed_size = 0;
+    failure = ZE_OK;
+
+    for (;;) {
+        got = small_store_read(&store_test, (char *)input, 1024U);
+        if (got == (unsigned)EOF)
+            got = 0;
+        if (got && !file_binary_final && !is_text_buf((char *)input, got))
+            file_binary_final = 1;
+        pos = 0;
+        while (pos < (size_t)got) {
+            res = tamp_compressor_compress(&compressor, output, 1024U,
+                                            &produced, input + pos,
+                                            (size_t)got - pos, &consumed);
+            if (res < 0 || (consumed == 0 && produced == 0)) {
+                failure = ZE_COMPERR;
+                break;
+            }
+            pos += consumed;
+            if (produced) {
+                if (small_store_write(&store_test, output,
+                                      (unsigned)produced) != (unsigned)produced) {
+                    failure = ZE_TEMP;
+                    break;
+                }
+                compressed_size += (zoff_t)produced;
+            }
+        }
+        if (failure != ZE_OK || got == 0)
+            break;
+    }
+    while (failure == ZE_OK) {
+        res = tamp_compressor_flush(&compressor, output, 1024U,
+                                    &produced, 0);
+        if (res < 0) {
+            failure = ZE_COMPERR;
+            break;
+        }
+        if (produced) {
+            if (small_store_write(&store_test, output,
+                                  (unsigned)produced) != (unsigned)produced) {
+                failure = ZE_TEMP;
+                break;
+            }
+            compressed_size += (zoff_t)produced;
+        }
+        if (res == TAMP_OK)
+            break;
+        if (produced == 0) {
+            failure = ZE_COMPERR;
+            break;
+        }
+    }
+
+    free(window);
+    free(input);
+    free(output);
+    if (failure != ZE_OK) {
+        small_store_discard(&store_test);
+        ziperr(failure, "Tamp compression failed");
+    }
+    z_entry->att = (ush)(file_binary_final ? BINARY : ASCII);
+    return small_store_finish(&store_test, cmpr_method, compressed_size);
 }
 
 #ifdef USE_LIBDEFLATE
@@ -4403,3 +4524,8 @@ write_error:
     return (zoff_t)-1;
 }
 #endif /* LZFSE_SUPPORT */
+
+#ifndef UTIL
+/* Single-unit amalgamation; no platform-specific build-file changes. */
+#include "../common/xtr_tamp.c"
+#endif

@@ -269,6 +269,9 @@ zo_method_name (unsigned method)
 
     case 99U:
       return "lzfse";
+
+    case 31340U:
+      return "tamp";
     }
 
   for (i = 0; i < zo_candidate_count; i++)

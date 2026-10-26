@@ -49,6 +49,7 @@ ulg dcl_implode_dict = 0;    /* 0=automatic, otherwise 1K/2K/4K */
 int dcl_implode_optimal = 0; /* 1=enable optimal DCL parse */
 int zstd_level = 0;
 int zstd_deprecated_method = 0; /* --zstd-deprecated-method: write method 20 */
+int tamp_lazy_mode = -1;       /* --tamp-lazy-matching[-] */
 int iz_aes_quantum = 0; /* --aes-mode=quantum */
 int iz_aes_mode = 0;    /* zero=ZipCrypto/off, one=WinZip AES */
 int iz_aes_strength = 256; /* AES key size in bits */

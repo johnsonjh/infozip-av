@@ -53,6 +53,151 @@
 
 #include "crc32.h"
 #include "crypt.h"
+#include "../common/xtr_tamp.h"
+
+static int uz_tamp_decompress(__G)
+    __GDEF
+{
+    TampConf conf;
+    TampDecompressor decoder;
+    uch header[2];
+    uch *window;
+    uch *output;
+    unsigned header_size;
+    size_t header_consumed;
+    size_t available;
+    size_t consumed;
+    size_t produced;
+    size_t output_limit;
+    zoff_t remaining;
+    zusz_t total_out;
+    tamp_res status;
+    int r;
+    int ch;
+
+    remaining = G.csize + (zoff_t)G.incnt;
+    if (remaining < 1)
+        return PK_ERR;
+    ch = NEXTBYTE;
+    if (ch == EOF)
+        return PK_ERR;
+    header[0] = (uch)ch;
+    header_size = (unsigned)(1U + (header[0] & 1U));
+    if (remaining < (zoff_t)header_size)
+        return PK_ERR;
+    if (header_size == 2U) {
+        ch = NEXTBYTE;
+        if (ch == EOF)
+            return PK_ERR;
+        header[1] = (uch)ch;
+    }
+
+    memset(&conf, 0, sizeof(conf));
+    status = tamp_decompressor_read_header(&conf, header,
+                                           (size_t)header_size,
+                                           &header_consumed);
+    if (status != TAMP_OK || header_consumed != (size_t)header_size)
+        return PK_ERR;
+    if (conf.use_custom_dictionary) {
+        Info(slide, 0x401, ((char *)slide,
+             "Tamp custom-dictionary streams are not supported: %s\n",
+             FnFilter1(G.filename)));
+        return PK_ERR;
+    }
+
+    window = (uch *)malloc((size_t)(1UL << conf.window));
+    output = (uch *)malloc(1024U);
+    if (window == NULL || output == NULL) {
+        free(window);
+        free(output);
+        return PK_MEM3;
+    }
+    status = tamp_decompressor_init(&decoder, &conf, window,
+                                    (xtrt_u8)conf.window);
+    if (status != TAMP_OK) {
+        free(window);
+        free(output);
+        return PK_ERR;
+    }
+#if defined(DLL) && !defined(NO_SLIDE_REDIR)
+    if (G.redirect_slide) {
+        if (G.redirect_size == 0) {
+            free(window);
+            free(output);
+            return PK_ERR;
+        }
+        redirSlide = G.redirect_buffer;
+    } else {
+        redirSlide = slide;
+    }
+#endif
+    total_out = 0;
+    r = PK_COOL;
+
+    for (;;) {
+        remaining = G.csize + (zoff_t)G.incnt;
+        if (remaining < 0) {
+            r = PK_ERR;
+            break;
+        }
+        if (remaining && G.incnt <= 0 && G.csize > 0 &&
+            fillinbuf(__G) == 0) {
+            r = PK_ERR;
+            break;
+        }
+        available = (size_t)(G.incnt > 0 ? G.incnt : 0);
+        if ((zoff_t)available > remaining)
+            available = (size_t)remaining;
+        if (remaining && available == 0) {
+            r = PK_ERR;
+            break;
+        }
+        /* Leave a single output byte for detecting overlong streams even
+         * after exactly the advertised uncompressed length is produced. */
+        output_limit = G.lrec.ucsize - total_out >= (zusz_t)1024U ?
+                       1024U : (size_t)(G.lrec.ucsize - total_out);
+#if defined(DLL) && !defined(NO_SLIDE_REDIR)
+        if (G.redirect_slide && output_limit > G.redirect_size)
+            output_limit = G.redirect_size;
+#endif
+        if (output_limit == 0)
+            output_limit = 1;
+
+        status = tamp_decompressor_decompress(&decoder, output, output_limit,
+                                               &produced,
+                                               available ? G.inptr : output,
+                                               available, &consumed);
+        if (status < 0 || consumed > available ||
+            (zusz_t)produced > G.lrec.ucsize - total_out) {
+            r = PK_ERR;
+            break;
+        }
+        G.inptr += (unsigned)consumed;
+        G.incnt -= (int)consumed;
+        if (produced) {
+            /* FLUSH expects its input in the active slide buffer. */
+            memcpy(redirSlide, output, produced);
+            r = FLUSH((unsigned)produced);
+            if (r != PK_COOL)
+                break;
+            total_out += (zusz_t)produced;
+        }
+        if (consumed == 0 && produced == 0) {
+            if (remaining != 0) r = PK_ERR;
+            break;
+        }
+        if (remaining == (zoff_t)consumed &&
+            status == TAMP_INPUT_EXHAUSTED && produced == 0)
+            break;
+    }
+
+    if (r == PK_COOL && (total_out != G.lrec.ucsize ||
+        G.csize + (zoff_t)G.incnt != 0))
+        r = PK_ERR;
+    free(window);
+    free(output);
+    return r;
+}
 
 #if defined(USE_LIBDEFLATE) && !defined(SFX)
 # include <libdeflate.h>
@@ -2178,17 +2323,18 @@ static ZCONST char Far ComprMsgNum[] =
    static ZCONST char Far CmprWavPack[]    = "WavPack";
    static ZCONST char Far CmprPPMd[]       = "PPMd";
    static ZCONST char Far CmprCMPSC[]      = "IBM CMPSC";
+   static ZCONST char Far CmprTamp[]       = "Tamp";
    static ZCONST char Far *ComprNames[NUM_METHODS] = {
      CmprNone, CmprShrink, CmprReduce, CmprReduce, CmprReduce, CmprReduce,
      CmprImplode, CmprTokenize, CmprDeflate, CmprDeflat64, CmprDCLImplode,
      CmprBzip, CmprLZMA, CmprIBMTerse, CmprIBMLZ77, CmprZstd, CmprZstd,
-     CmprRefPtr, CmprWZMP3, CmprXZ, CmprWinJPEG, CmprWavPack, CmprPPMd, CmprCMPSC
+     CmprRefPtr, CmprWZMP3, CmprXZ, CmprWinJPEG, CmprWavPack, CmprPPMd, CmprCMPSC, CmprTamp
    };
    static ZCONST unsigned ComprIDs[NUM_METHODS] = {
      STORED, SHRUNK, REDUCED1, REDUCED2, REDUCED3, REDUCED4,
      IMPLODED, TOKENIZED, DEFLATED, ENHDEFLATED, DCLIMPLODED,
      BZIPPED, LZMAED, IBMTERSED, IBMLZ77ED, ZSTD_OLD, ZSTDED,
-     REFPTR, WZMP3ED, XZED, WZJPEGED, WAVPACKED, PPMDED, CMPSCED
+     REFPTR, WZMP3ED, XZED, WZJPEGED, WAVPACKED, PPMDED, CMPSCED, TAMPED
    };
 #endif /* !SFX */
 static ZCONST char Far FilNamMsg[] =
@@ -3287,6 +3433,8 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #  define UNKN_LZFSE TRUE
 #endif
 
+#define UNKN_TAMP (G.crec.compression_method!=TAMPED)
+
 #ifdef USE_XCEED_BWT
 #  define UNKN_XCEED_BWT (G.crec.compression_method!=IBMTERSED)
 #else
@@ -3310,11 +3458,11 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method<DEFLATED \
       && G.crec.compression_method>ENHDEFLATED \
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT && UNKN_TAMP)
 #  else
 #    define UNKN_COMPR \
      (G.crec.compression_method!=STORED && G.crec.compression_method!=DEFLATED\
-      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT)
+      && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT && UNKN_TAMP)
 #  endif
 #else
 #  ifdef USE_OLDUNZIP
@@ -3330,13 +3478,13 @@ static int store_info(__G)   /* return 0 if skipping, 1 if OK */
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>ENHDEFLATED && \
       G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD \
-      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT))
+      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT && UNKN_TAMP))
 #  else
 #    define UNKN_COMPR (UNKN_RED || UNKN_SHR || \
      G.crec.compression_method==TOKENIZED || \
      (G.crec.compression_method>DEFLATED && \
       G.crec.compression_method!=DCLIMPLODED && UNKN_BZ2 && UNKN_LZMA && UNKN_XZ && UNKN_WZMP3 && UNKN_WZJPEG && UNKN_ZSTD \
-      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT))
+      && UNKN_WAVP && UNKN_REFPTR && UNKN_PPMD && UNKN_CMPSC && UNKN_LZFSE && UNKN_XCEED_BWT && UNKN_TAMP))
 #  endif
 #endif
 
@@ -4888,6 +5036,20 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
             break;
 #endif /* USE_ZSTD || IZ_LPAQ8_ENABLED */
 
+        case TAMPED:
+            if (!uO.tflag && QCOND2)
+                Info(slide, 0, ((char *)slide, LoadFarString(ExtractMsg),
+                    "decod", FnFilter1(G.filename), avmark, avsep,
+                    (uO.aflag != 1 ? "" : (G.pInfo->textfile ? txt : bin)),
+                    uO.cflag ? NEWLINE : ""));
+            r = uz_tamp_decompress(__G);
+            if (r != PK_COOL) {
+                Info(slide, 0x401, ((char *)slide,
+                     "invalid or truncated Tamp stream: %s\n",
+                     FnFilter1(G.filename)));
+                error = r;
+            }
+            break;
 #ifdef USE_LZFSE
         case LZFSEED:
             if (!uO.tflag && QCOND2)
@@ -6434,3 +6596,6 @@ uzbunzip_cleanup_exit:
     return retval;
 } /* end function UZbunzip2() */
 #endif /* USE_BZIP2 */
+
+/* Tamp compression code. */
+#include "../common/xtr_tamp.c"

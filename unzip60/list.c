@@ -152,7 +152,7 @@ int list_files(__G)    /* return PK-type error code */
          "Zstd",
 #endif
          "Zstd", "RefPtr", "WZ-MP3",
-         "XZ", "WzJPEG", "WavPack", "PPMd", "CMPSC", "Unk:###"};
+         "XZ", "WzJPEG", "WavPack", "PPMd", "CMPSC", "Tamp", "Unk:###"};
 
 
 

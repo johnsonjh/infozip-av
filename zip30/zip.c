@@ -1709,7 +1709,7 @@ local void help_extended()
 "Compression:",
 "  -0        store files (without using compression)",
 "  -1 to -9  compress fastest to compress best (default is -6)",
-"  -11       ultra (deflate, deflate64, dcl-implode, zstd, cmpsc, lzfse)",
+"  -11       ultra (deflate, deflate64, dcl-implode, zstd, cmpsc, lzfse, tamp)",
 "  -Z cm     set compression method to cm:",
 "              store       - store without compression, same as option -0",
 #ifdef SHRINK_SUPPORT
@@ -1726,6 +1726,7 @@ local void help_extended()
 "              deflate64   - ZIP Deflate64 (method 9; -1..-9 presets)",
 #endif
 "              dcl-implode - PKWARE DCL Implode (method 10)",
+"              tamp        - Tamp (method 31340; -1..-9 presets)",
 #ifdef LPAQ8_ENCODE_SUPPORT
 "              lpaq8       - PAQZIP LPAQ8 (method 20; -1..-9 presets)",
 #endif
@@ -1751,6 +1752,7 @@ local void help_extended()
 "",
 "Compression tuning:",
 "  --disable-store-fallback[-]      disable/enable automatic store fallback",
+"  --tamp-lazy-matching[-]          enable/disable Tamp encoder lazy matching",
 #ifdef USE_LIBDEFLATE
 "  --use-libdeflate[-]              enable/disable bounded libdeflate (method 8)",
 "  --libdeflate-size n|auto         libdeflate memory limit (default is '1MiB')",
@@ -2110,6 +2112,7 @@ local void version_info()
 #ifdef PPMD_SUPPORT
     "PPMd Variant I Rev 1 (ZIP method 98; using public-domain PPMd sources)",
 #endif
+    "Tamp                 (ZIP method 31340; Tamp compression supported)",
 #ifdef ZOPFLI_SUPPORT
     "Zopfli               (Zopfli 1.0.3 optimized DEFLATE algorithm)",
 #endif
@@ -3019,6 +3022,7 @@ int set_filetype(out_path)
 #define o_dcl_dict      0x14f
 #define o_dcl_optimal   0x150
 #define o_zstd_level    0x151
+#define o_tamp_lazy     0x183
 #define o_aes_prompt    0x152
 #define o_aes_pass      0x153
 #define o_aes_strength  0x154
@@ -3268,6 +3272,7 @@ struct option_struct far options[] = {
     {"",   "lpaq8-l2-enable", o_NO_VALUE, o_NOT_NEGATABLE, o_lpaq8_l2, "Allow LPAQ8 EXE prefilter mode 2"},
     {"",   "cmpsc-symbol-width", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_cmpsc_width, "CMPSC symbol width (auto or 9..13)"},
     {"",   "zstd-level", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_zstd_level, "Zstd native compression level 1..22"},
+    {"",   "tamp-lazy-matching", o_NO_VALUE, o_NEGATABLE, o_tamp_lazy, "Tamp lazy matching (default at -11)"},
     {"",   "zstd-deprecated-method", o_NO_VALUE, o_NOT_NEGATABLE, o_zstd_deprecated_method, "Write Zstd as deprecated legacy method 20"},
 #if defined(MSDOS) || defined(OS2)
     {"$",  "volume-label", o_NO_VALUE,      o_NOT_NEGATABLE, '$',  "store volume label"},
@@ -3454,6 +3459,7 @@ char **argv;            /* command line tokens */
   dcl_implode_dict = 0;
   dcl_implode_optimal = 0;
   zstd_level = 0;
+  tamp_lazy_mode = -1;
   zstd_deprecated_method = 0;
   iz_aes_mode = 0;
   iz_aes_quantum = 0;
@@ -4641,6 +4647,10 @@ char **argv;            /* command line tokens */
 #endif
           break;
 
+        case o_tamp_lazy:
+          tamp_lazy_mode = negated ? 0 : 1;
+          break;
+
         case o_zstd_deprecated_method:
 #ifndef ZSTD_SUPPORT
           ZIPERR(ZE_COMPERR, "Zstandard support not enabled");
@@ -4747,6 +4757,8 @@ char **argv;            /* command line tokens */
 #else
             ZIPERR(ZE_COMPERR, "Compression method bzip2 not enabled");
 #endif
+          } else if (strcmp(value, "tamp") == 0) {
+            method = TAMP;
           } else if (strcmp(value,"lzfse") == 0) {
 #ifdef LZFSE_SUPPORT
             method = LZFSE;
@@ -4816,7 +4828,7 @@ char **argv;            /* command line tokens */
 #else
 #define LP_STR ""
 #endif
-            zipwarn("valid compression methods include: store, dcl-implode, deflate" SH_STR RE_STR IM_STR D64_STR BZ_STR LZ_STR PP_STR ZS_STR CM_STR LP_STR LF_STR, "");
+            zipwarn("valid compression methods include: store, dcl-implode, deflate, tamp" SH_STR RE_STR IM_STR D64_STR BZ_STR LZ_STR PP_STR ZS_STR CM_STR LP_STR LF_STR, "");
 #undef CM_STR
 #undef LP_STR
 #undef BZ_STR
@@ -5214,6 +5226,12 @@ char **argv;            /* command line tokens */
   }
   if (zstd_deprecated_method && method != ZSTD) {
     ZIPERR(ZE_PARMS, "--zstd-deprecated-method requires -Z zstd");
+  }
+  if (tamp_lazy_mode != -1 && method != TAMP) {
+    ZIPERR(ZE_PARMS, "--tamp-lazy-matching[-] requires -Z tamp");
+  }
+  if (method == TAMP && level == 0) {
+    ZIPERR(ZE_PARMS, "Tamp requires -1..-9 or -11");
   }
 
   /* open log file */

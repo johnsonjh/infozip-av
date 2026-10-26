@@ -1429,6 +1429,7 @@ zd_supported (unsigned m)
     case 6:
     case 8:
     case 10:
+    case 31340:
       return 1;
 
 #ifdef USE_DEFLATE64

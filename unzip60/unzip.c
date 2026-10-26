@@ -487,6 +487,8 @@ static ZCONST char Far ZipInfoUsageLine3[] = "miscellaneous options:\n\
      static ZCONST char Far Use_Deflate64[] =
      "Deflate64 (ZIP method 9; PKZIP 4.x Deflate64(tm) supported)";
 #  endif
+     static ZCONST char Far Use_Tamp[] =
+     "Tamp (ZIP method 31340; Tamp decompression supported)";
 #  ifdef UNICODE_SUPPORT
 #   ifdef UTF8_MAYBE_NATIVE
 #    ifdef UNICODE_WCHAR
@@ -2854,6 +2856,9 @@ static void show_version_info(__G)
           LIBDEFLATE_VERSION_STRING));
         ++numopts;
 #endif
+        Info(slide, 0, ((char *)slide, LoadFarString(CompileOptFormat),
+                       LoadFarStringSmall(Use_Tamp)));
+        ++numopts;
 #ifdef USE_LZMA
         sprintf((char *)(slide+256), LoadFarStringSmall(UseLZMA),
           lzma_version_string());

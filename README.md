@@ -97,32 +97,33 @@ the **DEFLATE** (using a custom
 **Zstandard**, IBM z/OS **CMPSC**, **DCL**‑**Implode**, and Apple
 **LZFSE** methods.
 
-|   Method | Description                                           | Decompression | Compression |
-|---------:|:------------------------------------------------------|:-------------:|:-----------:|
-|  **`0`** | Store&nbsp;(no&nbsp;compression)                      |       ✅      |      ✅     |
-|  **`1`** | Shrink                                                |       ✅      |      ✅     |
-|  **`2`** | Reduce&nbsp;(level&nbsp;1)                            |       ✅      |      ✅     |
-|  **`3`** | Reduce&nbsp;(level&nbsp;2)                            |       ✅      |      ✅     |
-|  **`4`** | Reduce&nbsp;(level&nbsp;3)                            |       ✅      |      ✅     |
-|  **`5`** | Reduce&nbsp;(level&nbsp;4)                            |       ✅      |      ✅     |
-|  **`6`** | ZIP‑Implode                                           |       ✅      |      ✅     |
-|  **`8`** | DEFLATE                                               |       ✅      |      ✅     |
-|  **`9`** | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)               |       ✅      |      ✅     |
-| **`10`** | DCL‑Implode                                           |       ✅      |      ✅     |
-| **`12`** | bzip2<sup>2</sup>                                     |       ✅      |      ✅     |
-| **`14`** | LZMA<sup>3</sup>                                      |       ✅      |      ✅     |
-| **`16`** | IBM&nbsp;z/OS&nbsp;CMPSC                              |       ✅      |      ✅     |
-| **`18`** | BWT<sup>4</sup>                                       |       ✅      |             |
-| **`20`** | LPAQ8<sup>5</sup>                                     |       ✅      |      ✅     |
-| **`20`** | Zstandard&nbsp;(deprecated)                           |       ✅      |      ✅     |
-| **`92`** | Reference&nbsp;Link<sup>6</sup>&nbsp;(de‑duplication) |       ✅      |      ✅     |
-| **`93`** | Zstandard<sup>7</sup>                                 |       ✅      |      ✅     |
-| **`94`** | WZ‑MP3                                                |       ✅      |             |
-| **`95`** | XZ/LZMA2<sup>3</sup>                                  |       ✅      |      ✅     |
-| **`96`** | WZ‑JPEG<sup>3</sup>                                   |       ✅      |             |
-| **`97`** | WavPack<sup>8</sup>                                   |       ✅      |      ✅     |
-| **`98`** | PPMd&nbsp;version&nbsp;I&nbsp;(8)&nbsp;Rev&nbsp;1     |       ✅      |      ✅     |
-| **`99`** | LZFSE<sup>9</sup>                                     |       ✅      |      ✅     |
+|      Method | Description                                           | Decompression | Compression |
+|------------:|:------------------------------------------------------|:-------------:|:-----------:|
+|  **`0`**    | Store&nbsp;(no&nbsp;compression)                      |       ✅      |      ✅     |
+|  **`1`**    | Shrink                                                |       ✅      |      ✅     |
+|  **`2`**    | Reduce&nbsp;(level&nbsp;1)                            |       ✅      |      ✅     |
+|  **`3`**    | Reduce&nbsp;(level&nbsp;2)                            |       ✅      |      ✅     |
+|  **`4`**    | Reduce&nbsp;(level&nbsp;3)                            |       ✅      |      ✅     |
+|  **`5`**    | Reduce&nbsp;(level&nbsp;4)                            |       ✅      |      ✅     |
+|  **`6`**    | ZIP‑Implode                                           |       ✅      |      ✅     |
+|  **`8`**    | DEFLATE                                               |       ✅      |      ✅     |
+|  **`9`**    | Deflate64™&nbsp;(Enhanced&nbsp;DEFLATE)               |       ✅      |      ✅     |
+| **`10`**    | DCL‑Implode                                           |       ✅      |      ✅     |
+| **`12`**    | bzip2<sup>2</sup>                                     |       ✅      |      ✅     |
+| **`14`**    | LZMA<sup>3</sup>                                      |       ✅      |      ✅     |
+| **`16`**    | IBM&nbsp;z/OS&nbsp;CMPSC                              |       ✅      |      ✅     |
+| **`18`**    | BWT<sup>4</sup>                                       |       ✅      |             |
+| **`20`**    | LPAQ8<sup>5</sup>                                     |       ✅      |      ✅     |
+| **`20`**    | Zstandard&nbsp;(deprecated)                           |       ✅      |      ✅     |
+| **`92`**    | Reference&nbsp;Link<sup>6</sup>&nbsp;(de‑duplication) |       ✅      |      ✅     |
+| **`93`**    | Zstandard<sup>7</sup>                                 |       ✅      |      ✅     |
+| **`94`**    | WZ‑MP3                                                |       ✅      |             |
+| **`95`**    | XZ/LZMA2<sup>3</sup>                                  |       ✅      |      ✅     |
+| **`96`**    | WZ‑JPEG<sup>3</sup>                                   |       ✅      |             |
+| **`97`**    | WavPack<sup>8</sup>                                   |       ✅      |      ✅     |
+| **`98`**    | PPMd&nbsp;version&nbsp;I&nbsp;(8)&nbsp;Rev&nbsp;1     |       ✅      |      ✅     |
+| **`99`**    | LZFSE<sup>9</sup>                                     |       ✅      |      ✅     |
+| **`31340`** | Tamp<sup>10</sup>                                     |       ✅      |      ✅     |
 
 > [!NOTE]
 > Methods 1 through 6 are *legacy algorithms* and are no longer
@@ -171,6 +172,8 @@ the **DEFLATE** (using a custom
 > <sup>**9**</sup>&nbsp;LZFSE is a **non‑standard** Apple extension that shares
 > method `99` with WinZip AES; Xtro‑ZIP automatically determines the proper
 > format using metadata analysis.
+>
+> <sup>**10**</sup>&nbsp;Tamp is a **non‑standard** Xtro‑ZIP extension.
 
 These changes are built using Fedoraʼs current Info‑ZIP
 [`zip`](https://src.fedoraproject.org/rpms/zip) (`3.0‑46`,&nbsp;2026‑07‑17),
