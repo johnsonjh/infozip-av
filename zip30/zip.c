@@ -3014,6 +3014,7 @@ int set_filetype(out_path)
 #define o_so            0x133
 #define o_fwkcs_md5     0x14b
 #define o_11            0x14c
+#define o_10            0x184
 #define o_huffman_extra 0x180
 #define o_use_libdeflate 0x181
 #define o_libdeflate_size 0x182
@@ -3110,6 +3111,7 @@ struct option_struct far options[] = {
 #endif
     {"0",  "store",       o_NO_VALUE,       o_NOT_NEGATABLE, '0',  "store"},
     {"1",  "compress-1",  o_NO_VALUE,       o_NOT_NEGATABLE, '1',  "compress 1"},
+    {"10", "compress-10", o_NO_VALUE,       o_NOT_NEGATABLE, o_10, "invalid compression level"},
     {"11", "compress-11", o_NO_VALUE,       o_NOT_NEGATABLE, o_11, "Zopfli deflate"},
     {"", "use-libdeflate", o_NO_VALUE, o_NEGATABLE, o_use_libdeflate, "Use bounded libdeflate for Deflate"},
     {"", "libdeflate-size", o_REQUIRED_VALUE, o_NOT_NEGATABLE, o_libdeflate_size, "Maximum libdeflate member size"},
@@ -3852,6 +3854,9 @@ char **argv;            /* command line tokens */
           level = (int)option - '0'; lpaq8_level_set = 1; break;
         case o_11:
           level = 11; lpaq8_level_set = 1; break;
+        case o_10:
+          ZIPERR(ZE_PARMS, "invalid argument: compression level -10 is invalid");
+          break;
         case 'A':   /* Adjust unzipsfx'd zipfile:  adjust offsets only */
           adjust = 1; break;
 #if defined(WIN32)
