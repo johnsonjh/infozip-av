@@ -726,6 +726,10 @@ No errors detected in compressed data of pkz110.exe.
   use the [`MIT‑0`](LICENSE) licensed
   [PKDCLX](https://github.com/johnsonjh/pkdclx) routines.
 
+* The **Tamp** compression and decompression algorithms used are derived from
+  the [`MIT`](https://github.com/BrianPugh/tamp/blob/main/LICENSE-MIT) licensed
+  upstream [reference implementation](https://github.com/BrianPugh/tamp).
+
 * The **PPMd** compression and decompression implementations are derived from
   the public‑domain [7‑Zip PPMd](https://www.7-zip.org/sdk.html) routines.
 
