@@ -385,14 +385,14 @@ UNZIP_FLAGS="${LOCAL_UNZIP:-} ${EXTERNAL_ZLIB:-} $UZ_FEATURES $UNZIP_INC -std=gn
 # component trees prevents reuse of Unix, Win32 or Win64 objects and leaves
 # build.sh and its outputs untouched. Each run gets its own staging directory.
 
-mkdir -p "$STAGE/src" "$STAGE/src/common" "$STAGE/bin"
+mkdir -p "$STAGE/src" "$STAGE/bin"
 cp -R "$SOURCE_ROOT/zip30" "$STAGE/src/zip30"
 cp -R "$SOURCE_ROOT/unzip60" "$STAGE/src/unzip60"
 cp -R "$SOURCE_ROOT/zipopt" "$STAGE/src/zipopt"
 cp -R "$SOURCE_ROOT/zipdedup" "$STAGE/src/zipdedup"
-# The source files include this header as ../common/xtrlibdeflate_size.h.
-# Preserve that sibling layout in the private cross-compile stage.
-cp "$SOURCE_ROOT/common/xtrlibdeflate_size.h" "$STAGE/src/common/xtrlibdeflate_size.h"
+# Keep the complete ../common/ sibling: Zip and UnZip include the Tamp
+# implementation directly, and the utilities use the libdeflate helper.
+cp -R "$SOURCE_ROOT/common" "$STAGE/src/common"
 # ZipOpt and ZipDedup compile Xtro's portable metadata core from the
 # staged source tree.  Keep this sibling directory alongside both tools.
 sh "$SOURCE_ROOT/xtrmeta/stage-cross.sh" \
