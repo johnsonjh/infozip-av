@@ -94,7 +94,7 @@ Additionally, **ultra** compression levels, which take extra time and use more
 memory to achieve tighter packing (enabled via `zip ‑11`) are supported for
 the **DEFLATE** (using a custom
 [Zopfli](https://github.com/google/zopfli)‑derived encoder), **Deflate64™**,
-**Zstandard**, IBM z/OS **CMPSC**, **DCL**‑**Implode**, and Apple
+**Zstandard**, IBM z/OS **CMPSC**, **DCL**‑**Implode**, **Tamp**, and Apple
 **LZFSE** methods.
 
 |      Method | Description                                           | Decompression | Compression |
